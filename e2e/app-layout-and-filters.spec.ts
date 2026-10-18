@@ -72,6 +72,32 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
         body: JSON.stringify(MOCK_MATCHES),
       });
     });
+
+    await page.route('**/photon.komoot.io/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {
+                name: 'Karlsruhe',
+                city: 'Karlsruhe',
+                postcode: '76133',
+                state: 'Baden-Württemberg',
+                country: 'Deutschland',
+              },
+              geometry: {
+                type: 'Point',
+                coordinates: [8.4037, 49.0069],
+              },
+            },
+          ],
+        }),
+      });
+    });
   });
 
   test('renders 100% full-screen map geometry and prevents vertical page scrolling', async (
@@ -184,5 +210,94 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     const mapTab = page.getByRole('tab', { name: /Karte/i });
     await mapTab.click();
     await expect(mapTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('searches location by city name or postal code, selects autocomplete suggestion, and persists across reloads', async (
+    { page },
+    testInfo,
+  ) => {
+    await page.goto('/');
+
+    // 1. Open Filter Drawer
+    const filterButton = page.locator('header').getByRole('button', { name: /Filter/i });
+    await filterButton.click();
+
+    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+    await expect(drawer).toBeVisible();
+
+    // Verify initial center is Stuttgart
+    await expect(drawer.getByText('📍 Stuttgart')).toBeVisible();
+
+    // 2. Search for city name 'Karls'
+    const searchInput = drawer.getByRole('textbox', {
+      name: 'Stadt oder Postleitzahl suchen',
+    });
+
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('Karls');
+
+    // 3. Autocomplete listbox appears with instant suggestion 'Karlsruhe'
+    const suggestionBox = drawer.getByRole('listbox', { name: 'Städtevorschläge' });
+    await expect(suggestionBox).toBeVisible();
+
+    const karlsruheOption = suggestionBox
+      .getByRole('option', { name: /Karlsruhe/i })
+      .first();
+
+    await expect(karlsruheOption).toBeVisible();
+
+    // Take visual check screenshot of open drawer with autocomplete dropdown
+    await page.screenshot({
+      path: `test-results/verify-search-drawer-${testInfo.project.name}.png`,
+    });
+
+    // 4. Click 'Karlsruhe' suggestion
+    await karlsruheOption.click();
+
+    // Verify center is now Karlsruhe
+    await expect(drawer.getByText('📍 Karlsruhe')).toBeVisible();
+    await expect(drawer.getByText('(49.0069, 8.4037)')).toBeVisible();
+
+    // Reset button should now be visible
+    const resetButton = drawer.getByRole('button', {
+      name: 'Auf Stuttgart zurücksetzen',
+    });
+
+    await expect(resetButton).toBeVisible();
+
+    // 5. Search for postal code '72072'
+    await searchInput.fill('72072');
+    await expect(suggestionBox).toBeVisible();
+
+    const tuebingenOption = suggestionBox
+      .getByRole('option', { name: /Tübingen/i })
+      .first();
+
+    await expect(tuebingenOption).toBeVisible();
+    await tuebingenOption.click();
+
+    // Verify center is now Tübingen
+    await expect(drawer.getByText(/Tübingen/)).toBeVisible();
+
+    // 6. Close drawer, reload page, and verify persisted in localStorage
+    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+    await expect(drawer).toBeHidden();
+
+    await page.reload();
+
+    const rawStored = await page.evaluate(() =>
+      window.localStorage.getItem('heimspielradar:filters:v1'),
+    );
+
+    expect(rawStored).not.toBeNull();
+    expect(rawStored).toContain('Tübingen');
+
+    // Reopen drawer and verify center is still Tübingen, then reset
+    await page.locator('header').getByRole('button', { name: /Filter/i }).click();
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText(/Tübingen/)).toBeVisible();
+
+    await drawer.getByRole('button', { name: 'Auf Stuttgart zurücksetzen' }).click();
+    await expect(drawer.getByText('📍 Stuttgart')).toBeVisible();
   });
 });

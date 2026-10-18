@@ -743,12 +743,13 @@ export function App() {
           }))
         }
         location={location}
-        onLocationChange={(nextLocation) =>
+        onLocationChange={(nextLocation) => {
+          setSelectedMatchId(null);
           setFilterState((prev) => ({
             ...prev,
             location: nextLocation,
-          }))
-        }
+          }));
+        }}
         leagues={leagues}
         availableGenders={availableGenders}
         availableAgeClasses={availableAgeClasses}
