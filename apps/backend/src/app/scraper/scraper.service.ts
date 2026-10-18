@@ -83,6 +83,9 @@ export class ScraperService {
         seasonId: ligaData.seasonId,
         seasonName: ligaData.seasonName,
         verbandName: ligaData.verbandName || 'Baden-Württemberg',
+        skName: ligaData.skName || null,
+        akName: ligaData.akName || null,
+        geschlecht: ligaData.geschlecht || null,
         rawData: ligaData,
         updatedAt: new Date(),
       })
@@ -91,6 +94,9 @@ export class ScraperService {
         set: {
           name: ligaData.liganame,
           seasonName: ligaData.seasonName,
+          skName: ligaData.skName || null,
+          akName: ligaData.akName || null,
+          geschlecht: ligaData.geschlecht || null,
           rawData: ligaData,
           updatedAt: new Date(),
         },

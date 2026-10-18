@@ -77,6 +77,12 @@ export const geography = customType<{
   },
 });
 
+export interface LeagueRawData {
+  skName?: string;
+  akName?: string;
+  geschlecht?: string;
+}
+
 export const leagues = pgTable('leagues', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
   dbbId: integer('dbb_id').unique().notNull(),
@@ -84,7 +90,10 @@ export const leagues = pgTable('leagues', {
   seasonId: integer('season_id'),
   seasonName: text('season_name'),
   verbandName: text('verband_name'),
-  rawData: jsonb('raw_data'),
+  skName: text('sk_name'),
+  akName: text('ak_name'),
+  geschlecht: text('geschlecht'),
+  rawData: jsonb('raw_data').$type<LeagueRawData>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
