@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { aliasedTable, and, eq, sql, SQL } from 'drizzle-orm';
 import { Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { matches } from '../database/schema';
+import { leagues, matches, teams, venues } from '../database/schema';
 
 @Injectable()
 export class MatchesService {
@@ -12,6 +12,8 @@ export class MatchesService {
 
   /**
    * Search matches for map display by date, coordinates (lat/lng), radius in km, or league.
+   * Uses native PostGIS ST_DWithin and ST_Distance when spatial coordinates are provided,
+   * with fallback to standard attribute filtering when coordinates are null or omitted.
    */
   async findMatches(query: NearbyMatchesQuery): Promise<Match[]> {
     if (!this.db) {
@@ -20,7 +22,15 @@ export class MatchesService {
 
     const { date, lat, lng, radiusKm = 30, leagueId } = query;
 
-    const conditions = [];
+    const hasSpatialCoords =
+      lat !== undefined &&
+      lat !== null &&
+      lng !== undefined &&
+      lng !== null &&
+      !isNaN(lat) &&
+      !isNaN(lng);
+
+    const conditions: SQL[] = [];
 
     if (date) {
       conditions.push(eq(matches.kickoffDate, date));
@@ -30,42 +40,61 @@ export class MatchesService {
       conditions.push(eq(matches.leagueId, leagueId));
     }
 
-    const rows = await this.db.query.matches.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      with: {
-        league: true,
-        homeTeam: true,
-        guestTeam: true,
-        venue: true,
-      },
-    });
+    const homeTeam = aliasedTable(teams, 'home_team');
+    const guestTeam = aliasedTable(teams, 'guest_team');
 
-    const results: Match[] = rows.map((r) => {
+    let distanceKmSql: SQL<number | null> | undefined;
+
+    if (hasSpatialCoords) {
+      const radiusMeters = radiusKm * 1000;
+      const originPoint = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+
+      distanceKmSql = sql<number>`round((ST_Distance(${venues.location}, ${originPoint}) / 1000.0)::numeric, 1)`;
+
+      conditions.push(
+        sql`ST_DWithin(${venues.location}, ${originPoint}, ${radiusMeters})`
+      );
+    }
+
+    const queryBuilder = this.db
+      .select({
+        match: matches,
+        league: leagues,
+        homeTeam,
+        guestTeam,
+        venue: venues,
+        distanceKm: distanceKmSql ?? sql<null>`null`,
+      })
+      .from(matches)
+      .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+      .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+      .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+      .leftJoin(venues, eq(matches.venueId, venues.id));
+
+    if (conditions.length > 0) {
+      queryBuilder.where(and(...conditions));
+    }
+
+    if (hasSpatialCoords && distanceKmSql) {
+      queryBuilder.orderBy(distanceKmSql);
+    }
+
+    const rows = await queryBuilder;
+
+    return rows.map((r) => {
       let distanceKm: number | undefined;
 
-      if (
-        lat !== undefined &&
-        lng !== undefined &&
-        r.venue?.latitude !== null &&
-        r.venue?.latitude !== undefined &&
-        r.venue?.longitude !== null &&
-        r.venue?.longitude !== undefined
-      ) {
-        distanceKm = this.calculateHaversineDistance(
-          lat,
-          lng,
-          r.venue.latitude,
-          r.venue.longitude
-        );
+      if (r.distanceKm !== null && r.distanceKm !== undefined) {
+        distanceKm = Number(r.distanceKm);
       }
 
       return {
-        id: r.id,
-        leagueId: r.leagueId,
-        matchDay: r.matchDay,
-        matchNo: r.matchNo ?? undefined,
-        kickoffDate: r.kickoffDate,
-        kickoffTime: r.kickoffTime ?? '00:00',
+        id: r.match.id,
+        leagueId: r.match.leagueId,
+        matchDay: r.match.matchDay,
+        matchNo: r.match.matchNo ?? undefined,
+        kickoffDate: r.match.kickoffDate,
+        kickoffTime: r.match.kickoffTime ?? '00:00',
         homeTeam: {
           id: r.homeTeam.id,
           dbbId: r.homeTeam.dbbId,
@@ -92,20 +121,11 @@ export class MatchesService {
               geocodedAt: r.venue.geocodedAt ? r.venue.geocodedAt.toISOString() : null,
             }
           : null,
-        result: r.result,
-        confirmed: r.confirmed,
+        result: r.match.result,
+        confirmed: r.match.confirmed,
         distanceKm,
       };
     });
-
-    // If spatial coordinates are given, filter by radius and sort by nearest
-    if (lat !== undefined && lng !== undefined) {
-      return results
-        .filter((m) => m.distanceKm !== undefined && m.distanceKm <= radiusKm)
-        .sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
-    }
-
-    return results;
   }
 
   /**
@@ -126,7 +146,9 @@ export class MatchesService {
       },
     });
 
-    if (!row) return null;
+    if (!row) {
+      return null;
+    }
 
     return {
       id: row.id,
@@ -139,11 +161,15 @@ export class MatchesService {
         id: row.homeTeam.id,
         dbbId: row.homeTeam.dbbId,
         name: row.homeTeam.name,
+        shortName: row.homeTeam.shortName ?? undefined,
+        clubId: row.homeTeam.clubId ?? undefined,
       },
       guestTeam: {
         id: row.guestTeam.id,
         dbbId: row.guestTeam.dbbId,
         name: row.guestTeam.name,
+        shortName: row.guestTeam.shortName ?? undefined,
+        clubId: row.guestTeam.clubId ?? undefined,
       },
       venue: row.venue
         ? {
@@ -154,6 +180,7 @@ export class MatchesService {
             city: row.venue.city ?? '',
             latitude: row.venue.latitude,
             longitude: row.venue.longitude,
+            geocodedAt: row.venue.geocodedAt ? row.venue.geocodedAt.toISOString() : null,
           }
         : null,
       result: row.result,
@@ -164,7 +191,7 @@ export class MatchesService {
   /**
    * Haversine formula to compute great-circle distance between two points in kilometers.
    */
-  private calculateHaversineDistance(
+  calculateHaversineDistance(
     lat1: number,
     lon1: number,
     lat2: number,
