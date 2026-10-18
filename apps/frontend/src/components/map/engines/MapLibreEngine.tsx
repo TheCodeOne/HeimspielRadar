@@ -83,7 +83,7 @@ export function MapLibreEngine({
       zoom,
     });
 
-    map.addControl(new NavigationControl(), 'top-right');
+    map.addControl(new NavigationControl({ showCompass: false }), 'top-left');
 
     map.on('load', () => {
       isLoadedRef.current = true;

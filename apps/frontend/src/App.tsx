@@ -388,7 +388,7 @@ export function App() {
       {toastMessage && (
         <div
           role="status"
-          className="fixed top-16 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+          className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
         >
           <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>{toastMessage}</span>
@@ -407,28 +407,31 @@ export function App() {
       <main className="relative flex flex-1 min-h-0 w-full flex-col overflow-hidden">
         {viewMode === 'map' ? (
           <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
-            {/* Compact Floating Top Summary Pill */}
-            <div className="pointer-events-none absolute top-3 left-1/2 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsFilterDrawerOpen(true)}
-                className="pointer-events-auto flex items-center gap-2 rounded-full border border-border/80 bg-background/90 px-3.5 py-1.5 text-xs shadow-lg backdrop-blur-md transition-colors hover:border-primary/60"
+            {/* Floating Map Summary Chip (Interactive, Responsive & High-Contrast) */}
+            <button
+              type="button"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              aria-label="Filter öffnen"
+              title="Filter und Standort anpassen"
+              className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            >
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                {location.name}
+              </span>
+              <span className="font-mono text-slate-400 shrink-0">
+                • {radiusKm} km
+              </span>
+              <span className="hidden text-slate-400 sm:inline shrink-0">
+                • {dateRangeDisplay}
+              </span>
+              <Badge
+                variant="outline"
+                className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
               >
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                <span className="truncate font-medium max-w-[140px] sm:max-w-[220px]">
-                  {location.name}
-                </span>
-                <span className="font-mono text-muted-foreground shrink-0">
-                  • {radiusKm} km
-                </span>
-                <span className="hidden text-muted-foreground sm:inline shrink-0">
-                  • {dateRangeDisplay}
-                </span>
-                <Badge variant="outline" className="ml-1 shrink-0 font-mono text-[10px]">
-                  {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                </Badge>
-              </button>
-            </div>
+                {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+              </Badge>
+            </button>
 
             {/* Full-Bleed MapContainer */}
             <MapContainer
