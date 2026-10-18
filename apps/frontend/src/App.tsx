@@ -300,7 +300,7 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-2 min-w-0">
-            <span className="truncate font-bold tracking-tight text-sm sm:text-base">
+            <span className="font-bold tracking-tight text-base sm:text-lg text-slate-100 flex items-center gap-2">
               HeimspielRadar
             </span>
             <Badge variant="outline" className="hidden text-[10px] lg:inline-flex">
@@ -317,9 +317,9 @@ export function App() {
           </div>
         </div>
 
-        {/* Center: Segmented View Switcher (🗺️ Karte vs. 📋 Liste) */}
+        {/* Center: Segmented View Switcher (Desktop >= sm: 🗺️ Karte vs. 📋 Liste) */}
         <div
-          className="flex items-center rounded-lg border border-border/80 bg-muted/60 p-1"
+          className="hidden sm:flex items-center rounded-lg border border-border/80 bg-muted/60 p-1"
           role="tablist"
           aria-label="Ansicht wechseln"
         >
@@ -715,6 +715,14 @@ export function App() {
       <FilterBar
         isOpen={isFilterDrawerOpen}
         onClose={() => setIsFilterDrawerOpen(false)}
+        viewMode={viewMode}
+        onViewModeChange={(nextViewMode) =>
+          setFilterState((prev) => ({
+            ...prev,
+            viewMode: nextViewMode,
+          }))
+        }
+        matchesCount={matches.length}
         matchCount={matches.length}
         mapEngine={mapEngine}
         onMapEngineChange={(nextEngine) =>

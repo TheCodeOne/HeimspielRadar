@@ -27,6 +27,9 @@ export interface FilterBarProps {
   isOpen?: boolean;
   onClose?: () => void;
   matchCount?: number;
+  matchesCount?: number;
+  viewMode?: 'map' | 'list';
+  onViewModeChange?: (mode: 'map' | 'list') => void;
   mapEngine?: MapEngineType;
   onMapEngineChange?: (engine: MapEngineType) => void;
   dateMode: DateFilterMode;
@@ -89,6 +92,9 @@ export function FilterBar({
   isOpen = true,
   onClose,
   matchCount = 0,
+  matchesCount,
+  viewMode = 'map',
+  onViewModeChange,
   mapEngine = 'openlayers',
   onMapEngineChange,
   dateMode,
@@ -244,9 +250,58 @@ export function FilterBar({
   }
 
   const isLocatingActive = isLocating || internalLocating;
+  const effectiveMatchCount = matchesCount ?? matchCount;
 
   const filterFormContent = (
     <div className={`space-y-5 ${className}`}>
+      {/* 0. View Mode Switcher Section (Ansicht: 🗺️ Karte vs. 📋 Liste) */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-primary" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Ansicht
+          </span>
+        </div>
+
+        <div
+          className="grid grid-cols-2 gap-1.5 rounded-lg border border-border/80 bg-muted/60 p-1"
+          role="tablist"
+          aria-label="Ansicht wechseln"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'map'}
+            onClick={() => onViewModeChange?.('map')}
+            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+              viewMode === 'map'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🗺️</span>
+            <span>Karte</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'list'}
+            onClick={() => onViewModeChange?.('list')}
+            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+              viewMode === 'list'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>📋</span>
+            <span>Liste ({effectiveMatchCount})</span>
+          </button>
+        </div>
+      </div>
+
+      <hr className="border-border/60" />
+
       {/* 1. Location & Radius Section */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -858,7 +913,7 @@ export function FilterBar({
               onClick={onClose}
               className="flex-1 text-xs font-semibold"
             >
-              {matchCount} {matchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen
+              {effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen
             </Button>
           </div>
         </aside>

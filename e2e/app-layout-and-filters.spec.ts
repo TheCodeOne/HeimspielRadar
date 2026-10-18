@@ -124,23 +124,57 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     const headerBoxAfterScroll = await header.boundingBox();
     expect(headerBoxAfterScroll?.y).toBe(0);
 
-    // 4. Save visual self-check screenshot for agent inspection via view_file
+    // 4. Verify brand title is fully visible and not squished/truncated
+    const brandTitle = header.getByText('HeimspielRadar');
+    await expect(brandTitle).toBeVisible();
+
+    const titleBox = await brandTitle.boundingBox();
+    expect(titleBox).not.toBeNull();
+
+    if (titleBox) {
+      expect(titleBox.width).toBeGreaterThanOrEqual(100);
+    }
+
+    // 5. Save visual self-check screenshot for agent inspection via view_file
     await page.screenshot({
       path: `test-results/verify-${testInfo.project.name}.png`,
     });
   });
 
-  test('toggles between Map and List views and persists Slide-Over Filter Drawer state in localStorage', async ({
-    page,
-  }) => {
+  test('toggles between Map and List views and persists Slide-Over Filter Drawer state in localStorage', async (
+    { page },
+    testInfo,
+  ) => {
     await page.goto('/');
 
+    const isMobile = testInfo.project.name.includes('mobile');
+    const header = page.locator('header');
+    const brandTitle = header.getByText('HeimspielRadar');
+    await expect(brandTitle).toBeVisible();
+
+    const headerTablist = header.getByRole('tablist');
+
+    if (isMobile) {
+      await expect(headerTablist).toBeHidden();
+    } else {
+      await expect(headerTablist).toBeVisible();
+    }
+
     // 1. Open Slide-Over Filter Drawer
-    const filterButton = page.locator('header').getByRole('button', { name: /Filter/i });
+    const filterButton = header.getByRole('button', { name: /Filter/i });
     await filterButton.click();
 
     const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
     await expect(drawer).toBeVisible();
+
+    // Verify Ansicht view switcher is present in the drawer
+    const drawerTablist = drawer.getByRole('tablist');
+    await expect(drawerTablist).toBeVisible();
+
+    const drawerMapTab = drawer.getByRole('tab', { name: /Karte/i });
+    const drawerListTab = drawer.getByRole('tab', { name: /Liste/i });
+    await expect(drawerMapTab).toHaveAttribute('aria-selected', 'true');
+    await expect(drawerListTab).toHaveAttribute('aria-selected', 'false');
 
     // 2. Select 'Alle Termine' so our future mock match is visible, toggle 'Nur anstehende Spiele', and select 'Männlich'
     await drawer.getByRole('button', { name: 'Alle Termine' }).first().click();
@@ -153,23 +187,34 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     const maennlichChip = drawer.getByRole('button', { name: 'Männlich', exact: true });
     await maennlichChip.click();
 
-    // 3. Close drawer via 'Filter schließen' button
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
+    if (isMobile) {
+      // On mobile: switch to List view inside the Filter Drawer
+      await drawerListTab.click();
+      await expect(drawerListTab).toHaveAttribute('aria-selected', 'true');
 
-    // 4. Switch to List View via header segmented control and verify match card renders
-    const listTab = page.getByRole('tab', { name: /Liste/i });
-    await listTab.click();
-    await expect(listTab).toHaveAttribute('aria-selected', 'true');
+      // Save screenshot of open drawer for visual inspection
+      await page.screenshot({
+        path: `test-results/verify-drawer-${testInfo.project.name}.png`,
+      });
+
+      // Close drawer via footer button
+      await drawer.getByRole('button', { name: /Spiele? anzeigen/i }).click();
+      await expect(drawer).toBeHidden();
+    } else {
+      // On desktop: close drawer first, then switch via header segmented control
+      await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+      await expect(drawer).toBeHidden();
+
+      const headerListTab = header.getByRole('tab', { name: /Liste/i });
+      await headerListTab.click();
+      await expect(headerListTab).toHaveAttribute('aria-selected', 'true');
+    }
+
+    // Verify match card renders in List View
     await expect(page.getByText('MTV Stuttgart 1843')).toBeVisible();
 
     // 5. Reload page and verify state persisted in localStorage ('heimspielradar:filters:v1')
     await page.reload();
-
-    await expect(page.getByRole('tab', { name: /Liste/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
 
     const rawStored = await page.evaluate(() =>
       window.localStorage.getItem('heimspielradar:filters:v1'),
@@ -180,9 +225,22 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     expect(rawStored).toContain('"onlyUpcoming":false');
     expect(rawStored).toContain('"männlich"');
 
-    // Switch back to Map View and verify full-screen map container is active again
-    const mapTab = page.getByRole('tab', { name: /Karte/i });
-    await mapTab.click();
-    await expect(mapTab).toHaveAttribute('aria-selected', 'true');
+    if (isMobile) {
+      // On mobile: open drawer and switch back to Map View
+      await filterButton.click();
+      await expect(drawer).toBeVisible();
+
+      const returnMapTab = drawer.getByRole('tab', { name: /Karte/i });
+      await returnMapTab.click();
+      await expect(returnMapTab).toHaveAttribute('aria-selected', 'true');
+
+      await drawer.getByRole('button', { name: /Spiele? anzeigen/i }).click();
+      await expect(drawer).toBeHidden();
+    } else {
+      // On desktop: switch back via header
+      const headerMapTab = header.getByRole('tab', { name: /Karte/i });
+      await headerMapTab.click();
+      await expect(headerMapTab).toHaveAttribute('aria-selected', 'true');
+    }
   });
 });
