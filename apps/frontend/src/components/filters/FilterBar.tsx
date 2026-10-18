@@ -7,6 +7,7 @@ import {
   Loader2,
   LocateFixed,
   Map,
+  MapPin,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -19,9 +20,14 @@ import { MAP_ENGINE_OPTIONS, type MapEngineType } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import {
+  type CitySuggestion,
+  fetchPhotonGeocode,
+  searchCuratedCities,
+} from '@/lib/cities';
 import { formatLastSyncedAt } from '@/lib/date-utils';
 import type { DateFilterMode } from '@/lib/filter-storage';
-import type { LocationReference } from '@/lib/geo-utils';
+import { type LocationReference, STUTTGART_FALLBACK } from '@/lib/geo-utils';
 
 export interface FilterBarProps {
   isOpen?: boolean;
@@ -128,6 +134,226 @@ export function FilterBar({
 }: FilterBarProps) {
   const [internalLocating, setInternalLocating] = React.useState(false);
   const [leagueSearch, setLeagueSearch] = React.useState('');
+  const [cityQuery, setCityQuery] = React.useState('');
+  const [isCityDropdownOpen, setIsCityDropdownOpen] = React.useState(false);
+
+  const [localSuggestions, setLocalSuggestions] =
+    React.useState<CitySuggestion[]>([]);
+
+  const [onlineSuggestions, setOnlineSuggestions] =
+    React.useState<CitySuggestion[]>([]);
+
+  const [isSearchingOnline, setIsSearchingOnline] = React.useState(false);
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
+  const citySearchContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Reset cityQuery and close suggestions when location reference changes
+  React.useEffect(() => {
+    setCityQuery('');
+    setIsCityDropdownOpen(false);
+    setLocalSuggestions([]);
+    setOnlineSuggestions([]);
+  }, [location.name, location.lat, location.lng]);
+
+  // Close city suggestions dropdown on click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        event.target instanceof Node &&
+        citySearchContainerRef.current &&
+        !citySearchContainerRef.current.contains(event.target)
+      ) {
+        setIsCityDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Filter curated cities instantly + debounce online Photon geocoding
+  React.useEffect(() => {
+    const q = cityQuery.trim();
+
+    if (!q) {
+      setLocalSuggestions([]);
+      setOnlineSuggestions([]);
+      setIsSearchingOnline(false);
+
+      return;
+    }
+
+    const local = searchCuratedCities(q, 6);
+
+    setLocalSuggestions(local);
+    setHighlightedIndex(-1);
+
+    if (q.length < 3) {
+      setOnlineSuggestions([]);
+      setIsSearchingOnline(false);
+
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setIsSearchingOnline(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = await fetchPhotonGeocode(
+          q,
+          { lat: location.lat, lng: location.lng },
+          controller.signal,
+        );
+
+        setOnlineSuggestions(results);
+      } catch {
+        setOnlineSuggestions([]);
+      } finally {
+        setIsSearchingOnline(false);
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [cityQuery, location.lat, location.lng]);
+
+  const allSuggestions = React.useMemo(() => {
+    const uniqueOnline = onlineSuggestions.filter((online) => {
+      const onlineLower = online.name.trim().toLowerCase();
+
+      return !localSuggestions.some((local) => {
+        const localLower = local.name.trim().toLowerCase();
+
+        if (
+          onlineLower === localLower ||
+          onlineLower.includes(localLower) ||
+          localLower.includes(onlineLower)
+        ) {
+          return true;
+        }
+
+        const dLat = Math.abs(online.lat - local.lat);
+        const dLng = Math.abs(online.lng - local.lng);
+
+        return dLat < 0.05 && dLng < 0.05;
+      });
+    });
+
+    return [...localSuggestions, ...uniqueOnline];
+  }, [localSuggestions, onlineSuggestions]);
+
+  const handleSelectLocation = React.useCallback(
+    (item: CitySuggestion) => {
+      const q = cityQuery.trim();
+      let selectedName = item.name;
+
+      if (/^\d{5}$/.test(q) && !selectedName.includes(q)) {
+        selectedName = `${q} ${item.name}`;
+      }
+
+      onLocationChange({
+        lat: item.lat,
+        lng: item.lng,
+        name: selectedName,
+      });
+
+      setCityQuery('');
+      setIsCityDropdownOpen(false);
+      setLocalSuggestions([]);
+      setOnlineSuggestions([]);
+    },
+    [cityQuery, onLocationChange],
+  );
+
+  const handleSearchSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+
+    const q = cityQuery.trim();
+
+    if (!q) {
+      return;
+    }
+
+    if (highlightedIndex >= 0 && allSuggestions[highlightedIndex]) {
+      handleSelectLocation(allSuggestions[highlightedIndex]);
+
+      return;
+    }
+
+    if (allSuggestions.length > 0) {
+      handleSelectLocation(allSuggestions[0]);
+
+      return;
+    }
+
+    setIsSearchingOnline(true);
+
+    try {
+      const results = await fetchPhotonGeocode(q, {
+        lat: location.lat,
+        lng: location.lng,
+      });
+
+      if (results.length > 0) {
+        handleSelectLocation(results[0]);
+      }
+    } finally {
+      setIsSearchingOnline(false);
+    }
+  };
+
+  const handleCityInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIsCityDropdownOpen(true);
+      setHighlightedIndex((prev) =>
+        prev < allSuggestions.length - 1 ? prev + 1 : 0,
+      );
+
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIsCityDropdownOpen(true);
+      setHighlightedIndex((prev) =>
+        prev > 0 ? prev - 1 : allSuggestions.length - 1,
+      );
+
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearchSubmit();
+
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      setIsCityDropdownOpen(false);
+
+      return;
+    }
+  };
+
+  const handleClearCitySearch = () => {
+    setCityQuery('');
+    setIsCityDropdownOpen(false);
+    setLocalSuggestions([]);
+    setOnlineSuggestions([]);
+  };
 
   // Close drawer on ESC key press
   React.useEffect(() => {
@@ -330,15 +556,148 @@ export function FilterBar({
           </Button>
         </div>
 
+        {/* City & Postal Code Autocomplete Search */}
+        <div ref={citySearchContainerRef} className="relative">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex items-center gap-1.5"
+          >
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={cityQuery}
+                onChange={(e) => {
+                  setCityQuery(e.target.value);
+                  setIsCityDropdownOpen(true);
+                }}
+                onFocus={() => {
+                  if (cityQuery.trim().length > 0 || allSuggestions.length > 0) {
+                    setIsCityDropdownOpen(true);
+                  }
+                }}
+                onKeyDown={handleCityInputKeyDown}
+                placeholder="Stadt oder PLZ suchen..."
+                aria-label="Stadt oder Postleitzahl suchen"
+                className="w-full rounded-md border border-input bg-background/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {cityQuery && (
+                <button
+                  type="button"
+                  onClick={handleClearCitySearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Suche zurücksetzen"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              disabled={isSearchingOnline || !cityQuery.trim()}
+              className="h-8 px-2.5 text-xs font-medium shrink-0"
+            >
+              {isSearchingOnline ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                'Suchen'
+              )}
+            </Button>
+          </form>
+
+          {/* Autocomplete Dropdown */}
+          {isCityDropdownOpen &&
+            (allSuggestions.length > 0 ||
+              isSearchingOnline ||
+              (cityQuery.trim().length >= 2 &&
+                !isSearchingOnline &&
+                allSuggestions.length === 0)) && (
+              <div
+                role="listbox"
+                aria-label="Städtevorschläge"
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
+              >
+                {allSuggestions.map((suggestion, idx) => {
+                  const isSelected = idx === highlightedIndex;
+
+                  return (
+                    <button
+                      key={`${suggestion.name}-${suggestion.lat}-${suggestion.lng}`}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => handleSelectLocation(suggestion)}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
+                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                        isSelected
+                          ? 'bg-primary/15 font-medium text-primary'
+                          : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="truncate">{suggestion.name}</span>
+                        {suggestion.state && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {suggestion.state}
+                          </span>
+                        )}
+                      </div>
+
+                      {suggestion.postalCodes.length > 0 && (
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground shrink-0">
+                          PLZ {suggestion.postalCodes[0]}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+
+                {isSearchingOnline && (
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
+                    <span>Suche online nach weiteren Orten...</span>
+                  </div>
+                )}
+
+                {!isSearchingOnline &&
+                  allSuggestions.length === 0 &&
+                  cityQuery.trim().length >= 2 && (
+                    <div className="px-2.5 py-2 text-center text-xs text-muted-foreground">
+                      Keine Treffer für &ldquo;{cityQuery}&rdquo;. Drücke Enter für
+                      Online-Suche.
+                    </div>
+                  )}
+              </div>
+            )}
+        </div>
+
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-1.5 truncate">
             <span className="text-muted-foreground">Zentrum:</span>
-            <span className="font-medium text-foreground truncate">
-              {location.name}
+            <span
+              className="font-medium text-foreground truncate"
+              title={`${location.name} (${location.lat}, ${location.lng})`}
+            >
+              📍 {location.name}
             </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="font-mono text-[10px] text-muted-foreground shrink-0">
               ({location.lat}, {location.lng})
             </span>
+            {location.name !== STUTTGART_FALLBACK.name && (
+              <button
+                type="button"
+                onClick={() => onLocationChange(STUTTGART_FALLBACK)}
+                className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title="Auf Stuttgart zurücksetzen"
+                aria-label="Auf Stuttgart zurücksetzen"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
           </div>
 
           <Badge variant="outline" className="font-mono text-xs shrink-0">
