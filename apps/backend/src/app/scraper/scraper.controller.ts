@@ -49,4 +49,10 @@ export class ScraperController {
       concurrency: parsedConcurrency,
     });
   }
+
+  @Post('geocode-missing')
+  @UseGuards(ScraperAuthGuard)
+  async geocodeMissing() {
+    return this.scraperService.geocodeMissingVenues();
+  }
 }

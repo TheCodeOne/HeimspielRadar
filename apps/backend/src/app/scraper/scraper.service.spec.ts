@@ -21,20 +21,54 @@ class MockGeocoderService {
   });
 }
 
-interface MatchVenuePair {
+interface ExistingMatchRow {
   id: number;
   venueId: number | null;
+  result?: string | null;
+}
+
+type MockInsertEntity = {
+  dbbId?: number;
+};
+
+type InsertPayload = MockInsertEntity | MockInsertEntity[];
+
+interface InsertCallRecord {
+  table: PgTable;
+  isBatch: boolean;
+  rowCount: number;
+}
+
+interface VenueCoordinatesUpdate {
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface UpdateCallRecord {
+  table: PgTable;
+  values: VenueCoordinatesUpdate;
 }
 
 class FakeDatabase {
   existingVenues: Array<typeof venues.$inferSelect> = [];
-  existingMatches: MatchVenuePair[] = [];
+  existingMatches: ExistingMatchRow[] = [];
+  insertCalls: InsertCallRecord[] = [];
+  updateCalls: UpdateCallRecord[] = [];
 
   select() {
     return {
       from: (table: PgTable) => {
         if (table === venues) {
-          return Promise.resolve(this.existingVenues);
+          const promise = Promise.resolve(this.existingVenues);
+
+          return Object.assign(promise, {
+            where: () =>
+              Promise.resolve(
+                this.existingVenues.filter(
+                  (v) => v.latitude === null || v.longitude === null
+                )
+              ),
+          });
         }
 
         return {
@@ -44,15 +78,38 @@ class FakeDatabase {
     };
   }
 
-  insert() {
+  insert(table: PgTable) {
     return {
-      values: () => ({
-        onConflictDoUpdate: () => {
-          const promise = Promise.resolve([{ id: 1 }]);
+      values: (vals: InsertPayload) => {
+        const isBatch = Array.isArray(vals);
+        const rowCount = isBatch ? vals.length : 1;
 
-          return Object.assign(promise, {
-            returning: () => Promise.resolve([{ id: 1 }]),
-          });
+        this.insertCalls.push({ table, isBatch, rowCount });
+
+        const returningRows = isBatch
+          ? vals.map((item, idx) => ({ id: idx + 1, dbbId: item.dbbId }))
+          : [{ id: 1, dbbId: vals.dbbId }];
+
+        return {
+          onConflictDoUpdate: () => {
+            const promise = Promise.resolve(returningRows);
+
+            return Object.assign(promise, {
+              returning: () => Promise.resolve(returningRows),
+            });
+          },
+        };
+      },
+    };
+  }
+
+  update(table: PgTable) {
+    return {
+      set: (vals: VenueCoordinatesUpdate) => ({
+        where: () => {
+          this.updateCalls.push({ table, values: vals });
+
+          return Promise.resolve();
         },
       }),
     };
@@ -199,6 +256,146 @@ describe('ScraperService', () => {
       expect(result.syncedMatches).toBe(1);
       expect(mockDbbClient.fetchMatchInfo).not.toHaveBeenCalled();
     });
+
+    it('should gracefully handle matches with null homeTeam, guestTeam, or kickoffDate (#30, #31)', async () => {
+      const byeMatch: DbbMatch = {
+        matchId: 1002,
+        matchDay: 1,
+        kickoffDate: null,
+        kickoffTime: null,
+        homeTeam: null,
+        guestTeam: null,
+      };
+
+      const unscheduledMatch: DbbMatch = {
+        matchId: 1003,
+        matchDay: 2,
+        kickoffDate: null,
+        kickoffTime: null,
+        homeTeam: { seasonTeamId: 10, teamname: 'TV Derendingen' },
+        guestTeam: { seasonTeamId: 20, teamname: 'SV 03 Tübingen' },
+      };
+
+      mockDbbClient.fetchSpielplan.mockResolvedValue({
+        data: {
+          ligaData: sampleSpielplan.data.ligaData,
+          matches: [byeMatch, unscheduledMatch],
+        },
+      });
+
+      const result = await service.syncLeague(53941, { quickSync: true });
+
+      expect(result.totalMatches).toBe(2);
+      expect(result.syncedMatches).toBe(1);
+    });
+
+    it('should completely skip matches that already have a non-empty result in the DB (#32)', async () => {
+      const finishedMatch: DbbMatch = {
+        ...sampleMatch,
+        matchId: 1001,
+        result: '75:68',
+      };
+
+      const openMatch: DbbMatch = {
+        ...sampleMatch,
+        matchId: 1002,
+        result: undefined,
+      };
+
+      mockDbbClient.fetchSpielplan.mockResolvedValue({
+        data: {
+          ligaData: sampleSpielplan.data.ligaData,
+          matches: [finishedMatch, openMatch],
+        },
+      });
+
+      fakeDb.existingMatches = [
+        { id: 1001, venueId: null, result: '75:68' },
+        { id: 1002, venueId: null, result: null },
+      ];
+
+      mockDbbClient.fetchMatchInfo.mockResolvedValue({
+        data: {
+          matchId: 1002,
+          matchInfo: {},
+        },
+      });
+
+      const result = await service.syncLeague(53941);
+
+      expect(result.totalMatches).toBe(2);
+      expect(result.syncedMatches).toBe(1);
+      expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledTimes(1);
+      expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledWith(1002);
+    });
+
+    it('should deduplicate in-flight venue geocoding across concurrent match workers (#32)', async () => {
+      const concurrentMatches: DbbMatch[] = [
+        { ...sampleMatch, matchId: 2001, result: undefined },
+        { ...sampleMatch, matchId: 2002, result: undefined },
+        { ...sampleMatch, matchId: 2003, result: undefined },
+      ];
+
+      mockDbbClient.fetchSpielplan.mockResolvedValue({
+        data: {
+          ligaData: sampleSpielplan.data.ligaData,
+          matches: concurrentMatches,
+        },
+      });
+
+      mockDbbClient.fetchMatchInfo.mockImplementation(async (matchId: number) => ({
+        data: {
+          matchId,
+          matchInfo: {
+            spielfeld: {
+              id: 777,
+              bezeichnung: 'Shared Gym',
+              strasse: 'Hauptstr. 1',
+              plz: '70173',
+              ort: 'Stuttgart',
+            },
+          },
+        },
+      }));
+
+      const result = await service.syncLeague(53941, { matchConcurrency: 3 });
+
+      expect(result.syncedMatches).toBe(3);
+      expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledTimes(3);
+      expect(mockGeocoder.geocodeAddress).toHaveBeenCalledTimes(1);
+      expect(result.syncedVenues).toBe(1);
+      expect(result.geocodedVenues).toBe(1);
+    });
+
+    it('should batch upsert teams and matches in single multi-row queries (#32)', async () => {
+      const m1: DbbMatch = {
+        ...sampleMatch,
+        matchId: 3001,
+        result: undefined,
+      };
+
+      const m2: DbbMatch = {
+        ...sampleMatch,
+        matchId: 3002,
+        homeTeam: { seasonTeamId: 30, teamname: 'USC Heidelberg' },
+        result: undefined,
+      };
+
+      mockDbbClient.fetchSpielplan.mockResolvedValue({
+        data: {
+          ligaData: sampleSpielplan.data.ligaData,
+          matches: [m1, m2],
+        },
+      });
+
+      await service.syncLeague(53941, { quickSync: true });
+
+      const batchInserts = fakeDb.insertCalls.filter((call) => call.isBatch);
+
+      expect(batchInserts).toHaveLength(2);
+      expect(batchInserts[0].rowCount).toBe(3);
+      expect(batchInserts[1].rowCount).toBe(2);
+    });
   });
 
   describe('syncVerbandLeagues', () => {
@@ -318,6 +515,59 @@ describe('ScraperService', () => {
       const result = await nullDbService.getLastSyncedAt();
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('geocodeMissingVenues', () => {
+    it('should geocode venues with missing coordinates and update them in DB', async () => {
+      fakeDb.existingVenues = [
+        {
+          id: 501,
+          name: 'Halle 1',
+          street: 'Waldhörnlestr. 24',
+          postalCode: '72072',
+          city: 'Tübingen',
+          latitude: null,
+          longitude: null,
+          location: null,
+          geocodedAt: null,
+          rawData: null,
+          updatedAt: new Date(),
+        },
+        {
+          id: 502,
+          name: 'Halle 2',
+          street: 'Unknown Str. 99',
+          postalCode: '00000',
+          city: 'Nowhere',
+          latitude: null,
+          longitude: null,
+          location: null,
+          geocodedAt: null,
+          rawData: null,
+          updatedAt: new Date(),
+        },
+      ];
+
+      mockGeocoder.geocodeAddress
+        .mockResolvedValueOnce({
+          latitude: 48.5,
+          longitude: 9.05,
+          displayName: 'Tübingen',
+        })
+        .mockResolvedValueOnce(null);
+
+      const result = await service.geocodeMissingVenues();
+
+      expect(result).toEqual({
+        totalMissing: 2,
+        geocoded: 1,
+        failed: 1,
+      });
+      expect(mockGeocoder.geocodeAddress).toHaveBeenCalledTimes(2);
+      expect(fakeDb.updateCalls).toHaveLength(1);
+      expect(fakeDb.updateCalls[0].values.latitude).toBe(48.5);
+      expect(fakeDb.updateCalls[0].values.longitude).toBe(9.05);
     });
   });
 });
