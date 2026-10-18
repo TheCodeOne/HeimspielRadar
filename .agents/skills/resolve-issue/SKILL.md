@@ -5,15 +5,13 @@ description: Autonomous GitHub Issue resolution protocol using isolated git work
 
 # Issue Resolver Protocol (Worktree-Isolated)
 
-> [!IMPORTANT]
-> **STRICT ISOLATION RULE**: NEVER execute `git checkout` or `git switch` in the root repository. All branch creation, code modifications, testing, and commits must take place exclusively inside an isolated Git Worktree under `.worktrees/issue-<id>`.
+Execute all branch creation, file edits, builds, and tests inside an isolated Git Worktree under `.worktrees/issue-<id>` so the root repository (`/Users/dimi/Documents/git/sundayleague`) and any running local processes remain untouched.
 
 ---
 
 ## 1. Lifecycle Tagging & Worktree Setup
 
-1. **Immediately Update GitHub Issue Tags**:
-   As the **very first action**, update the issue lifecycle labels to indicate active development:
+1. **Update GitHub Issue Label**:
    ```bash
    gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
    ```
@@ -23,73 +21,74 @@ description: Autonomous GitHub Issue resolution protocol using isolated git work
    ```
 3. **Create Dedicated Git Worktree**:
    ```bash
+   git fetch origin main
    git worktree add .worktrees/issue-<issue-id> -b feat/issue-<issue-id>-<slug> origin/main
-   ```
-4. **Symlink Dependencies & Config**:
-   ```bash
    ln -s ../../node_modules .worktrees/issue-<issue-id>/node_modules
    test -f .env.local && ln -s ../../.env.local .worktrees/issue-<issue-id>/.env.local
    ```
-5. **Mandatory Execution Path**:
-   All subsequent tool calls (`run_command`, file modifications) MUST use:
-   `Cwd: /Users/dimi/Documents/git/sundayleague/.worktrees/issue-<issue-id>`
+4. **Execution Path**:
+   Set `Cwd` on all subsequent `run_command` calls and target all file edits to:
+   `/Users/dimi/Documents/git/sundayleague/.worktrees/issue-<issue-id>`
 
 ---
 
-## 2. Implementation Guidelines
+## 2. Implementation & Co-Change Rules
 
-- Consult [**`GLOSSARY.md`**](file:///Users/dimi/Documents/git/sundayleague/GLOSSARY.md) for domain concepts and terminology.
-- Follow architectural decisions in [**`docs/adr/`**](file:///Users/dimi/Documents/git/sundayleague/docs/adr/).
-- Adhere to the code standards documented in [**`AGENTS.md`**](file:///Users/dimi/Documents/git/sundayleague/AGENTS.md):
-  - **No AI-Slop:** Avoid chained type assertions (`as unknown as ...`), redundant runtime guards, or cramped walls of code.
-  - **Readable Spacing:** Add blank lines before control statements (`if`, `for`, `return`) as enforced by `anti-slop/require-readable-spacing`.
-  - **Type Assertions:** When `as Type` is necessary (e.g. parsing external JSON), prepend an explicit justification:
-    ```typescript
-    // SAFETY: DBB REST API guarantees DbbSpielplanResponse structure
-    const data = (await res.json()) as DbbSpielplanResponse;
-    ```
-  - **Clean Imports:** No unused imports or dead code.
+- Read [**`CODING_STANDARDS.md`**](../../CODING_STANDARDS.md), [**`GLOSSARY.md`**](../../GLOSSARY.md), and [**`docs/adr/`**](../../docs/adr/) before writing code.
+- **Adding or Updating npm Dependencies Inside a Worktree**:
+  Because `node_modules` is symlinked to the root repository, running `npm install` directly against the symlink mutates the root `node_modules` and prunes packages from `package-lock.json`. When modifying `package.json`, update `package-lock.json` safely:
+  ```bash
+  rm -f node_modules
+  npm install --package-lock-only --ignore-scripts
+  npm run lockfile:check
+  ln -s ../../node_modules node_modules
+  ```
+- **Modifying Database Schema (`apps/backend/src/app/database/schema.ts`)**:
+  `DatabaseModule.onModuleInit` runs SQL migrations from `drizzle/migrations/` on startup. Whenever `schema.ts` is modified, generate and verify the migration inside the worktree:
+  ```bash
+  npm run db:generate
+  npm run db:check
+  ```
 
 ---
 
-## 3. Quality Gates (Executed Inside the Worktree)
+## 3. Quality Gates (Executed Inside `.worktrees/issue-<issue-id>`)
 
-Inside `.worktrees/issue-<issue-id>`:
-1. **Oxlint & Anti-Slop Check:**
+1. **Oxlint & Anti-Slop Check**:
    ```bash
    npx oxlint
    ```
-   *Must exit with code 0 (zero errors).*
-2. **Build Verification:**
-   - For backend changes: `npm run build:backend`
-   - For frontend changes: `npm run build:frontend`
-   - For monorepo changes: `npm run build`
-   *Must compile with zero errors.*
-3. **Automated Tests & Local Visual/Interactive Verification:**
-   - **Backend unit tests:**
+   *(Completion criterion: exits with code 0, zero errors and zero warnings.)*
+2. **Schema & Lockfile Checks** (when `schema.ts` or `package.json` changed):
+   ```bash
+   npm run db:check
+   npm run lockfile:check
+   ```
+3. **Build & Backend Unit Tests**:
+   ```bash
+   npm run test:backend
+   npm run build
+   ```
+4. **Local Visual & Interactive Verification with Playwright** (mandatory when `apps/frontend/` is modified):
+   - **Step 1 (Interactive E2E Verification)**: Add or update a Playwright test in `e2e/` that exercises the implemented feature or bugfix, and run it on a worktree-specific port so Playwright boots this worktree's own Vite server:
      ```bash
-     npm run test:backend
+     PLAYWRIGHT_PORT=42<issue-id> npm run test:e2e
      ```
-   - **Frontend E2E & Visual Self-Check (Mandatory whenever `apps/frontend/` is modified):**
-     1. **Step 1 (Interactive E2E Verification):** Add or update a Playwright check in `e2e/` that exercises the exact UI feature or bugfix you implemented, then run `PLAYWRIGHT_PORT=42<issue-id> npm run test:e2e` so Playwright boots your worktree's local Vite server and tests your changes live on both Desktop (`1280x800`) and Mobile (`390x844`).
-     2. **Step 2 (Visual Self-Check via Screenshots + `view_file`):** Capture Playwright screenshots on Desktop and Mobile (e.g. `await page.screenshot({ path: \`test-results/verify-\${testInfo.project.name}.png\` })`) and **open those PNG files with the `view_file` tool** to visually verify that the map fills 100% of the screen, headers/drawers are aligned, and nothing is clipped or broken before opening a PR.
+   - **Step 2 (Visual Self-Check via `view_file`)**: Capture Desktop (`1280x800`) and Mobile (`390x844`) screenshots (e.g. `test-results/verify-desktop-chromium.png` and `test-results/verify-mobile-chromium.png`) and inspect both PNG files using `view_file` to verify 100% map geometry, `100dvh` scroll-lock, and overlay stacking (`isolate z-0`).
 
 ---
 
 ## 4. Commit & Pull Request Submission
 
 From within `.worktrees/issue-<issue-id>`:
-1. Stage and commit with Conventional Commits referencing the issue:
+1. Stage and commit using Conventional Commits referencing the issue:
    ```bash
    git add .
    git commit -m "feat(<scope>): <concise description> (closes #<id>)"
    ```
-2. Push the branch:
+2. Push the branch and open a Pull Request:
    ```bash
    git push -u origin feat/issue-<id>-<slug>
-   ```
-3. Open a GitHub Pull Request via `gh pr create`:
-   ```bash
    gh pr create \
      --title "feat(<scope>): <title> (closes #<id>)" \
      --body "## Summary
@@ -100,9 +99,8 @@ From within `.worktrees/issue-<issue-id>`:
 
    ## Verification
    - [x] \`npx oxlint\` passes with 0 errors
-   - [x] Build passes cleanly
-   - [x] Tests pass
+   - [x] Build & unit tests pass cleanly
+   - [x] Playwright E2E & visual screenshots verified (if frontend touched)
 
    Closes #<id>"
    ```
-4. Output the created PR URL as the deliverable.

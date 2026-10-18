@@ -1,91 +1,47 @@
 # HeimspielRadar Agent Operating Guide
 
-Welcome to the HeimspielRadar repository. This guide defines the universal protocols that **all autonomous agents** (Overseer, Issue Resolvers, and PR Reviewers) must strictly follow.
+Universal operating rules and context pointers for all agents working in this repository.
 
 ---
 
-## 1. Issue Lifecycle & Mandatory GitHub Tag Management
+## 1. Issue Lifecycle & Worktree Isolation
 
-Every agent working on an issue or PR is responsible for keeping the GitHub board accurate and real-time.
-
-### Label Taxonomy:
-* `in-progress` (Blue): Active development by an agent.
-* `blocked` (Amber): Dependent on another issue. Cannot proceed until prerequisite PR is merged.
-* `ready` (Green): Unblocked and ready to be picked up by an agent.
-* `needs:grill-me` (Red/Rose): High-risk architectural decision or external credentials needed. Requires an interactive Grill-Me alignment session with the human. **Do NOT start autonomously.**
-
-### Mandatory Rule upon Starting Work:
-As the **very first action** when assigned an issue, the agent MUST transition its labels:
-```bash
-gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
-```
-
-### Mandatory Rule upon Opening a Pull Request:
-Always link the issue in the PR title and description using GitHub keywords (e.g. `(closes #<id>)` or `Resolves #<id>`) so GitHub automatically closes the issue when merged.
-
----
-
-## 2. Git Worktree Isolation Protocol
-
-To enable seamless, conflict-free parallel execution of multiple autonomous agents:
-
-> [!IMPORTANT]
-> **STRICT ISOLATION RULE**: NEVER execute `git checkout` or `git switch` in the root repository (`/Users/dimi/Documents/git/sundayleague`).
-
-* Every task runs inside a dedicated Git Worktree:
-  - Issue Resolvers: `.worktrees/issue-<id>`
-  - PR Reviewers: `.worktrees/pr-<number>`
-* Symlink shared dependencies from the root:
-  ```bash
-  ln -s ../../node_modules .worktrees/issue-<id>/node_modules
-  test -f .env.local && ln -s ../../.env.local .worktrees/issue-<id>/.env.local
-  ```
-* All command executions (`run_command` with `Cwd`) and file modifications MUST be strictly confined within the assigned `.worktrees/...` path.
-
----
-
-## 3. Anti-AI-Slop Standards & Quality Gates
-
-This repository strictly enforces AST-level rules via **Oxlint** with Dillon Mulroy's vendored `anti-slop` plugin:
-
-1. **Type Assertion Invariants**:
-   Every single `as <Type>` cast MUST be preceded directly by an explicit justification comment:
-   ```typescript
-   // SAFETY: DBB REST API guarantees DbbSpielplanResponse structure
-   const data = (await res.json()) as DbbSpielplanResponse;
+1. **Transition Issue Label First**:
+   ```bash
+   gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
    ```
-2. **Readable Spacing**:
-   Control-flow statements (`if`, `for`, `switch`, `return`) and multiline variable declarations MUST have a preceding blank line (`anti-slop/require-readable-spacing`).
-3. **No Lazy Hacks**:
-   No `as unknown as Type`, no unevidenced `any`, no dead code or unused imports.
-4. **Automated Verification**:
-   Before committing, agents MUST ensure:
-   - `npx oxlint` exits with code 0 (zero errors, zero warnings).
-   - Relevant build passes (`npm run build:backend` / `npm run build:frontend` / `npm run build`).
-   - Relevant tests pass (`npm run test:backend`).
-   - Whenever frontend files (`apps/frontend/`) are modified, agents MUST follow the **Local Visual & Interactive Verification with Playwright** protocol below.
+   Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
+2. **Execute Inside a Dedicated Git Worktree**:
+   Keep the root repository (`/Users/dimi/Documents/git/sundayleague`) untouched so running local services never restart. Perform all branch creation, edits, builds, and tests inside `.worktrees/issue-<id>` (or `.worktrees/pr-<number>`):
+   ```bash
+   git fetch origin main
+   git worktree add .worktrees/issue-<id> -b feat/issue-<id>-<slug> origin/main
+   ln -s ../../node_modules .worktrees/issue-<id>/node_modules
+   test -f .env.local && ln -s ../../.env.local .worktrees/issue-<id>/.env.local
+   ```
+   Follow [`.agents/skills/resolve-issue/SKILL.md`](.agents/skills/resolve-issue/SKILL.md) when resolving an issue and [`.agents/skills/review-pr/SKILL.md`](.agents/skills/review-pr/SKILL.md) when reviewing a PR.
 
 ---
 
-## 4. Local Visual & Interactive Verification with Playwright (Frontend Agents)
+## 2. Context Pointers & Co-Change Couplings
 
-Playwright is not just a static CI suite—it is the primary tool for **every Frontend Agent to locally boot their worktree's frontend and verify their own changes in a real headless Chromium browser** on both Desktop (`1280x800`) and Mobile (`390x844`):
-
-1. **Step 1 — Interactive E2E Verification of Your Changes**:
-   - Whenever you modify `apps/frontend/`, add or update a Playwright test in `e2e/` that exercises the exact feature, layout, or bugfix you implemented.
-   - Run Playwright from inside your worktree (use a worktree-specific `PLAYWRIGHT_PORT` if multiple agents are active concurrently so Playwright boots your worktree's own Vite server):
-     ```bash
-     PLAYWRIGHT_PORT=4241 npm run test:e2e
-     ```
-2. **Step 2 — Visual Self-Check via Screenshots + `view_file`**:
-   - Capture Playwright screenshots on both Desktop (`1280x800`) and Mobile (`390x844`) (e.g. `await page.screenshot({ path: \`test-results/verify-\${testInfo.project.name}.png\` })`).
-   - **Open those PNG screenshots using the `view_file` tool** to visually inspect the rendered UI yourself—confirming that full-screen maps fill 100% of the viewport, headers and drawers are properly aligned, and no elements are clipped or overlapping—before opening a Pull Request.
+- **Coding Standards & Invariants**: Consult [**`CODING_STANDARDS.md`**](CODING_STANDARDS.md) when writing or reviewing code (Oxlint `anti-slop` rules, `100dvh` mobile viewport lock, `isolate z-0` map stacking context, `Europe/Berlin` kickoff timezone, chronological match sorting).
+- **Domain Glossary**: Consult [**`GLOSSARY.md`**](GLOSSARY.md) for canonical domain terms (*Heimspiel*, *Match*, *Venue*, *Radius*, *Map Spike*).
+- **Architecture Decision Records**:
+  - [`docs/adr/0001-monolith-static-serving.md`](docs/adr/0001-monolith-static-serving.md): Monolithic static asset serving via NestJS backend.
+  - [`docs/adr/0002-multi-spike-map-architecture.md`](docs/adr/0002-multi-spike-map-architecture.md): 4-engine polymorphic map spike (`MapEngineProps`).
+- **Co-Change Couplings**:
+  - **Database Schema (`apps/backend/src/app/database/schema.ts`)**: `DatabaseModule.onModuleInit` runs SQL migrations from `drizzle/migrations/` on startup. When editing `schema.ts`, always run `npm run db:generate && npm run db:check`.
+  - **Map Engines (`apps/frontend/src/components/map/engines/`)**: When changing marker interaction, selection styling, or viewport sizing in `MapContainer.tsx`, update all four engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`).
+  - **Match Filtering (`apps/backend/src/app/matches/matches.service.ts`)**: When adding or changing match filter semantics in `MatchesService.findMatches`, update the client-side sample fallback in `apps/frontend/src/lib/use-matches.ts` in lockstep.
 
 ---
 
-## 5. Domain & Architectural Anchors
-* **GLOSSARY.md**: Consult for canonical domain terms (*Heimspiel*, *Match*, *Venue*, *Radius*, *Map Spike*).
-* **docs/adr/**:
-  - `docs/adr/0001-monolith-static-serving.md`: Monolithic static asset serving via NestJS backend.
-  - `docs/adr/0002-multi-spike-map-architecture.md`: 4-engine polymorphic map spike architecture (`MapEngineProps`).
+## 3. Pre-Commit & Pre-PR Quality Gates
 
+Run all applicable gates inside `.worktrees/issue-<id>` before committing:
+- `npx oxlint` (0 errors, 0 warnings)
+- `npm run db:check` (when `schema.ts` or `drizzle/migrations/` is modified)
+- `npm run lockfile:check` (when `package.json` or `package-lock.json` is modified)
+- `npm run test:backend` & `npm run build`
+- **Frontend Visual & E2E Check** (when `apps/frontend/` is modified): Run `PLAYWRIGHT_PORT=42<id> npm run test:e2e` to boot the worktree's local Vite server, test the changed UI interactively on Desktop (`1280x800`) and Mobile (`390x844`), and inspect the generated screenshots in `test-results/` via `view_file`.
