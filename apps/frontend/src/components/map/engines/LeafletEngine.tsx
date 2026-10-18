@@ -34,30 +34,51 @@ function createLeafletDivIcon(group: VenueGroup, isSelected: boolean): L.DivIcon
   });
 }
 
+function createUserLocationDivIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'custom-user-location-marker',
+    html: `
+      <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
+        <span class="user-location-ping" style="position:absolute;width:24px;height:24px;border-radius:9999px;background-color:#3b82f6;"></span>
+        <span style="position:relative;width:14px;height:14px;border-radius:9999px;background-color:#2563eb;border:2.5px solid #ffffff;box-shadow:0 0 8px rgba(37,99,235,0.8);"></span>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+  });
+}
+
 function LeafletMapController({
+  center,
   selectedGroup,
 }: {
+  center: [number, number];
   selectedGroup?: VenueGroup;
 }) {
   const map = useMap();
 
   React.useEffect(() => {
     if (
-      !selectedGroup ||
-      selectedGroup.venue.latitude == null ||
-      selectedGroup.venue.longitude == null
+      selectedGroup &&
+      selectedGroup.venue.latitude != null &&
+      selectedGroup.venue.longitude != null
     ) {
+      map.flyTo(
+        [selectedGroup.venue.latitude, selectedGroup.venue.longitude],
+        Math.max(map.getZoom(), 11),
+        {
+          duration: 0.6,
+        },
+      );
+
       return;
     }
 
-    map.flyTo(
-      [selectedGroup.venue.latitude, selectedGroup.venue.longitude],
-      Math.max(map.getZoom(), 11),
-      {
-        duration: 0.6,
-      },
-    );
-  }, [map, selectedGroup]);
+    map.flyTo(center, map.getZoom(), {
+      duration: 0.6,
+    });
+  }, [map, center[0], center[1], selectedGroup]);
 
   return null;
 }
@@ -67,6 +88,7 @@ export function LeafletEngine({
   selectedMatchId,
   center,
   zoom,
+  userLocation,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
 }: MapEngineProps) {
@@ -86,7 +108,20 @@ export function LeafletEngine({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <LeafletMapController selectedGroup={selectedGroup} />
+        <LeafletMapController center={center} selectedGroup={selectedGroup} />
+
+        {userLocation && (
+          <Marker
+            position={userLocation}
+            icon={createUserLocationDivIcon()}
+          >
+            <Popup className="custom-leaflet-popup">
+              <div className="font-semibold text-xs py-1 text-slate-900">
+                📍 Mein Standort
+              </div>
+            </Popup>
+          </Marker>
+        )}
 
         {groups.map((group) => {
           if (group.venue.latitude == null || group.venue.longitude == null) {

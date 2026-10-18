@@ -28,6 +28,7 @@ export interface FilterBarProps {
   onLeagueChange: (leagueId?: number) => void;
   availableLeagues?: Array<{ id: number; name: string }>;
   onResetFilters?: () => void;
+  onRequestLocation?: () => void;
   isLocating?: boolean;
   className?: string;
 }
@@ -46,6 +47,7 @@ export function FilterBar({
     { id: 2, name: 'Landesliga' },
   ],
   onResetFilters,
+  onRequestLocation,
   isLocating = false,
   className = '',
 }: FilterBarProps) {
@@ -56,6 +58,12 @@ export function FilterBar({
   const weekendStr = getThisWeekendSaturdayString();
 
   const handleGetCurrentLocation = () => {
+    if (onRequestLocation) {
+      onRequestLocation();
+
+      return;
+    }
+
     setInternalLocating(true);
 
     if (!navigator.geolocation) {

@@ -10,6 +10,7 @@ export function PigeonEngine({
   selectedMatchId,
   center,
   zoom,
+  userLocation,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
 }: MapEngineProps) {
@@ -18,6 +19,11 @@ export function PigeonEngine({
   const [activePopupVenueId, setActivePopupVenueId] = React.useState<number | null>(null);
 
   const groups = groupMatchesByVenue(matches, selectedMatchId);
+
+  // Sync center when center prop changes
+  React.useEffect(() => {
+    setMapCenter(center);
+  }, [center[0], center[1]]);
 
   // Sync center and active popup when selection changes
   React.useEffect(() => {
@@ -46,6 +52,18 @@ export function PigeonEngine({
         }}
       >
         <ZoomControl />
+
+        {userLocation && (
+          <Overlay anchor={userLocation} offset={[12, 12]}>
+            <div
+              className="relative flex h-6 w-6 items-center justify-center pointer-events-none"
+              title="📍 Mein Standort"
+            >
+              <span className="user-location-ping absolute h-6 w-6 rounded-full bg-blue-500 opacity-75" />
+              <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-600 shadow-md" />
+            </div>
+          </Overlay>
+        )}
 
         {groups.map((group) => {
           if (group.venue.latitude == null || group.venue.longitude == null) {

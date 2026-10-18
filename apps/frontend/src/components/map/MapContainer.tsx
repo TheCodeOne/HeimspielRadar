@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Compass, Layers } from 'lucide-react';
+import { Compass, Layers, Loader2, LocateFixed } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,10 @@ export interface MapContainerProps {
   selectedMatchId?: number | null;
   center?: [number, number];
   zoom?: number;
+  userLocation?: [number, number] | null;
   onMarkerClick: (match: Match) => void;
+  onLocateUser?: () => void;
+  isLocating?: boolean;
   className?: string;
   mapHeightClassName?: string;
   defaultEngine?: MapEngineType;
@@ -70,7 +73,10 @@ export function MapContainer({
   selectedMatchId,
   center = [49.15, 9.85],
   zoom = 9,
+  userLocation,
   onMarkerClick,
+  onLocateUser,
+  isLocating = false,
   className = '',
   mapHeightClassName,
   defaultEngine = 'openlayers',
@@ -85,6 +91,7 @@ export function MapContainer({
     selectedMatchId,
     center,
     zoom,
+    userLocation,
     onMarkerClick,
     className: mapHeightClassName ?? 'w-full h-full min-h-[450px]',
   };
@@ -157,6 +164,24 @@ export function MapContainer({
 
       <CardContent className="p-0 flex-1 min-h-0 relative">
         <div className="relative w-full h-full min-h-0">{renderActiveEngine()}</div>
+
+        {onLocateUser && (
+          <button
+            type="button"
+            onClick={onLocateUser}
+            disabled={isLocating}
+            className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-30 flex items-center gap-1.5 rounded-full border border-border/80 bg-background/95 px-3 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background hover:text-primary active:scale-95 disabled:opacity-60 cursor-pointer"
+            title="Auf meinen Standort zentrieren"
+            aria-label="Auf meinen Standort zentrieren"
+          >
+            {isLocating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : (
+              <LocateFixed className="h-3.5 w-3.5 text-primary" />
+            )}
+            <span>Mein Standort</span>
+          </button>
+        )}
       </CardContent>
     </Card>
   );

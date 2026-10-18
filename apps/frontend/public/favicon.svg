@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background with slight rounding -->
+  <rect width="512" height="512" rx="104" fill="#020617"/>
+  
+  <!-- Subtle Radar Rings -->
+  <circle cx="256" cy="256" r="215" stroke="#1e293b" stroke-width="4" stroke-dasharray="8 8" opacity="0.6"/>
+  <circle cx="256" cy="256" r="165" stroke="#334155" stroke-width="5" opacity="0.4"/>
+  <circle cx="256" cy="256" r="120" stroke="#0284c7" stroke-width="5" stroke-dasharray="10 10" opacity="0.5"/>
+
+  <!-- Radar Pulse Sweep Glow -->
+  <path d="M 256 256 L 390 122 A 190 190 0 0 0 256 66 Z" fill="url(#radarGradient)" opacity="0.3"/>
+  <defs>
+    <radialGradient id="radarGradient" cx="256" cy="256" r="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ballGradient" x1="160" y1="160" x2="350" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="40%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Basketball Core -->
+  <circle cx="256" cy="256" r="110" fill="url(#ballGradient)"/>
+  <circle cx="256" cy="256" r="110" stroke="#020617" stroke-width="7"/>
+
+  <!-- Basketball Seams -->
+  <line x1="146" y1="256" x2="366" y2="256" stroke="#020617" stroke-width="6" stroke-linecap="round"/>
+  <line x1="256" y1="146" x2="256" y2="366" stroke="#020617" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 178 178 C 220 216 220 296 178 334" stroke="#020617" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <path d="M 334 178 C 292 216 292 296 334 334" stroke="#020617" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <!-- Location Pin Accent / Beacon -->
+  <circle cx="256" cy="91" r="14" fill="#38bdf8"/>
+  <circle cx="256" cy="91" r="22" stroke="#38bdf8" stroke-width="3" opacity="0.75"/>
+</svg>
