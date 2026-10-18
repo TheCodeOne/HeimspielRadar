@@ -32,9 +32,11 @@ export class MatchesController {
   @Get(':id')
   async getMatchById(@Param('id', ParseIntPipe) id: number) {
     const match = await this.matchesService.findById(id);
+
     if (!match) {
       throw new NotFoundException(`Match with ID ${id} not found`);
     }
+
     return match;
   }
 }

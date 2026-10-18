@@ -10,6 +10,7 @@
     "test": "nx run-many -t test",
     "test:backend": "nx test backend",
     "lint": "nx run-many -t lint",
+    "lint:oxlint": "oxlint",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

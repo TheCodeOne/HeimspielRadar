@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { leagues, matches, teams, venues } from '../database/schema';
+import { matches } from '../database/schema';
 
 @Injectable()
 export class MatchesService {
@@ -21,9 +21,11 @@ export class MatchesService {
     const { date, lat, lng, radiusKm = 30, leagueId } = query;
 
     const conditions = [];
+
     if (date) {
       conditions.push(eq(matches.kickoffDate, date));
     }
+
     if (leagueId) {
       conditions.push(eq(matches.leagueId, leagueId));
     }
@@ -182,6 +184,7 @@ export class MatchesService {
         Math.sin(dLon / 2);
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
     return Math.round(R * c * 10) / 10; // Round to 1 decimal place (e.g. 14.2 km)
   }
 }

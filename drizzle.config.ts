@@ -1,7 +1,9 @@
 import { defineConfig } from 'drizzle-kit';
 import * as dotenv from 'dotenv';
+
 // Merge .env.local (takes precedence) and .env
 dotenv.config({ path: '.env.local' });
+
 dotenv.config({ path: '.env' });
 
 export default defineConfig({
