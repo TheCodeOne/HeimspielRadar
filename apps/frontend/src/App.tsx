@@ -2,402 +2,370 @@ import * as React from 'react';
 import {
   Activity,
   Calendar,
-  CheckCircle2,
-  Clock,
+  Compass,
   MapPin,
   Navigation,
-  SlidersHorizontal,
-  Trophy,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
+import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
+import { MatchCard, MatchList } from '@/components/matches';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-// Sample matches matching the domain model from GLOSSARY.md
-const SAMPLE_MATCHES: Match[] = [
-  {
-    id: 101,
-    leagueId: 1,
-    matchDay: 14,
-    kickoffDate: '2026-10-24',
-    kickoffTime: '18:30',
-    confirmed: true,
-    distanceKm: 8.4,
-    homeTeam: {
-      id: 11,
-      dbbId: 4011,
-      name: 'TSG Schwäbisch Hall 1',
-      shortName: 'SHA 1',
-    },
-    guestTeam: {
-      id: 12,
-      dbbId: 4012,
-      name: 'SV Möhringen 2',
-      shortName: 'SVM 2',
-    },
-    venue: {
-      id: 201,
-      name: 'Schenkbenseehalle',
-      street: 'Schenkbenseestraße 40',
-      postalCode: '74523',
-      city: 'Schwäbisch Hall',
-      latitude: 49.1122,
-      longitude: 9.7354,
-    },
-  },
-  {
-    id: 102,
-    leagueId: 1,
-    matchDay: 14,
-    kickoffDate: '2026-10-24',
-    kickoffTime: '20:00',
-    confirmed: true,
-    distanceKm: 14.2,
-    homeTeam: {
-      id: 13,
-      dbbId: 4013,
-      name: 'Crailsheim Merlins 3',
-      shortName: 'CRA 3',
-    },
-    guestTeam: {
-      id: 14,
-      dbbId: 4014,
-      name: 'VfL Waiblingen 1',
-      shortName: 'WAI 1',
-    },
-    venue: {
-      id: 202,
-      name: 'HAKRO Arena Crailsheim',
-      street: 'In den Kistenwiesen 7',
-      postalCode: '74564',
-      city: 'Crailsheim',
-      latitude: 49.1352,
-      longitude: 10.0681,
-    },
-  },
-  {
-    id: 103,
-    leagueId: 2,
-    matchDay: 11,
-    kickoffDate: '2026-10-25',
-    kickoffTime: '15:00',
-    confirmed: false,
-    distanceKm: 28.6,
-    homeTeam: {
-      id: 15,
-      dbbId: 4015,
-      name: 'TSV Künzelsau',
-      shortName: 'KÜN',
-    },
-    guestTeam: {
-      id: 16,
-      dbbId: 4016,
-      name: 'Sportvg Feuerbach 2',
-      shortName: 'FEU 2',
-    },
-    venue: {
-      id: 203,
-      name: 'Sporthalle Kocherraum',
-      street: 'Wertwiesen 4',
-      postalCode: '74653',
-      city: 'Künzelsau',
-      latitude: 49.2789,
-      longitude: 9.6892,
-    },
-  },
-];
+  formatDisplayDate,
+  getThisWeekendSaturdayString,
+  getTodayString,
+} from '@/lib/date-utils';
+import {
+  type LocationReference,
+  STUTTGART_FALLBACK,
+} from '@/lib/geo-utils';
+import { useMatches } from '@/lib/use-matches';
 
 export function App() {
+  // Filter state
+  const [selectedDate, setSelectedDate] = React.useState<string>(getTodayString());
   const [radiusKm, setRadiusKm] = React.useState<number>(30);
-  const [activeView, setActiveView] = React.useState<string>('map-view');
+  const [location, setLocation] = React.useState<LocationReference>(STUTTGART_FALLBACK);
+  const [selectedLeagueId, setSelectedLeagueId] = React.useState<number | undefined>(undefined);
 
-  const [selectedMatch, setSelectedMatch] = React.useState<Match>(
-    SAMPLE_MATCHES[0],
-  );
+  // Mobile navigation tab: 'list' or 'map'
+  const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list');
 
-  const filteredMatches = SAMPLE_MATCHES.filter((m) => {
-    return (m.distanceKm ?? 0) <= radiusKm;
+  // Selected match for bi-directional map/card synchronization
+  const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
+
+  // Query matches with debounced API integration
+  const { matches, isLoading } = useMatches({
+    date: selectedDate || undefined,
+    lat: location.lat,
+    lng: location.lng,
+    radiusKm,
+    leagueId: selectedLeagueId,
+    debounceMs: 300,
   });
 
+  // Keep selectedMatchId valid when matches update
+  React.useEffect(() => {
+    if (matches.length > 0) {
+      const matchStillExists = matches.some((m) => m.id === selectedMatchId);
+
+      if (!matchStillExists) {
+        setSelectedMatchId(matches[0].id);
+      }
+    } else {
+      setSelectedMatchId(null);
+    }
+  }, [matches, selectedMatchId]);
+
+  const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
+
+  // Handle marker click on map
+  const handleMarkerClick = (match: Match) => {
+    setSelectedMatchId(match.id);
+  };
+
+  // Reset all filters to default
+  const handleResetFilters = () => {
+    setSelectedDate('');
+    setRadiusKm(30);
+    setLocation(STUTTGART_FALLBACK);
+    setSelectedLeagueId(undefined);
+  };
+
+  // Expand radius helper for empty state
+  const handleExpandRadius = () => {
+    setRadiusKm((current) => Math.min(50, current + 15));
+  };
+
+  // Center coordinate for map view: center on selected match venue or user reference point
+  const mapCenter: [number, number] =
+    selectedMatch?.venue?.latitude != null && selectedMatch?.venue?.longitude != null
+      ? [selectedMatch.venue.latitude, selectedMatch.venue.longitude]
+      : [location.lat, location.lng];
+
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card shadow-xs">
-              <Activity className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <span className="font-semibold tracking-tight text-sm sm:text-base">
-                HeimspielRadar
-              </span>
-              <span className="ml-2 hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block">
-                Amateur-Basketball
-              </span>
-            </div>
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+      {/* Top Application Header */}
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/90 px-4 backdrop-blur-md sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card shadow-xs">
+            <Activity className="h-4 w-4 text-primary" />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-xs">
-              <Calendar className="mr-1.5 h-3.5 w-3.5" />
-              Sa, 24. Okt
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs">
-              <Navigation className="mr-1.5 h-3.5 w-3.5" />
-              Stuttgart + {radiusKm}km
-            </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold tracking-tight text-sm sm:text-base">
+                HeimspielRadar
+              </span>
+              <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
+                Amateur-Basketball
+              </Badge>
+            </div>
           </div>
+        </div>
+
+        {/* Header Indicators / Quick Info */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(getThisWeekendSaturdayString())}
+            className="hidden text-xs sm:inline-flex"
+            title="Auf dieses Wochenende filtern"
+          >
+            <Calendar className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            <span>{formatDisplayDate(selectedDate)}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileTab(mobileTab === 'list' ? 'map' : 'list')}
+            className="text-xs font-mono"
+          >
+            <Navigation className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            <span>
+              {location.name} + {radiusKm}km
+            </span>
+          </Button>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* Controls Section */}
-        <div className="mb-6 rounded-xl border border-border/80 bg-card p-4 shadow-xs sm:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold tracking-tight">
-                  Suchradius filtern
-                </h2>
-                <Badge variant="outline" className="ml-1 text-[11px] font-mono">
-                  {radiusKm} km
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Heimspiele im Umkreis der gewählten Koordinaten (5 km bis 50 km)
-              </p>
-            </div>
-
-            <div className="w-full md:w-72">
-              <Slider
-                value={[radiusKm]}
-                min={5}
-                max={50}
-                step={5}
-                onValueChange={(val) => {
-                  const [nextRadius] = val;
-
-                  if (nextRadius !== undefined) {
-                    setRadiusKm(nextRadius);
-                  }
-                }}
+      {/* Main Layout Area */}
+      <main className="flex flex-1 min-h-0 overflow-hidden">
+        {/* ======================================================== */}
+        {/* DESKTOP SPLIT-SCREEN VIEW (>= 1024px)                     */}
+        {/* ======================================================== */}
+        <div className="hidden lg:flex w-full h-full min-h-0">
+          {/* Left Pane: Sticky Filter Bar + Scrollable Match Cards */}
+          <aside className="w-[440px] xl:w-[480px] 2xl:w-[520px] shrink-0 border-r border-border/80 bg-background/50 flex flex-col h-full min-h-0">
+            {/* Filter Controls (Sticky in left pane) */}
+            <div className="p-4 border-b border-border/60 bg-card/40 shrink-0">
+              <FilterBar
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                radiusKm={radiusKm}
+                onRadiusChange={setRadiusKm}
+                location={location}
+                onLocationChange={setLocation}
+                selectedLeagueId={selectedLeagueId}
+                onLeagueChange={setSelectedLeagueId}
+                onResetFilters={handleResetFilters}
+                className="border-0 bg-transparent p-0 shadow-none"
               />
-              <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground font-mono">
-                <span>5 km</span>
-                <span>25 km</span>
-                <span>50 km</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* View Switcher Tabs */}
-        <Tabs
-          value={activeView}
-          onValueChange={setActiveView}
-          className="w-full space-y-6"
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                Anstehende Heimspiele
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                {filteredMatches.length} Spiele gefunden im Umkreis von{' '}
-                {radiusKm} km
-              </p>
             </div>
 
-            <TabsList className="self-start sm:self-auto">
-              <TabsTrigger value="map-view" className="text-xs">
-                Karten- & Listenansicht
-              </TabsTrigger>
-              <TabsTrigger value="list-only" className="text-xs">
-                Nur Liste
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Unified Content Shell */}
-          <TabsContent value="map-view" className="m-0">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              {/* Match List Column */}
-              <div className="space-y-4 lg:col-span-6">
-                {filteredMatches.map((match) => {
-                  const isSelected = selectedMatch.id === match.id;
-
-                  return (
-                    <Card
-                      key={match.id}
-                      onClick={() => setSelectedMatch(match)}
-                      className={`cursor-pointer transition-all hover:border-primary/50 ${
-                        isSelected
-                          ? 'border-primary ring-1 ring-primary/30 shadow-md bg-card'
-                          : 'border-border/70 hover:bg-muted/20'
-                      }`}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="league">
-                              <Trophy className="mr-1 h-3 w-3" />
-                              {match.leagueId === 1
-                                ? 'Oberliga Württemberg'
-                                : 'Landesliga'}
-                            </Badge>
-                            <Badge variant="kickoff">
-                              <Clock className="mr-1 h-3 w-3" />
-                              {match.kickoffTime} Uhr
-                            </Badge>
-                          </div>
-                          {match.confirmed ? (
-                            <Badge variant="success">
-                              <CheckCircle2 className="mr-1 h-3 w-3" />
-                              Bestätigt
-                            </Badge>
-                          ) : (
-                            <Badge variant="warning">Vorläufig</Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="pb-3">
-                        <div className="flex items-center justify-between gap-4 py-2">
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                              Heimteam
-                            </span>
-                            <div className="font-semibold text-base">
-                              {match.homeTeam.name}
-                            </div>
-                          </div>
-                          <div className="text-xs font-mono font-medium text-muted-foreground px-2 py-1 rounded bg-muted">
-                            VS
-                          </div>
-                          <div className="space-y-0.5 text-right">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                              Gastteam
-                            </span>
-                            <div className="font-semibold text-base">
-                              {match.guestTeam.name}
-                            </div>
-                          </div>
-                        </div>
-
-                        {match.venue && (
-                          <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1.5 truncate">
-                              <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">
-                                {match.venue.name}, {match.venue.city}
-                              </span>
-                            </div>
-                            <span className="shrink-0 font-mono text-[11px] font-medium">
-                              {match.distanceKm} km entfernt
-                            </span>
-                          </div>
-                        )}
-                      </CardContent>
-
-                      <CardFooter className="pt-0">
-                        <div className="flex w-full items-center justify-between">
-                          <span className="text-[11px] text-muted-foreground font-mono">
-                            Spieltag {match.matchDay}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-primary"
-                          >
-                            Details & Navigation
-                          </Button>
-                        </div>
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
+            {/* Match List Header Status */}
+            <div className="flex items-center justify-between border-b border-border/40 bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-foreground">
+                  {matches.length}
+                </span>
+                <span>
+                  {matches.length === 1 ? 'Heimspiel' : 'Heimspiele'} im Umkreis von {radiusKm} km
+                </span>
               </div>
 
-              {/* Map & Venue Column */}
-              <div className="space-y-4 lg:col-span-6">
-                <div className="sticky top-20 space-y-4">
-                  <MapContainer
-                    matches={filteredMatches}
-                    selectedMatchId={selectedMatch.id}
-                    onMarkerClick={(match) => setSelectedMatch(match)}
-                  />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  Alle Daten
+                </button>
+              )}
+            </div>
 
-                  {/* Venue Quick Card */}
-                  {selectedMatch.venue && (
-                    <div className="space-y-2 rounded-lg border border-border/70 bg-card p-4 shadow-xs">
-                      <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-primary" />
-                        Austragungsort (Sporthalle)
-                      </div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div className="font-medium text-foreground">
-                          {selectedMatch.venue.name}
-                        </div>
-                        <div>
-                          {selectedMatch.venue.street},{' '}
-                          {selectedMatch.venue.postalCode}{' '}
-                          {selectedMatch.venue.city}
-                        </div>
-                        <div className="font-mono text-[11px] text-primary pt-1">
-                          Luftlinie: {selectedMatch.distanceKm} km
-                        </div>
-                      </div>
-                    </div>
-                  )}
+            {/* Scrollable Match List */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 scroll-smooth">
+              <MatchList
+                matches={matches}
+                selectedMatchId={selectedMatchId}
+                onSelectMatch={(match) => setSelectedMatchId(match.id)}
+                onHoverMatch={(match) => setSelectedMatchId(match.id)}
+                isLoading={isLoading}
+                radiusKm={radiusKm}
+                onExpandRadius={handleExpandRadius}
+                onResetFilters={handleResetFilters}
+              />
+            </div>
+          </aside>
+
+          {/* Right Pane: Full-Height Interactive Map Container */}
+          <section className="flex-1 h-full min-h-0 relative flex flex-col bg-muted/10">
+            <div className="h-full w-full flex-1 min-h-0 flex flex-col">
+              <MapContainer
+                matches={matches}
+                selectedMatchId={selectedMatchId}
+                center={mapCenter}
+                zoom={9}
+                onMarkerClick={handleMarkerClick}
+                className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
+                mapHeightClassName="w-full h-full min-h-[500px]"
+              />
+            </div>
+
+            {/* Floating Venue Quick Card Preview (Overlay on Map) */}
+            {selectedMatch?.venue && (
+              <div className="absolute bottom-6 right-6 z-20 w-80 rounded-xl border border-border/80 bg-background/95 p-4 shadow-xl backdrop-blur-md">
+                <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    <span>Austragungsort</span>
+                  </div>
+
+                  <span className="font-mono text-[11px] font-medium text-primary">
+                    {selectedMatch.distanceKm} km
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <div className="font-semibold text-foreground">
+                    {selectedMatch.venue.name}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {selectedMatch.venue.street}, {selectedMatch.venue.postalCode}{' '}
+                    {selectedMatch.venue.city}
+                  </div>
+                  <div className="pt-2 text-[11px] text-muted-foreground flex justify-between items-center border-t border-border/30">
+                    <span>
+                      {selectedMatch.homeTeam.name} vs. {selectedMatch.guestTeam.name}
+                    </span>
+                    <span className="font-mono font-medium text-foreground">
+                      {selectedMatch.kickoffTime} Uhr
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </TabsContent>
+            )}
+          </section>
+        </div>
 
-          <TabsContent value="list-only" className="m-0">
-            <div className="space-y-4">
-              {filteredMatches.map((match) => (
-                <Card key={match.id} className="border-border/70">
-                  <CardHeader className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="league">
-                          {match.leagueId === 1
-                            ? 'Oberliga Württemberg'
-                            : 'Landesliga'}
-                        </Badge>
-                        <span className="font-semibold text-sm">
-                          {match.homeTeam.name} vs. {match.guestTeam.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="kickoff">
-                          {match.kickoffDate} {match.kickoffTime}
-                        </Badge>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {match.distanceKm} km
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
+        {/* ======================================================== */}
+        {/* MOBILE VIEW (< 1024px) WITH LIST / MAP TOGGLE            */}
+        {/* ======================================================== */}
+        <div className="flex lg:hidden flex-1 min-h-0 flex-col w-full pb-16">
+          {mobileTab === 'list' ? (
+            /* Mobile List View */
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <FilterBar
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                radiusKm={radiusKm}
+                onRadiusChange={setRadiusKm}
+                location={location}
+                onLocationChange={setLocation}
+                selectedLeagueId={selectedLeagueId}
+                onLeagueChange={setSelectedLeagueId}
+                onResetFilters={handleResetFilters}
+              />
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <span>
+                  <strong>{matches.length}</strong> Spiele im Umkreis ({radiusKm} km)
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMobileTab('map')}
+                  className="h-7 text-xs"
+                >
+                  <Compass className="mr-1 h-3 w-3 text-primary" />
+                  Zur Karte
+                </Button>
+              </div>
+
+              <MatchList
+                matches={matches}
+                selectedMatchId={selectedMatchId}
+                onSelectMatch={(match) => {
+                  setSelectedMatchId(match.id);
+                  setMobileTab('map');
+                }}
+                isLoading={isLoading}
+                radiusKm={radiusKm}
+                onExpandRadius={handleExpandRadius}
+                onResetFilters={handleResetFilters}
+              />
             </div>
-          </TabsContent>
-        </Tabs>
+          ) : (
+            /* Mobile Map View */
+            <div className="relative flex-1 min-h-0 flex flex-col h-full">
+              {/* Map Floating Summary Bar */}
+              <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between rounded-lg border border-border/80 bg-background/90 px-3 py-1.5 shadow-md backdrop-blur-md text-xs">
+                <div className="flex items-center gap-1.5 truncate">
+                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-medium truncate">{location.name}</span>
+                  <span className="font-mono text-muted-foreground">
+                    ({radiusKm} km)
+                  </span>
+                </div>
+
+                <Badge variant="outline" className="text-[10px] shrink-0 font-mono">
+                  {matches.length} Spiele
+                </Badge>
+              </div>
+
+              <MapContainer
+                matches={matches}
+                selectedMatchId={selectedMatchId}
+                center={mapCenter}
+                zoom={9}
+                onMarkerClick={handleMarkerClick}
+                className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
+                mapHeightClassName="w-full h-full min-h-[400px]"
+              />
+
+              {/* Mobile Selected Match Card Preview at Bottom of Map */}
+              {selectedMatch && (
+                <div className="absolute bottom-2 left-2 right-2 z-20">
+                  <MatchCard
+                    match={selectedMatch}
+                    isSelected
+                    onClick={() => setMobileTab('list')}
+                    className="shadow-xl bg-card/95 backdrop-blur-md"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar (< 1024px) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-border/80 bg-background/95 px-4 backdrop-blur-md lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileTab('list')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-6 rounded-lg transition-colors ${
+            mobileTab === 'list'
+              ? 'text-primary font-semibold'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="text-base">📋</span>
+          <span className="text-xs">
+            Liste ({matches.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileTab('map')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-6 rounded-lg transition-colors ${
+            mobileTab === 'map'
+              ? 'text-primary font-semibold'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="text-base">🗺️</span>
+          <span className="text-xs">Karte</span>
+        </button>
+      </nav>
     </div>
   );
 }

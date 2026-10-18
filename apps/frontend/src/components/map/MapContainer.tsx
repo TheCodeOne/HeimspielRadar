@@ -18,6 +18,7 @@ export interface MapContainerProps {
   zoom?: number;
   onMarkerClick: (match: Match) => void;
   className?: string;
+  mapHeightClassName?: string;
   defaultEngine?: MapEngineType;
 }
 
@@ -71,6 +72,7 @@ export function MapContainer({
   zoom = 9,
   onMarkerClick,
   className = '',
+  mapHeightClassName,
   defaultEngine = 'openlayers',
 }: MapContainerProps) {
   const [engine, setEngine] = React.useState<MapEngineType>(defaultEngine);
@@ -84,7 +86,7 @@ export function MapContainer({
     center,
     zoom,
     onMarkerClick,
-    className: 'w-full h-[450px]',
+    className: mapHeightClassName ?? 'w-full h-full min-h-[450px]',
   };
 
   const renderActiveEngine = () => {
@@ -153,8 +155,8 @@ export function MapContainer({
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
-        <div className="relative w-full">{renderActiveEngine()}</div>
+      <CardContent className="p-0 flex-1 min-h-0 relative">
+        <div className="relative w-full h-full min-h-0">{renderActiveEngine()}</div>
       </CardContent>
     </Card>
   );
