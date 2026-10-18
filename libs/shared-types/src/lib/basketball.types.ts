@@ -70,6 +70,8 @@ export interface VerbandSyncResult {
 
 export interface NearbyMatchesQuery {
   date?: string; // YYYY-MM-DD
+  dateFrom?: string; // YYYY-MM-DD (inclusive start of range)
+  dateTo?: string; // YYYY-MM-DD (inclusive end of range)
   lat?: number;
   lng?: number;
   radiusKm?: number;
@@ -80,6 +82,7 @@ export interface NearbyMatchesQuery {
   skillLevels?: string[];
   onlyUpcoming?: boolean;
 }
+
 
 
 

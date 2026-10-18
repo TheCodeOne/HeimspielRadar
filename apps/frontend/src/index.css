@@ -123,9 +123,17 @@
   z-index: 10 !important;
 }
 
+.ol-marker-selected {
+  z-index: 30 !important;
+}
+
 .ol-popup-overlay,
 .maplibregl-popup {
   z-index: 50 !important;
 }
 
-
+/* Isolate Leaflet panes (z-index 400..1000) inside z-0 so they never cover app header or Filter Drawer */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0 !important;
+}

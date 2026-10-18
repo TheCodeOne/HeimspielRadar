@@ -1,7 +1,9 @@
+import type { MapEngineType } from '@/components/map/map-engine.types';
 import {
-  getThisWeekendSaturdayString,
+  type DateRange,
   getTodayString,
   getTomorrowString,
+  getWeekendRange,
 } from './date-utils';
 import { type LocationReference, STUTTGART_FALLBACK } from './geo-utils';
 
@@ -9,14 +11,26 @@ export const FILTER_STORAGE_KEY = 'heimspielradar:filters:v1';
 
 export type ViewMode = 'map' | 'list';
 
-export type DateMode = 'today' | 'tomorrow' | 'weekend' | 'all' | 'custom';
+export type DateFilterMode =
+  | 'today'
+  | 'tomorrow'
+  | 'weekend'
+  | 'next-weekend'
+  | 'weekend-after-next'
+  | 'all'
+  | 'custom';
+
+export type DateMode = DateFilterMode;
 
 export interface PersistedFilterState {
   viewMode: ViewMode;
+  mapEngine: MapEngineType;
   location: LocationReference;
   radiusKm: number;
-  dateMode: DateMode;
+  dateMode: DateFilterMode;
   customDate?: string;
+  customDateFrom: string;
+  customDateTo: string;
   onlyUpcoming: boolean;
   genders: string[];
   ageClasses: string[];
@@ -26,10 +40,13 @@ export interface PersistedFilterState {
 
 export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   viewMode: 'map',
+  mapEngine: 'openlayers',
   location: STUTTGART_FALLBACK,
   radiusKm: 30,
   dateMode: 'today',
   customDate: undefined,
+  customDateFrom: '',
+  customDateTo: '',
   onlyUpcoming: true,
   genders: [],
   ageClasses: [],
@@ -41,11 +58,22 @@ function isViewMode(value?: string): value is ViewMode {
   return value === 'map' || value === 'list';
 }
 
-function isDateMode(value?: string): value is DateMode {
+function isMapEngine(value?: string): value is MapEngineType {
+  return (
+    value === 'openlayers' ||
+    value === 'maplibre' ||
+    value === 'leaflet' ||
+    value === 'pigeon'
+  );
+}
+
+function isDateMode(value?: string): value is DateFilterMode {
   return (
     value === 'today' ||
     value === 'tomorrow' ||
     value === 'weekend' ||
+    value === 'next-weekend' ||
+    value === 'weekend-after-next' ||
     value === 'all' ||
     value === 'custom'
   );
@@ -67,26 +95,55 @@ function parseLocation(loc?: Partial<LocationReference>): LocationReference {
   return { lat, lng, name };
 }
 
-export function resolveSelectedDate(
-  dateMode: DateMode,
-  customDate?: string,
-): string {
-  switch (dateMode) {
-    case 'today':
-      return getTodayString();
+export function resolveDateRangeFromMode(
+  mode: DateFilterMode,
+  customDateFrom: string,
+  customDateTo: string,
+): DateRange {
+  switch (mode) {
+    case 'today': {
+      const today = getTodayString();
 
-    case 'tomorrow':
-      return getTomorrowString();
+      return { dateFrom: today, dateTo: today };
+    }
+
+    case 'tomorrow': {
+      const tomorrow = getTomorrowString();
+
+      return { dateFrom: tomorrow, dateTo: tomorrow };
+    }
 
     case 'weekend':
-      return getThisWeekendSaturdayString();
+      return getWeekendRange(0);
+
+    case 'next-weekend':
+      return getWeekendRange(1);
+
+    case 'weekend-after-next':
+      return getWeekendRange(2);
 
     case 'all':
-      return '';
+      return { dateFrom: '', dateTo: '' };
 
     case 'custom':
-      return customDate || getTodayString();
+      return {
+        dateFrom: customDateFrom,
+        dateTo: customDateTo,
+      };
   }
+}
+
+export function resolveSelectedDate(
+  dateMode: DateFilterMode,
+  customDate?: string,
+): string {
+  const range = resolveDateRangeFromMode(
+    dateMode,
+    customDate ?? '',
+    customDate ?? '',
+  );
+
+  return range.dateFrom;
 }
 
 export function loadPersistedFilters(): PersistedFilterState {
@@ -108,6 +165,10 @@ export function loadPersistedFilters(): PersistedFilterState {
       ? parsed.viewMode
       : DEFAULT_FILTER_STATE.viewMode;
 
+    const mapEngine = isMapEngine(parsed.mapEngine)
+      ? parsed.mapEngine
+      : DEFAULT_FILTER_STATE.mapEngine;
+
     const location = parseLocation(parsed.location);
     const rawRadius = Number(parsed.radiusKm);
 
@@ -120,17 +181,32 @@ export function loadPersistedFilters(): PersistedFilterState {
       ? parsed.dateMode
       : DEFAULT_FILTER_STATE.dateMode;
 
-    let customDate =
+    const legacyCustomDate =
       parsed.customDate && String(parsed.customDate).length > 0
         ? String(parsed.customDate)
-        : undefined;
+        : '';
+
+    let customDateFrom =
+      parsed.customDateFrom && String(parsed.customDateFrom).length > 0
+        ? String(parsed.customDateFrom)
+        : legacyCustomDate;
+
+    let customDateTo =
+      parsed.customDateTo && String(parsed.customDateTo).length > 0
+        ? String(parsed.customDateTo)
+        : legacyCustomDate;
 
     const todayStr = getTodayString();
 
-    // Smart Date Restoration: if customDate is missing or in the past, fall back to 'today'
-    if (dateMode === 'custom' && (!customDate || customDate < todayStr)) {
-      dateMode = 'today';
-      customDate = undefined;
+    // Smart Date Restoration: if custom range is completely in the past or empty, fall back to 'today'
+    if (dateMode === 'custom') {
+      const effectiveEnd = customDateTo || customDateFrom;
+
+      if (!effectiveEnd || effectiveEnd < todayStr) {
+        dateMode = 'today';
+        customDateFrom = '';
+        customDateTo = '';
+      }
     }
 
     const onlyUpcoming =
@@ -158,10 +234,13 @@ export function loadPersistedFilters(): PersistedFilterState {
 
     return {
       viewMode,
+      mapEngine,
       location,
       radiusKm,
       dateMode,
-      customDate,
+      customDate: customDateFrom || undefined,
+      customDateFrom,
+      customDateTo,
       onlyUpcoming,
       genders,
       ageClasses,

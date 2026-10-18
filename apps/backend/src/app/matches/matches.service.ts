@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { aliasedTable, and, asc, eq, inArray, sql, SQL } from 'drizzle-orm';
+import { aliasedTable, and, asc, eq, gte, inArray, lte, sql, SQL } from 'drizzle-orm';
 import { League, Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { LeagueRawData, leagues, matches, teams, venues } from '../database/schema';
@@ -50,6 +50,8 @@ export class MatchesService {
 
     const {
       date,
+      dateFrom,
+      dateTo,
       lat,
       lng,
       radiusKm = 30,
@@ -75,17 +77,35 @@ export class MatchesService {
       conditions.push(eq(matches.kickoffDate, date));
     }
 
+    if (dateFrom) {
+      conditions.push(gte(matches.kickoffDate, dateFrom));
+    }
+
+    if (dateTo) {
+      conditions.push(lte(matches.kickoffDate, dateTo));
+    }
+
     if (onlyUpcoming) {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const todayStr = `${year}-${month}-${day}`;
+      const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      const berlinParts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Berlin',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(cutoff);
+
+      const [cutoffDateStr, cutoffTimeStr] = berlinParts.split(' ');
 
       conditions.push(
         sql`(${matches.result} IS NULL OR btrim(${matches.result}) = '')`
       );
-      conditions.push(sql`${matches.kickoffDate} >= ${todayStr}`);
+      conditions.push(
+        sql`(${matches.kickoffDate} > ${cutoffDateStr} OR (${matches.kickoffDate} = ${cutoffDateStr} AND (${matches.kickoffTime} IS NULL OR btrim(${matches.kickoffTime}) = '' OR ${matches.kickoffTime} = '00:00' OR ${matches.kickoffTime} > ${cutoffTimeStr})))`
+      );
     }
 
     if (leagueId) {
@@ -159,7 +179,16 @@ export class MatchesService {
     }
 
     if (hasSpatialCoords && distanceKmSql) {
-      queryBuilder.orderBy(distanceKmSql);
+      queryBuilder.orderBy(
+        distanceKmSql,
+        asc(matches.kickoffDate),
+        asc(matches.kickoffTime)
+      );
+    } else {
+      queryBuilder.orderBy(
+        asc(matches.kickoffDate),
+        asc(matches.kickoffTime)
+      );
     }
 
     const rows = await queryBuilder;

@@ -4,7 +4,6 @@ import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import type { MapEngineProps } from '../map-engine.types';
 import { groupMatchesByVenue, type VenueGroup } from '../map-utils';
-import { VenuePopup } from '../VenuePopup';
 
 function createLeafletDivIcon(group: VenueGroup, isSelected: boolean): L.DivIcon {
   const badgeHtml =
@@ -135,14 +134,11 @@ export function LeafletEngine({
               key={group.venueId}
               position={[group.venue.latitude, group.venue.longitude]}
               icon={icon}
+              zIndexOffset={group.isSelected ? 1000 : 0}
               eventHandlers={{
                 click: () => onMarkerClick(group.matches[0]),
               }}
-            >
-              <Popup className="custom-leaflet-popup">
-                <VenuePopup group={group} onMarkerClick={onMarkerClick} />
-              </Popup>
-            </Marker>
+            />
           );
         })}
       </MapContainer>

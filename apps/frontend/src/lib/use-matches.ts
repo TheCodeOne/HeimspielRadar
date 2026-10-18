@@ -1,6 +1,6 @@
 import * as React from 'react';
 import type { Match } from '@sundayleague/shared-types';
-import { getTodayString } from './date-utils';
+import { compareMatchesChronologically, isMatchUpcoming } from './date-utils';
 import { calculateDistanceKm } from './geo-utils';
 import { getSampleMatches } from './sample-matches';
 
@@ -8,6 +8,8 @@ export { useLeagues, type UseLeaguesResult } from './use-leagues';
 
 export interface UseMatchesOptions {
   date?: string;
+  dateFrom?: string;
+  dateTo?: string;
   lat: number;
   lng: number;
   radiusKm: number;
@@ -29,6 +31,8 @@ export interface UseMatchesResult {
 
 export function useMatches({
   date,
+  dateFrom,
+  dateTo,
   lat,
   lng,
   radiusKm,
@@ -65,6 +69,14 @@ export function useMatches({
 
         if (date) {
           queryParams.set('date', date);
+        }
+
+        if (dateFrom) {
+          queryParams.set('dateFrom', dateFrom);
+        }
+
+        if (dateTo) {
+          queryParams.set('dateTo', dateTo);
         }
 
         queryParams.set('lat', lat.toString());
@@ -131,7 +143,15 @@ export function useMatches({
           });
         }
 
-        processed.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        processed.sort((a, b) => {
+          const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
+
+          if (distDiff !== 0) {
+            return distDiff;
+          }
+
+          return compareMatchesChronologically(a, b);
+        });
 
         if (!abortController.signal.aborted) {
           setMatches(processed);
@@ -145,7 +165,6 @@ export function useMatches({
         // Fallback to sample matches with local spatial, date, and league filtering
         const samplePool = getSampleMatches();
         const fallbackResults: Match[] = [];
-        const todayStr = getTodayString();
 
         for (const sample of samplePool) {
           let dist = sample.distanceKm;
@@ -159,19 +178,24 @@ export function useMatches({
             );
           }
 
-          // Apply date filter if selected
+          // Apply exact date filter if selected
           if (date && sample.kickoffDate !== date) {
             continue;
           }
 
-          // Apply upcoming & no-result filter if selected
-          if (onlyUpcoming) {
-            const hasResult =
-              sample.result != null && sample.result.trim().length > 0;
+          // Apply date range start filter if selected
+          if (dateFrom && (!sample.kickoffDate || sample.kickoffDate < dateFrom)) {
+            continue;
+          }
 
-            if (hasResult || !sample.kickoffDate || sample.kickoffDate < todayStr) {
-              continue;
-            }
+          // Apply date range end filter if selected
+          if (dateTo && (!sample.kickoffDate || sample.kickoffDate > dateTo)) {
+            continue;
+          }
+
+          // Apply upcoming & no-result 2-hour cutoff filter if selected
+          if (onlyUpcoming && !isMatchUpcoming(sample)) {
+            continue;
           }
 
           // Apply single league filter if selected
@@ -225,7 +249,15 @@ export function useMatches({
           });
         }
 
-        fallbackResults.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        fallbackResults.sort((a, b) => {
+          const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
+
+          if (distDiff !== 0) {
+            return distDiff;
+          }
+
+          return compareMatchesChronologically(a, b);
+        });
 
         setMatches(fallbackResults);
         setIsLoading(false);
@@ -242,6 +274,8 @@ export function useMatches({
     };
   }, [
     date,
+    dateFrom,
+    dateTo,
     lat,
     lng,
     radiusKm,
@@ -262,4 +296,5 @@ export function useMatches({
     refetch,
   };
 }
+
 

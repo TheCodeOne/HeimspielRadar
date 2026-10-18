@@ -6,6 +6,7 @@ import {
   Layers,
   Loader2,
   LocateFixed,
+  Map,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -14,26 +15,25 @@ import {
   X,
 } from 'lucide-react';
 import type { League } from '@sundayleague/shared-types';
+import { MAP_ENGINE_OPTIONS, type MapEngineType } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import {
-  formatLastSyncedAt,
-  getThisWeekendSaturdayString,
-  getTodayString,
-  getTomorrowString,
-} from '@/lib/date-utils';
-import type { DateMode } from '@/lib/filter-storage';
+import { formatLastSyncedAt } from '@/lib/date-utils';
+import type { DateFilterMode } from '@/lib/filter-storage';
 import type { LocationReference } from '@/lib/geo-utils';
 
 export interface FilterBarProps {
   isOpen?: boolean;
   onClose?: () => void;
   matchCount?: number;
-  dateMode: DateMode;
-  customDate?: string;
-  selectedDate: string;
-  onDateModeChange: (mode: DateMode, customDate?: string) => void;
+  mapEngine?: MapEngineType;
+  onMapEngineChange?: (engine: MapEngineType) => void;
+  dateMode: DateFilterMode;
+  dateFrom: string;
+  dateTo: string;
+  onDateModeChange: (mode: DateFilterMode) => void;
+  onDateRangeChange: (dateFrom: string, dateTo: string) => void;
   onlyUpcoming?: boolean;
   onOnlyUpcomingChange?: (onlyUpcoming: boolean) => void;
   radiusKm: number;
@@ -89,10 +89,13 @@ export function FilterBar({
   isOpen = true,
   onClose,
   matchCount = 0,
+  mapEngine = 'openlayers',
+  onMapEngineChange,
   dateMode,
-  customDate,
-  selectedDate,
+  dateFrom,
+  dateTo,
   onDateModeChange,
+  onDateRangeChange,
   onlyUpcoming = true,
   onOnlyUpcomingChange,
   radiusKm,
@@ -119,10 +122,6 @@ export function FilterBar({
 }: FilterBarProps) {
   const [internalLocating, setInternalLocating] = React.useState(false);
   const [leagueSearch, setLeagueSearch] = React.useState('');
-
-  const todayStr = getTodayString();
-  const tomorrowStr = getTomorrowString();
-  const weekendStr = getThisWeekendSaturdayString();
 
   // Close drawer on ESC key press
   React.useEffect(() => {
@@ -319,7 +318,7 @@ export function FilterBar({
       <hr className="border-border/60" />
 
       {/* 2. Date Selector Section */}
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
@@ -339,15 +338,11 @@ export function FilterBar({
           )}
         </div>
 
-        {/* Quick Date Buttons */}
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {/* Preset Date & Weekend Chips */}
+        <div className="grid grid-cols-2 gap-1.5">
           <Button
             type="button"
-            variant={
-              dateMode === 'today' || (dateMode === 'custom' && selectedDate === todayStr)
-                ? 'default'
-                : 'outline'
-            }
+            variant={dateMode === 'today' ? 'default' : 'outline'}
             size="sm"
             onClick={() => onDateModeChange('today')}
             className="h-8 text-xs"
@@ -357,11 +352,7 @@ export function FilterBar({
 
           <Button
             type="button"
-            variant={
-              dateMode === 'tomorrow' || (dateMode === 'custom' && selectedDate === tomorrowStr)
-                ? 'default'
-                : 'outline'
-            }
+            variant={dateMode === 'tomorrow' ? 'default' : 'outline'}
             size="sm"
             onClick={() => onDateModeChange('tomorrow')}
             className="h-8 text-xs"
@@ -371,17 +362,35 @@ export function FilterBar({
 
           <Button
             type="button"
-            variant={
-              dateMode === 'weekend' || (dateMode === 'custom' && selectedDate === weekendStr)
-                ? 'default'
-                : 'outline'
-            }
+            variant={dateMode === 'weekend' ? 'default' : 'outline'}
             size="sm"
             onClick={() => onDateModeChange('weekend')}
             className="h-8 text-xs truncate"
-            title="Dieses Wochenende"
+            title="Samstag & Sonntag dieses Wochenendes"
           >
-            Wochenende
+            Dieses Wochenende
+          </Button>
+
+          <Button
+            type="button"
+            variant={dateMode === 'next-weekend' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onDateModeChange('next-weekend')}
+            className="h-8 text-xs truncate"
+            title="Samstag & Sonntag des nächsten Wochenendes"
+          >
+            Nächstes Wochenende
+          </Button>
+
+          <Button
+            type="button"
+            variant={dateMode === 'weekend-after-next' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onDateModeChange('weekend-after-next')}
+            className="h-8 text-xs truncate"
+            title="Samstag & Sonntag des übernächsten Wochenendes"
+          >
+            Übernächstes Wochenende
           </Button>
 
           <Button
@@ -395,28 +404,58 @@ export function FilterBar({
           </Button>
         </div>
 
-        {/* Custom Date Input */}
-        <div className="flex items-center gap-2 pt-1">
-          <span className="text-xs text-muted-foreground shrink-0">
-            Datum wählen:
-          </span>
-          <input
-            type="date"
-            value={dateMode === 'custom' ? customDate ?? selectedDate : selectedDate}
-            onChange={(e) => {
-              const nextDate = e.target.value;
+        {/* Custom Date Range Inputs (Zeitspanne Von – Bis) */}
+        <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+          <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+            <span>Zeitspanne (Von – Bis)</span>
+            {dateMode === 'custom' && (
+              <Badge variant="outline" className="text-[10px]">
+                Eigener Zeitraum
+              </Badge>
+            )}
+          </div>
 
-              if (!nextDate) {
-                onDateModeChange('all');
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-xs">
+              <span className="w-8 shrink-0 font-medium text-muted-foreground">
+                Von
+              </span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  const nextFrom = e.target.value;
 
-                return;
-              }
+                  const nextTo =
+                    dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
 
-              onDateModeChange('custom', nextDate);
-            }}
-            className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            aria-label="Eigenes Datum wählen"
-          />
+                  onDateRangeChange(nextFrom, nextTo);
+                }}
+                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Startdatum (Von)"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-xs">
+              <span className="w-8 shrink-0 font-medium text-muted-foreground">
+                Bis
+              </span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  const nextTo = e.target.value;
+
+                  const nextFrom =
+                    dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+
+                  onDateRangeChange(nextFrom, nextTo);
+                }}
+                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Enddatum (Bis)"
+              />
+            </label>
+          </div>
         </div>
 
         {/* Toggle: Only Upcoming Matches Without Results */}
@@ -694,6 +733,54 @@ export function FilterBar({
           )}
         </div>
       </div>
+
+      {onMapEngineChange && (
+        <>
+          <hr className="border-border/60" />
+
+          {/* 7. Karten-Renderer (Map Engine Selector) */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Map className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Karten-Renderer
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              {MAP_ENGINE_OPTIONS.map((opt) => {
+                const isSelected = opt.id === mapEngine;
+
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => onMapEngineChange(opt.id)}
+                    className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/15 text-foreground shadow-xs'
+                        : 'border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
+                    }`}
+                    title={opt.description}
+                  >
+                    <div className="flex w-full items-center justify-between gap-1">
+                      <span className="font-semibold text-foreground">{opt.label}</span>
+                      <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-mono">
+                        {opt.badge}
+                      </Badge>
+                    </div>
+                    <span className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">
+                      {opt.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       <hr className="border-border/60" />
 
