@@ -1,11 +1,12 @@
 ---
 name: review-pr
-description: Protocol for reviewing a GitHub Pull Request against linked issue acceptance criteria, repository standards, and anti-slop rules. Evaluates whether the PR is ready to merge and submits an actionable review verdict.
+description: Protocol for reviewing a GitHub Pull Request against linked issue acceptance criteria, repository standards, and anti-slop rules using isolated git worktrees.
 ---
 
-# Pull Request Reviewer Protocol
+# Pull Request Reviewer Protocol (Worktree-Isolated)
 
-This skill guides an autonomous review agent through evaluating a GitHub Pull Request for HeimspielRadar. The reviewer inspects the code diff, verifies compliance with the linked issue's acceptance criteria, ensures adherence to architectural decisions (ADRs) and anti-slop standards, runs automated quality gates, and posts an official GitHub review verdict (`APPROVE` or `REQUEST_CHANGES`).
+> [!IMPORTANT]
+> **STRICT ISOLATION RULE**: NEVER execute `git checkout` or `git switch` in the root repository (`/Users/dimi/Documents/git/sundayleague`). Automated checks must run inside a temporary Git Worktree (`.worktrees/pr-<number>`) or via diff inspection.
 
 ---
 
@@ -13,90 +14,64 @@ This skill guides an autonomous review agent through evaluating a GitHub Pull Re
 
 1. **Inspect Pull Request Details**:
    ```bash
-   gh pr view <pr-number> --json number,title,body,headRefName,baseRefName,headRepositoryOwner
+   gh pr view <pr-number> --json number,title,body,headRefName,baseRefName
    ```
 2. **Fetch the Unified Diff**:
    ```bash
    gh pr diff <pr-number>
    ```
 3. **Identify & Fetch Linked Issue(s)**:
-   Extract issue references from the PR title or description (e.g. `closes #5`, `resolves #2`, `fixes #1`). Fetch the issue description and acceptance criteria:
+   Extract issue references from the PR title or body (e.g. `closes #5`, `resolves #1`). Fetch the issue requirements and Acceptance Criteria:
    ```bash
    gh issue view <issue-number>
    ```
 
 ---
 
-## 2. Review Axes
+## 2. Automated Quality Gates in Worktree
 
-The review must evaluate the Pull Request across two separate, distinct axes:
-
-### Axis A: Spec & Acceptance Criteria Compliance
-- Compare every single requirement and Acceptance Criterion in the linked issue against the diff.
-- Verify:
-  - **Complete Coverage:** Are all requested features, scripts, or configurations implemented?
-  - **Correctness:** Does the implementation do what the issue specifies without subtle logic flaws?
-  - **No Scope Creep:** Did the author add unnecessary files, dependencies, or unrequested refactorings?
-
-### Axis B: Code Standards, Architecture & Anti-Slop
-- **Domain & Architecture Alignment:**
-  - Adherence to [**`GLOSSARY.md`**](file:///Users/dimi/Documents/git/sundayleague/GLOSSARY.md) for domain naming and concepts.
-  - Adherence to [**`docs/adr/`**](file:///Users/dimi/Documents/git/sundayleague/docs/adr/) architectural decisions.
-- **Anti-AI-Slop Rules (Oxlint / Dillon Mulroy ruleset):**
-  - **Type Assertions:** Every single `as <Type>` cast must have an explicit `// SAFETY: <justification>` comment directly above it explaining why the external payload conforms.
-  - **Readable Spacing:** Control-flow statements (`if`, `for`, `switch`, `return`) and multiline blocks must have preceding blank lines.
-  - **No Lazy Hacks:** No chained type assertions (`as unknown as ...`), unnecessary any-casts, or unhandled promise errors.
-  - **Dead Code:** No unused imports, unused variables, or orphan helper functions.
+To execute build, lint, or tests against the PR branch:
+1. **Create Temporary PR Worktree**:
+   ```bash
+   git worktree add .worktrees/pr-<pr-number> <headRefName>
+   ln -s ../../node_modules .worktrees/pr-<pr-number>/node_modules
+   test -f .env.local && ln -s ../../.env.local .worktrees/pr-<pr-number>/.env.local
+   ```
+2. **Run Quality Gates INSIDE `.worktrees/pr-<pr-number>`**:
+   *(Always set Cwd to `.worktrees/pr-<pr-number>`)*
+   - **Oxlint & Anti-Slop:** `npx oxlint` (must exit 0)
+   - **Build Verification:** `npm run build:backend` / `npm run build:frontend`
+   - **Tests:** `npm run test:backend`
+3. **Clean Up Worktree Immediately**:
+   ```bash
+   git worktree remove .worktrees/pr-<pr-number>
+   ```
 
 ---
 
-## 3. Automated Quality Gates
+## 3. Two-Axis Evaluation
 
-Checkout the PR branch or run the checks in an isolated worktree to verify that automated tooling passes:
-1. **Oxlint & Anti-Slop:**
-   ```bash
-   npx oxlint
-   ```
-   *Must exit with 0 errors and 0 warnings.*
-2. **Type Checking & Build:**
-   ```bash
-   npm run build:backend  # if backend files were changed
-   npm run build:frontend # if frontend files were changed
-   ```
-   *Must compile cleanly with zero errors.*
-3. **Automated Tests:**
-   ```bash
-   npm run test:backend   # if backend tests exist
-   ```
-   *All tests must pass.*
+Evaluate the PR across two distinct axes:
+
+### Axis A: Spec & Acceptance Criteria Compliance
+- Compare every requirement and acceptance criterion in the linked issue against the diff.
+- Verify:
+  - **Complete Coverage:** All requested items are implemented.
+  - **Correctness:** Logic matches requirements without edge-case regressions.
+  - **No Scope Creep:** No unsolicited refactoring or extraneous packages.
+
+### Axis B: Standards & Anti-Slop Compliance
+- **Anti-Slop:**
+  - Every `as <Type>` cast MUST have a preceding `// SAFETY: <explanation>` comment.
+  - Blank lines before control statements (`if`, `for`, `switch`, `return`).
+  - No dead code, no unused imports.
+- **Architecture:** Conformance with [**`GLOSSARY.md`**](file:///Users/dimi/Documents/git/sundayleague/GLOSSARY.md) and [**`docs/adr/`**](file:///Users/dimi/Documents/git/sundayleague/docs/adr/).
 
 ---
 
 ## 4. Verdict & GitHub Submission
 
-Formulate a structured review summary following this template:
-
-```markdown
-## PR Review: #<pr-number> - <pr-title>
-
-### 1. Acceptance Criteria Checklist
-- [x] Criterion 1 (Implemented in `path/to/file.ts`)
-- [ ] Criterion 2 (Missing or flawed)
-
-### 2. Standards & Quality Gates
-- [x] \`npx oxlint\` anti-slop check (0 errors, 0 warnings)
-- [x] Build verification passes cleanly
-- [x] Unit/Integration tests pass
-
-### 3. Detailed Feedback & Findings
-- **Strengths:** <concise summary of clean implementations>
-- **Findings / Blockers:** <specific code references, or "None">
-
-### 4. Verdict
-**APPROVED** / **CHANGES REQUESTED**
-```
-
-### Submitting the Review via GitHub CLI:
+Submit review via GitHub CLI:
 - **If all criteria and quality gates pass:**
   ```bash
   gh pr review <pr-number> --approve --body "<formatted-markdown-review>"
