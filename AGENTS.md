@@ -11,15 +11,15 @@ Universal operating rules and context pointers for all agents working in this re
    gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
    ```
    Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
-2. **Execute Inside a Dedicated Git Worktree**:
-   Keep the root repository (`/Users/dimi/Documents/git/sundayleague`) untouched so running local services never restart. Perform all branch creation, edits, builds, and tests inside `.worktrees/issue-<id>` (or `.worktrees/pr-<number>`):
+2. **Execute Implementation Inside a Dedicated Git Worktree**:
+   Keep the root repository (`/Users/dimi/Documents/git/sundayleague`) untouched so running local services never restart. Perform all issue branch creation, edits, builds, and tests inside `.worktrees/issue-<id>`:
    ```bash
    git fetch origin main
    git worktree add .worktrees/issue-<id> -b feat/issue-<id>-<slug> origin/main
    ln -s ../../node_modules .worktrees/issue-<id>/node_modules
    test -f .env.local && ln -s ../../.env.local .worktrees/issue-<id>/.env.local
    ```
-   Follow [`.agents/skills/resolve-issue/SKILL.md`](.agents/skills/resolve-issue/SKILL.md) when resolving an issue and [`.agents/skills/review-pr/SKILL.md`](.agents/skills/review-pr/SKILL.md) when reviewing a PR.
+   Follow [`.agents/skills/resolve-issue/SKILL.md`](.agents/skills/resolve-issue/SKILL.md) when resolving an issue and [`.agents/skills/review-pr/SKILL.md`](.agents/skills/review-pr/SKILL.md) (pure diff + `gh pr checks` inspection) when reviewing a PR.
 
 ---
 
