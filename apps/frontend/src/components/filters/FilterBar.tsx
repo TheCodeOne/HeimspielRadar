@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
+  formatLastSyncedAt,
   getThisWeekendSaturdayString,
   getTodayString,
   getTomorrowString,
@@ -30,6 +31,7 @@ export interface FilterBarProps {
   onResetFilters?: () => void;
   onRequestLocation?: () => void;
   isLocating?: boolean;
+  lastSyncedAt?: string | null;
   className?: string;
 }
 
@@ -49,6 +51,7 @@ export function FilterBar({
   onResetFilters,
   onRequestLocation,
   isLocating = false,
+  lastSyncedAt,
   className = '',
 }: FilterBarProps) {
   const [internalLocating, setInternalLocating] = React.useState(false);
@@ -305,6 +308,20 @@ export function FilterBar({
             );
           })}
         </div>
+      </div>
+
+      <hr className="border-border/60" />
+
+      {/* Last Sync Info Footer */}
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5 truncate">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="truncate">{formatLastSyncedAt(lastSyncedAt)}</span>
+        </span>
+
+        <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0">
+          DBB Live
+        </span>
       </div>
     </div>
   );

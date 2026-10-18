@@ -2,6 +2,8 @@ import * as React from 'react';
 import {
   Activity,
   Calendar,
+  Clock,
+  Coffee,
   Compass,
   MapPin,
   Navigation,
@@ -11,11 +13,13 @@ import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
 import { MatchCard, MatchList } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
+import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import {
   formatDisplayDate,
+  formatLastSyncedAt,
   getThisWeekendSaturdayString,
   getTodayString,
 } from '@/lib/date-utils';
@@ -24,6 +28,7 @@ import {
   STUTTGART_FALLBACK,
 } from '@/lib/geo-utils';
 import { useMatches } from '@/lib/use-matches';
+import { useServerHealth } from '@/lib/use-server-health';
 
 export function App() {
   // Filter state
@@ -87,6 +92,14 @@ export function App() {
 
     setLocation(STUTTGART_FALLBACK);
   };
+
+  // Server health and cold-start detection
+  const {
+    isColdStarting,
+    isDismissed: isHealthDismissed,
+    dismiss: dismissColdStart,
+    lastSyncedAt,
+  } = useServerHealth({ thresholdMs: 1500 });
 
   // Query matches with debounced API integration
   const { matches, isLoading } = useMatches({
@@ -153,6 +166,14 @@ export function App() {
               </span>
               <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
                 Amateur-Basketball
+              </Badge>
+              <Badge
+                variant="outline"
+                className="hidden text-[10px] font-mono text-muted-foreground md:inline-flex border-border/60 bg-muted/30"
+                title={lastSyncedAt ? `Letzte DBB-Synchronisierung: ${lastSyncedAt}` : undefined}
+              >
+                <Clock className="mr-1 h-3 w-3 text-primary/70" />
+                {formatLastSyncedAt(lastSyncedAt)}
               </Badge>
             </div>
           </div>
@@ -226,6 +247,7 @@ export function App() {
                 onResetFilters={handleResetFilters}
                 onRequestLocation={handleLocateUser}
                 isLocating={isLocating}
+                lastSyncedAt={lastSyncedAt}
                 className="border-0 bg-transparent p-0 shadow-none"
               />
             </div>
@@ -284,6 +306,12 @@ export function App() {
               />
             </div>
 
+            {/* Cold-Start Map Overlay (Desktop) */}
+            <ColdStartOverlay
+              isVisible={isColdStarting && !isHealthDismissed}
+              onDismiss={dismissColdStart}
+            />
+
             {/* Floating Venue Quick Card Preview (Overlay on Map) */}
             {selectedMatch?.venue && (
               <div className="absolute bottom-6 right-6 z-20 w-80 rounded-xl border border-border/80 bg-background/95 p-4 shadow-xl backdrop-blur-md">
@@ -327,6 +355,22 @@ export function App() {
           {mobileTab === 'list' ? (
             /* Mobile List View */
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {isColdStarting && !isHealthDismissed && (
+                <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground flex items-center justify-between backdrop-blur-xs">
+                  <div className="flex items-center gap-2">
+                    <Coffee className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+                    <span>☕ Kostenloser Server wacht auf (~30 Sek.)...</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={dismissColdStart}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline shrink-0"
+                  >
+                    Ausblenden
+                  </button>
+                </div>
+              )}
+
               <FilterBar
                 selectedDate={selectedDate}
                 onDateChange={setSelectedDate}
@@ -339,6 +383,7 @@ export function App() {
                 onResetFilters={handleResetFilters}
                 onRequestLocation={handleLocateUser}
                 isLocating={isLocating}
+                lastSyncedAt={lastSyncedAt}
               />
 
               <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
@@ -399,6 +444,12 @@ export function App() {
                 isLocating={isLocating}
                 className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
                 mapHeightClassName="w-full h-full min-h-[400px]"
+              />
+
+              {/* Cold-Start Map Overlay (Mobile) */}
+              <ColdStartOverlay
+                isVisible={isColdStarting && !isHealthDismissed}
+                onDismiss={dismissColdStart}
               />
 
               {/* Mobile Selected Match Card Preview at Bottom of Map */}

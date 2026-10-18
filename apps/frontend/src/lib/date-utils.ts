@@ -82,3 +82,59 @@ export function isSameDay(dateStr1?: string, dateStr2?: string): boolean {
 
   return dateStr1 === dateStr2;
 }
+
+/**
+ * Formats the last synchronized timestamp into human-readable German text.
+ * Falls back to "Stand: Aktuelle Saison 2026/27" if timestamp is missing or invalid.
+ */
+export function formatLastSyncedAt(timestamp?: string | null): string {
+  if (!timestamp) {
+    return 'Stand: Aktuelle Saison 2026/27';
+  }
+
+  try {
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Stand: Aktuelle Saison 2026/27';
+    }
+
+    const now = new Date();
+
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+
+    const isYesterday =
+      date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear();
+
+    const timeFormatted = new Intl.DateTimeFormat('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+
+    if (isToday) {
+      return `Stand: Heute, ${timeFormatted} Uhr`;
+    }
+
+    if (isYesterday) {
+      return `Stand: Gestern, ${timeFormatted} Uhr`;
+    }
+
+    const dateFormatted = new Intl.DateTimeFormat('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date);
+
+    return `Stand: ${dateFormatted}, ${timeFormatted} Uhr`;
+  } catch {
+    return 'Stand: Aktuelle Saison 2026/27';
+  }
+}
