@@ -169,7 +169,7 @@ export function useMatches({
             const hasResult =
               sample.result != null && sample.result.trim().length > 0;
 
-            if (hasResult || sample.kickoffDate < todayStr) {
+            if (hasResult || !sample.kickoffDate || sample.kickoffDate < todayStr) {
               continue;
             }
           }

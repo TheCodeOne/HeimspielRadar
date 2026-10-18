@@ -35,8 +35,8 @@ export interface Match {
   league?: League;
   matchDay: number;
   matchNo?: number;
-  kickoffDate: string; // YYYY-MM-DD
-  kickoffTime: string; // HH:mm
+  kickoffDate: string | null; // YYYY-MM-DD
+  kickoffTime: string | null; // HH:mm
   homeTeam: Team;
   guestTeam: Team;
   venue?: Venue | null;

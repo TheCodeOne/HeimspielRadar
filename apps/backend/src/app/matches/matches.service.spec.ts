@@ -30,7 +30,7 @@ interface MockRow {
     leagueId: number;
     matchDay: number;
     matchNo: number | null;
-    kickoffDate: string;
+    kickoffDate: string | null;
     kickoffTime: string | null;
     result: string | null;
     confirmed: boolean;
@@ -330,6 +330,27 @@ describe('MatchesService', () => {
       expect(capturedWhereConditions).toHaveLength(1);
       expect(results).toHaveLength(1);
     });
+
+    it('cleanly maps matches with null kickoffDate and kickoffTime', async () => {
+      mockRows = [
+        {
+          ...sampleRow,
+          match: {
+            ...sampleRow.match,
+            id: 2946831,
+            kickoffDate: null,
+            kickoffTime: null,
+          },
+        },
+      ];
+
+      const results = await service.findMatches({});
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(2946831);
+      expect(results[0].kickoffDate).toBeNull();
+      expect(results[0].kickoffTime).toBeNull();
+    });
   });
 
   describe('findById', () => {
@@ -379,6 +400,42 @@ describe('MatchesService', () => {
       expect(match?.id).toBe(101);
       expect(match?.result).toBe('82:76');
       expect(match?.league?.skName).toBe('Bezirksliga');
+    });
+
+    it('returns unscheduled match with null kickoffDate and kickoffTime cleanly', async () => {
+      mockFindFirst.mockResolvedValueOnce({
+        id: 2946831,
+        leagueId: 53894,
+        league: {
+          id: 53894,
+          dbbId: 53894,
+          name: 'BBW3 U18m Bezirkspokal',
+        },
+        matchDay: 1,
+        matchNo: 2,
+        kickoffDate: null,
+        kickoffTime: null,
+        homeTeam: {
+          id: 1,
+          dbbId: 501,
+          name: 'TSG Stuttgart',
+        },
+        guestTeam: {
+          id: 2,
+          dbbId: 502,
+          name: 'MTV Ludwigsburg',
+        },
+        venue: null,
+        result: null,
+        confirmed: false,
+      });
+
+      const match = await service.findById(2946831);
+
+      expect(match).not.toBeNull();
+      expect(match?.id).toBe(2946831);
+      expect(match?.kickoffDate).toBeNull();
+      expect(match?.kickoffTime).toBeNull();
     });
 
     it('returns null when match not found', async () => {

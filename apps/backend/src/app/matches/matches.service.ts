@@ -177,8 +177,8 @@ export class MatchesService {
         league: r.league ? this.mapLeague(r.league) : undefined,
         matchDay: r.match.matchDay,
         matchNo: r.match.matchNo ?? undefined,
-        kickoffDate: r.match.kickoffDate,
-        kickoffTime: r.match.kickoffTime ?? '00:00',
+        kickoffDate: r.match.kickoffDate ?? null,
+        kickoffTime: r.match.kickoffTime ?? null,
         homeTeam: {
           id: r.homeTeam.id,
           dbbId: r.homeTeam.dbbId,
@@ -240,8 +240,8 @@ export class MatchesService {
       league: row.league ? this.mapLeague(row.league) : undefined,
       matchDay: row.matchDay,
       matchNo: row.matchNo ?? undefined,
-      kickoffDate: row.kickoffDate,
-      kickoffTime: row.kickoffTime ?? '00:00',
+      kickoffDate: row.kickoffDate ?? null,
+      kickoffTime: row.kickoffTime ?? null,
       homeTeam: {
         id: row.homeTeam.id,
         dbbId: row.homeTeam.dbbId,
