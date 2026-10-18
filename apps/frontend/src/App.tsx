@@ -4,22 +4,20 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Compass,
   MapPin,
   Navigation,
   SlidersHorizontal,
   Trophy,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
+import { MapContainer } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -120,7 +118,7 @@ const SAMPLE_MATCHES: Match[] = [
 
 export function App() {
   const [radiusKm, setRadiusKm] = React.useState<number>(30);
-  const [selectedSpike, setSelectedSpike] = React.useState<string>('openlayers');
+  const [activeView, setActiveView] = React.useState<string>('map-view');
 
   const [selectedMatch, setSelectedMatch] = React.useState<Match>(
     SAMPLE_MATCHES[0],
@@ -205,10 +203,10 @@ export function App() {
           </div>
         </div>
 
-        {/* Spike Switcher Tabs */}
+        {/* View Switcher Tabs */}
         <Tabs
-          value={selectedSpike}
-          onValueChange={setSelectedSpike}
+          value={activeView}
+          onValueChange={setActiveView}
           className="w-full space-y-6"
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -223,23 +221,20 @@ export function App() {
             </div>
 
             <TabsList className="self-start sm:self-auto">
-              <TabsTrigger value="openlayers" className="text-xs">
-                OpenLayers Spike
-              </TabsTrigger>
-              <TabsTrigger value="maplibre" className="text-xs">
-                MapLibre Spike
+              <TabsTrigger value="map-view" className="text-xs">
+                Karten- & Listenansicht
               </TabsTrigger>
               <TabsTrigger value="list-only" className="text-xs">
-                Listenansicht
+                Nur Liste
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* Unified Content Shell */}
-          <TabsContent value="openlayers" className="m-0">
+          <TabsContent value="map-view" className="m-0">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
               {/* Match List Column */}
-              <div className="space-y-4 lg:col-span-7">
+              <div className="space-y-4 lg:col-span-6">
                 {filteredMatches.map((match) => {
                   const isSelected = selectedMatch.id === match.id;
 
@@ -335,96 +330,39 @@ export function App() {
                 })}
               </div>
 
-              {/* Map & Venue Preview Column */}
-              <div className="space-y-4 lg:col-span-5">
-                <Card className="sticky top-20 border-border/80">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Compass className="h-4 w-4 text-primary" />
-                        Map Spike Preview
-                      </CardTitle>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        OpenLayers
-                      </Badge>
-                    </div>
-                    <CardDescription>
-                      Aktiver Spike für Geolocation- und Distanztests
-                    </CardDescription>
-                  </CardHeader>
+              {/* Map & Venue Column */}
+              <div className="space-y-4 lg:col-span-6">
+                <div className="sticky top-20 space-y-4">
+                  <MapContainer
+                    matches={filteredMatches}
+                    selectedMatchId={selectedMatch.id}
+                    onMarkerClick={(match) => setSelectedMatch(match)}
+                  />
 
-                  <CardContent className="space-y-4">
-                    {/* Simulated Map Canvas */}
-                    <div className="relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/30 p-4">
-                      <div className="absolute inset-0 bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:16px_16px] opacity-40 dark:opacity-60" />
-
-                      <div className="relative z-10 flex flex-col items-center text-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/30 text-primary mb-2 shadow-xs">
-                          <MapPin className="h-5 w-5" />
-                        </div>
-                        <div className="text-xs font-semibold">
-                          {selectedMatch.venue?.name}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {selectedMatch.venue?.street},{' '}
-                          {selectedMatch.venue?.city}
-                        </div>
-                        <div className="mt-2 text-[10px] font-mono text-muted-foreground bg-background/80 px-2 py-0.5 rounded border border-border/40">
-                          {selectedMatch.venue?.latitude?.toFixed(4)},{' '}
-                          {selectedMatch.venue?.longitude?.toFixed(4)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Venue Quick Card */}
-                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/20 p-3">
-                      <div className="text-xs font-semibold text-foreground">
+                  {/* Venue Quick Card */}
+                  {selectedMatch.venue && (
+                    <div className="space-y-2 rounded-lg border border-border/70 bg-card p-4 shadow-xs">
+                      <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-primary" />
                         Austragungsort (Sporthalle)
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1">
-                        <div>{selectedMatch.venue?.name}</div>
+                        <div className="font-medium text-foreground">
+                          {selectedMatch.venue.name}
+                        </div>
                         <div>
-                          {selectedMatch.venue?.street},{' '}
-                          {selectedMatch.venue?.postalCode}{' '}
-                          {selectedMatch.venue?.city}
+                          {selectedMatch.venue.street},{' '}
+                          {selectedMatch.venue.postalCode}{' '}
+                          {selectedMatch.venue.city}
                         </div>
                         <div className="font-mono text-[11px] text-primary pt-1">
                           Luftlinie: {selectedMatch.distanceKm} km
                         </div>
                       </div>
                     </div>
-                  </CardContent>
-
-                  <CardFooter className="flex gap-2">
-                    <Button variant="default" size="sm" className="w-full text-xs">
-                      <Navigation className="mr-1.5 h-3.5 w-3.5" />
-                      Routenplaner öffnen
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs">
-                      Spike wechseln
-                    </Button>
-                  </CardFooter>
-                </Card>
+                  )}
+                </div>
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="maplibre" className="m-0">
-            <div className="rounded-xl border border-dashed border-border p-12 text-center">
-              <Compass className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-              <h3 className="text-sm font-semibold">MapLibre Vector Spike</h3>
-              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                Die MapLibre GL Spike-Implementierung wird im Rahmen von Spike #3
-                evaluiert.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 text-xs"
-                onClick={() => setSelectedSpike('openlayers')}
-              >
-                Zurück zu OpenLayers
-              </Button>
             </div>
           </TabsContent>
 
