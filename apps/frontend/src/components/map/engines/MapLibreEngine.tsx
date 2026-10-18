@@ -4,11 +4,16 @@ import {
   Marker as MapLibreMarker,
   NavigationControl,
   Popup as MapLibrePopup,
+  setWorkerUrl,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Match } from '@sundayleague/shared-types';
 import type { MapEngineProps } from '../map-engine.types';
 import { formatLeagueName, groupMatchesByVenue, type VenueGroup } from '../map-utils';
+
+// Configure MapLibre Web Worker for Vite
+setWorkerUrl(workerUrl);
 
 function createMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElement {
   const el = document.createElement('div');
@@ -103,6 +108,8 @@ export function MapLibreEngine({
   const mapRef = React.useRef<MapLibreMap | null>(null);
   const markersRef = React.useRef<MapLibreMarker[]>([]);
   const userMarkerRef = React.useRef<MapLibreMarker | null>(null);
+  const isLoadedRef = React.useRef<boolean>(false);
+
 
   // Initialize MapLibre
   React.useEffect(() => {
@@ -118,9 +125,28 @@ export function MapLibreEngine({
     });
 
     map.addControl(new NavigationControl(), 'top-right');
+
+    map.on('load', () => {
+      isLoadedRef.current = true;
+      map.resize();
+    });
+
+    map.on('error', (e) => {
+      console.error('MapLibre error:', e);
+    });
+
     mapRef.current = map;
 
+    // ResizeObserver ensures canvas adapts to container changes on tab switches
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+
+    resizeObserver.observe(containerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
+      isLoadedRef.current = false;
       map.remove();
       mapRef.current = null;
     };
@@ -205,10 +231,18 @@ export function MapLibreEngine({
       markersRef.current.push(marker);
 
       if (group.isSelected) {
-        map.flyTo({
-          center: [group.venue.longitude, group.venue.latitude],
-          duration: 600,
-        });
+        const flyToSelected = () => {
+          map.flyTo({
+            center: [group.venue.longitude, group.venue.latitude],
+            duration: 600,
+          });
+        };
+
+        if (isLoadedRef.current) {
+          flyToSelected();
+        } else {
+          map.once('load', flyToSelected);
+        }
       }
     }
   }, [matches, selectedMatchId, onMarkerClick]);

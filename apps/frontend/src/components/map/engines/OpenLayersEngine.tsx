@@ -129,16 +129,22 @@ export function OpenLayersEngine({
       element: popupContainer,
       positioning: 'bottom-center',
       offset: [0, -45],
-      stopEvent: true,
+      stopEvent: false,
     });
 
     popupOverlayRef.current = popupOverlay;
+
+    const osmSource = new OSM();
+
+    osmSource.on('tileloaderror', (e) => {
+      console.error('OpenLayers tile error:', e);
+    });
 
     const map = new OlMap({
       target: containerRef.current,
       layers: [
         new TileLayer({
-          source: new OSM(),
+          source: osmSource,
         }),
       ],
       overlays: [popupOverlay],
@@ -150,8 +156,27 @@ export function OpenLayersEngine({
 
     mapRef.current = map;
 
+    // Trigger updateSize across multiple frames to guarantee container is ready
+    map.updateSize();
+
+    requestAnimationFrame(() => {
+      map.updateSize();
+    });
+
+    setTimeout(() => {
+      map.updateSize();
+    }, 100);
+
+    // ResizeObserver ensures OpenLayers updates size when switching tabs
+    const resizeObserver = new ResizeObserver(() => {
+      map.updateSize();
+    });
+
+    resizeObserver.observe(containerRef.current);
+
     return () => {
-      map.setTarget(undefined);
+      resizeObserver.disconnect();
+      map.dispose();
       mapRef.current = null;
     };
   }, []);
@@ -257,8 +282,6 @@ export function OpenLayersEngine({
       });
 
       if (group.isSelected) {
-        showPopup();
-
         map.getView().animate({
           center: coordinates,
           duration: 600,
@@ -267,5 +290,11 @@ export function OpenLayersEngine({
     }
   }, [matches, selectedMatchId, onMarkerClick]);
 
-  return <div ref={containerRef} className={`rounded-lg ${className}`} />;
+  return (
+    <div
+      ref={containerRef}
+      className={`relative overflow-hidden rounded-lg ${className}`}
+      style={{ width: '100%', height: '450px', touchAction: 'none' }}
+    />
+  );
 }

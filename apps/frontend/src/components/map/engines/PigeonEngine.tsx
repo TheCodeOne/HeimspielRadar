@@ -1,9 +1,15 @@
 import * as React from 'react';
 import { Map, Overlay, ZoomControl } from 'pigeon-maps';
-import { osm } from 'pigeon-maps/providers';
 import type { MapEngineProps } from '../map-engine.types';
 import { groupMatchesByVenue } from '../map-utils';
 import { VenuePopup } from '../VenuePopup';
+
+function osmSubdomainProvider(x: number, y: number, z: number): string {
+  const subdomains = ['a', 'b', 'c'];
+  const s = subdomains[Math.abs(x + y) % subdomains.length];
+
+  return `https://${s}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
+}
 
 export function PigeonEngine({
   matches,
@@ -25,7 +31,8 @@ export function PigeonEngine({
     setMapCenter(center);
   }, [center[0], center[1]]);
 
-  // Sync center and active popup when selection changes
+  // Sync center when selection changes
+
   React.useEffect(() => {
     const selectedGroup = groups.find((g) => g.isSelected);
 
@@ -35,7 +42,6 @@ export function PigeonEngine({
       selectedGroup.venue.longitude != null
     ) {
       setMapCenter([selectedGroup.venue.latitude, selectedGroup.venue.longitude]);
-      setActivePopupVenueId(selectedGroup.venueId);
     }
   }, [selectedMatchId]);
 
@@ -44,8 +50,8 @@ export function PigeonEngine({
       <Map
         center={mapCenter}
         zoom={mapZoom}
-        defaultHeight={450}
-        provider={osm}
+        height={450}
+        provider={osmSubdomainProvider}
         onBoundsChanged={({ center: newCenter, zoom: newZoom }) => {
           setMapCenter(newCenter);
           setMapZoom(newZoom);
