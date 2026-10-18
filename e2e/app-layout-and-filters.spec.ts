@@ -185,4 +185,60 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     await mapTab.click();
     await expect(mapTab).toHaveAttribute('aria-selected', 'true');
   });
+
+  test('floating map summary chip is visible, interactive, readable without truncation, and clears zoom controls', async (
+    { page },
+    testInfo,
+  ) => {
+    await page.context().grantPermissions(['geolocation']);
+    await page.context().setGeolocation({ latitude: 48.7758, longitude: 9.1829 });
+    await page.goto('/');
+
+    // 1. Locate the interactive summary chip button
+    const summaryChip = page.getByRole('button', { name: 'Filter öffnen' });
+    await expect(summaryChip).toBeVisible();
+
+    // 2. Initial state (Stuttgart fallback): ensure location name is not truncated to single letter
+    await expect(summaryChip).toContainText('Stuttgart');
+    await expect(summaryChip).toContainText('30 km');
+
+    // 3. Verify no overlap between zoom controls and summary chip
+    const chipBox = await summaryChip.boundingBox();
+    expect(chipBox).not.toBeNull();
+
+    const zoomControl = page
+      .locator('.ol-zoom, .leaflet-control-zoom, .maplibregl-ctrl-group, .pigeon-zoom-buttons')
+      .first();
+
+    await expect(zoomControl).toBeVisible();
+
+    const zoomBox = await zoomControl.boundingBox();
+    expect(zoomBox).not.toBeNull();
+
+    if (chipBox && zoomBox) {
+      // In mobile viewports, the chip is positioned at top-right while zoom is at top-left.
+      // Assert that there is positive horizontal clearance between zoom buttons and the chip.
+      const clearance = chipBox.x - (zoomBox.x + zoomBox.width);
+
+      expect(clearance).toBeGreaterThan(15);
+    }
+
+    // 4. Chip click interactivity: tapping opens the Filter Drawer
+    await summaryChip.click();
+    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+    await expect(drawer).toBeVisible();
+
+    // 5. Select "Mein Standort" in drawer and close to verify full name rendering
+    await drawer.getByRole('button', { name: /Mein Standort/i }).click();
+    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+    await expect(drawer).toBeHidden();
+
+    // Verify "Mein Standort" is fully rendered and not truncated to "M..."
+    await expect(summaryChip).toContainText('Mein Standort');
+
+    // 6. Capture mobile visual verification screenshot for agent inspection
+    await page.screenshot({
+      path: `test-results/summary-chip-${testInfo.project.name}.png`,
+    });
+  });
 });
