@@ -24,7 +24,7 @@ export function VenuePopup({ group, onMarkerClick, onClose }: VenuePopupProps) {
       <div className="flex items-center justify-between gap-1 border-b border-border/40 pb-2">
         <Badge variant="league" className="text-[10px]">
           <Trophy className="mr-1 h-3 w-3" />
-          {formatLeagueName(activeMatch.leagueId)}
+          {formatLeagueName(activeMatch.leagueId, activeMatch.league?.name)}
         </Badge>
         {group.matches.length > 1 && (
           <span className="font-mono text-[10px] text-muted-foreground">

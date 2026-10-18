@@ -18,13 +18,44 @@ export function PigeonEngine({
   zoom,
   userLocation,
   onMarkerClick,
-  className = 'w-full h-full min-h-[400px]',
+  className = 'w-full h-full',
 }: MapEngineProps) {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [dimensions, setDimensions] = React.useState<{ width?: number; height?: number }>({});
   const [mapCenter, setMapCenter] = React.useState<[number, number]>(center);
   const [mapZoom, setMapZoom] = React.useState<number>(zoom);
   const [activePopupVenueId, setActivePopupVenueId] = React.useState<number | null>(null);
 
   const groups = groupMatchesByVenue(matches, selectedMatchId);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+
+    if (!el) {
+      return;
+    }
+
+    const updateDimensions = () => {
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        setDimensions({
+          width: el.clientWidth,
+          height: el.clientHeight,
+        });
+      }
+    };
+
+    updateDimensions();
+
+    const observer = new ResizeObserver(() => {
+      updateDimensions();
+    });
+
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   // Sync center when center prop changes
   React.useEffect(() => {
@@ -46,11 +77,12 @@ export function PigeonEngine({
   }, [selectedMatchId]);
 
   return (
-    <div className={`relative overflow-hidden rounded-lg ${className}`}>
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`}>
       <Map
         center={mapCenter}
         zoom={mapZoom}
-        height={450}
+        width={dimensions.width}
+        height={dimensions.height ?? 800}
         provider={osmSubdomainProvider}
         onBoundsChanged={({ center: newCenter, zoom: newZoom }) => {
           setMapCenter(newCenter);

@@ -1,8 +1,6 @@
 import * as React from 'react';
-import { Compass, Layers, Loader2, LocateFixed } from 'lucide-react';
+import { Layers, Loader2, LocateFixed } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   LeafletEngine,
   MapLibreEngine,
@@ -83,9 +81,6 @@ export function MapContainer({
 }: MapContainerProps) {
   const [engine, setEngine] = React.useState<MapEngineType>(defaultEngine);
 
-  const activeOption =
-    ENGINES.find((opt) => opt.id === engine) ?? ENGINES[0];
-
   const engineProps: MapEngineProps = {
     matches,
     selectedMatchId,
@@ -93,7 +88,7 @@ export function MapContainer({
     zoom,
     userLocation,
     onMarkerClick,
-    className: mapHeightClassName ?? 'w-full h-full min-h-[450px]',
+    className: mapHeightClassName ?? 'w-full h-full',
   };
 
   const renderActiveEngine = () => {
@@ -114,75 +109,55 @@ export function MapContainer({
   };
 
   return (
-    <Card className={`overflow-hidden border-border/80 ${className}`}>
-      <CardHeader className="pb-3 border-b border-border/40">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Compass className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">
-                Multi-Spike Map Architecture
-              </CardTitle>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                {activeOption.badge}
-              </Badge>
-            </div>
-            <CardDescription className="text-xs mt-0.5">
-              {activeOption.description}
-            </CardDescription>
-          </div>
+    <div className={`relative flex-1 w-full h-full min-h-0 overflow-hidden ${className}`}>
+      {/* Full-bleed map canvas occupying 100% width and height */}
+      <div className="absolute inset-0 w-full h-full">{renderActiveEngine()}</div>
 
-          <div className="flex items-center gap-1">
-            <Layers className="h-3.5 w-3.5 text-muted-foreground mr-1 hidden sm:inline-block" />
-            <div className="flex flex-wrap gap-1 rounded-lg bg-muted/60 p-1">
-              {ENGINES.map((opt) => {
-                const isActive = opt.id === engine;
+      {/* Floating Map Engine Selector (top-right / bottom-right non-intrusive pill) */}
+      <div className="pointer-events-none absolute bottom-4 right-4 z-20 hidden sm:flex items-center gap-1 rounded-full border border-border/80 bg-background/90 p-1 shadow-lg backdrop-blur-md">
+        <Layers className="ml-2 mr-1 h-3.5 w-3.5 text-muted-foreground" />
+        {ENGINES.map((opt) => {
+          const isActive = opt.id === engine;
 
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      if (isMapEngineType(opt.id)) {
-                        setEngine(opt.id);
-                      }
-                    }}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                      isActive
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </CardHeader>
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                if (isMapEngineType(opt.id)) {
+                  setEngine(opt.id);
+                }
+              }}
+              className={`pointer-events-auto rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title={opt.description}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
 
-      <CardContent className="p-0 flex-1 min-h-0 relative">
-        <div className="relative w-full h-full min-h-0">{renderActiveEngine()}</div>
-
-        {onLocateUser && (
-          <button
-            type="button"
-            onClick={onLocateUser}
-            disabled={isLocating}
-            className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-30 flex items-center gap-1.5 rounded-full border border-border/80 bg-background/95 px-3 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background hover:text-primary active:scale-95 disabled:opacity-60 cursor-pointer"
-            title="Auf meinen Standort zentrieren"
-            aria-label="Auf meinen Standort zentrieren"
-          >
-            {isLocating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            ) : (
-              <LocateFixed className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span>Mein Standort</span>
-          </button>
-        )}
-      </CardContent>
-    </Card>
+      {onLocateUser && (
+        <button
+          type="button"
+          onClick={onLocateUser}
+          disabled={isLocating}
+          className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 rounded-full border border-border/80 bg-background/95 px-3 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background hover:text-primary active:scale-95 disabled:opacity-60 cursor-pointer"
+          title="Auf meinen Standort zentrieren"
+          aria-label="Auf meinen Standort zentrieren"
+        >
+          {isLocating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          ) : (
+            <LocateFixed className="h-3.5 w-3.5 text-primary" />
+          )}
+          <span>Mein Standort</span>
+        </button>
+      )}
+    </div>
   );
 }

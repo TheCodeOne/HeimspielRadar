@@ -50,6 +50,15 @@
     border-color: hsl(var(--border));
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
@@ -102,9 +111,19 @@
   animation: user-location-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
-/* OpenLayers mobile touch and sizing fix */
+/* OpenLayers mobile touch, sizing, and overlay stacking fix */
 .ol-viewport,
 .ol-viewport canvas {
   touch-action: none !important;
 }
+
+.ol-marker-overlay {
+  z-index: 10 !important;
+}
+
+.ol-popup-overlay,
+.maplibregl-popup {
+  z-index: 50 !important;
+}
+
 

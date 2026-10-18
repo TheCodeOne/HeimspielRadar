@@ -31,8 +31,9 @@ export interface MatchCardProps {
 export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
   ({ match, isSelected = false, onClick, onMouseEnter, className = '' }, ref) => {
     const isFinished = Boolean(match.result);
-    const leagueName = formatLeagueName(match.leagueId);
+    const leagueName = formatLeagueName(match.leagueId, match.league?.name);
     const dateFormatted = formatDisplayDate(match.kickoffDate);
+    const categoryParts = [match.league?.akName, match.league?.geschlecht].filter(Boolean);
 
     return (
       <Card
@@ -62,6 +63,12 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                 {leagueName}
               </Badge>
 
+              {categoryParts.length > 0 && (
+                <Badge variant="outline" className="text-[10px]">
+                  {categoryParts.join(' • ')}
+                </Badge>
+              )}
+
               <Badge variant="kickoff" className="text-[11px]">
                 <Clock className="mr-1 h-3 w-3" />
                 {formatKickoffTime(match.kickoffTime)}
@@ -71,6 +78,7 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                 {match.matchDay}. Spieltag
               </span>
             </div>
+
 
             {/* Score Badge if finished or Confirmation Status Badge */}
             {isFinished ? (

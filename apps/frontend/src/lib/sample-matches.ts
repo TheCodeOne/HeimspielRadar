@@ -1,9 +1,56 @@
-import type { Match } from '@sundayleague/shared-types';
+import type { League, Match } from '@sundayleague/shared-types';
 import {
   getThisWeekendSaturdayString,
   getTodayString,
   getTomorrowString,
 } from './date-utils';
+
+export const SAMPLE_LEAGUES: League[] = [
+  {
+    id: 1,
+    dbbId: 4001,
+    name: 'Oberliga Württemberg Herren',
+    seasonName: '2026/27',
+    verbandName: 'Basketballverband Baden-Württemberg',
+    skName: 'Oberliga',
+    akName: 'Senioren',
+    geschlecht: 'männlich',
+  },
+  {
+    id: 2,
+    dbbId: 4002,
+    name: 'Landesliga Herren Neckar/Rems',
+    seasonName: '2026/27',
+    verbandName: 'Basketballverband Baden-Württemberg',
+    skName: 'Landesliga',
+    akName: 'Senioren',
+    geschlecht: 'männlich',
+  },
+  {
+    id: 3,
+    dbbId: 4003,
+    name: 'Oberliga Württemberg Damen',
+    seasonName: '2026/27',
+    verbandName: 'Basketballverband Baden-Württemberg',
+    skName: 'Oberliga',
+    akName: 'Senioren',
+    geschlecht: 'weiblich',
+  },
+  {
+    id: 4,
+    dbbId: 4004,
+    name: 'Jugendoberliga U18 männlich',
+    seasonName: '2026/27',
+    verbandName: 'Basketballverband Baden-Württemberg',
+    skName: 'Oberliga',
+    akName: 'U18',
+    geschlecht: 'männlich',
+  },
+];
+
+export function getSampleLeagues(): League[] {
+  return SAMPLE_LEAGUES;
+}
 
 export function getSampleMatches(): Match[] {
   const today = getTodayString();
@@ -14,6 +61,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 101,
       leagueId: 1,
+      league: SAMPLE_LEAGUES[0],
       matchDay: 4,
       kickoffDate: today,
       kickoffTime: '19:30',
@@ -44,6 +92,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 102,
       leagueId: 1,
+      league: SAMPLE_LEAGUES[0],
       matchDay: 4,
       kickoffDate: today,
       kickoffTime: '20:15',
@@ -74,6 +123,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 103,
       leagueId: 2,
+      league: SAMPLE_LEAGUES[1],
       matchDay: 3,
       kickoffDate: tomorrow,
       kickoffTime: '15:30',
@@ -104,6 +154,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 104,
       leagueId: 1,
+      league: SAMPLE_LEAGUES[0],
       matchDay: 4,
       kickoffDate: weekend,
       kickoffTime: '18:30',
@@ -134,6 +185,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 105,
       leagueId: 2,
+      league: SAMPLE_LEAGUES[1],
       matchDay: 4,
       kickoffDate: weekend,
       kickoffTime: '17:00',
@@ -164,6 +216,7 @@ export function getSampleMatches(): Match[] {
     {
       id: 106,
       leagueId: 1,
+      league: SAMPLE_LEAGUES[0],
       matchDay: 4,
       kickoffDate: weekend,
       kickoffTime: '20:00',
@@ -193,3 +246,4 @@ export function getSampleMatches(): Match[] {
     },
   ];
 }
+
