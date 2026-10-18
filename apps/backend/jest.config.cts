@@ -6,5 +6,7 @@ module.exports = {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }]
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/apps/backend'
+  coverageDirectory: '../../coverage/apps/backend',
+  transformIgnorePatterns: ['node_modules/(?!(@nestjs/config|@nestjs/schedule)/)'],
 };
+

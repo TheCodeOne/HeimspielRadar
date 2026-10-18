@@ -54,6 +54,19 @@ export interface SyncResult {
   durationMs: number;
 }
 
+export interface VerbandSyncResult {
+  verbandId: number;
+  totalLeagues: number;
+  successfulLeagues: number;
+  failedLeagues: number;
+  totalMatches: number;
+  syncedMatches: number;
+  syncedVenues: number;
+  geocodedVenues: number;
+  durationMs: number;
+  leagueResults?: SyncResult[];
+}
+
 export interface NearbyMatchesQuery {
   date?: string; // YYYY-MM-DD
   lat?: number;
@@ -61,3 +74,4 @@ export interface NearbyMatchesQuery {
   radiusKm?: number;
   leagueId?: number;
 }
+

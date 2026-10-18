@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 
 @Controller('scraper')
@@ -22,5 +22,20 @@ export class ScraperController {
   @Post('sync/:leagueId')
   async syncLeague(@Param('leagueId', ParseIntPipe) leagueId: number) {
     return this.scraperService.syncLeague(leagueId);
+  }
+
+  @Post('sync/verband/:verbandId')
+  async syncVerband(
+    @Param('verbandId', ParseIntPipe) verbandId: number,
+    @Query('quickSync') quickSync?: string,
+    @Query('concurrency') concurrency?: string
+  ) {
+    const isQuickSync = quickSync === 'true';
+    const parsedConcurrency = concurrency ? parseInt(concurrency, 10) : undefined;
+
+    return this.scraperService.syncVerbandLeagues(verbandId, {
+      quickSync: isQuickSync,
+      concurrency: parsedConcurrency,
+    });
   }
 }

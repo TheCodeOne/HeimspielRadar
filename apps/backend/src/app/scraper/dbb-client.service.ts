@@ -145,4 +145,36 @@ export class DbbClientService {
     // SAFETY: DBB REST API guarantees DbbWamLigaResponse payload schema
     return (await res.json()) as DbbWamLigaResponse;
   }
+
+  /**
+   * Fetches all leagues for Baden-Württemberg (or specified verbandId) by paginating through WAM until complete.
+   */
+  async fetchAllWamLeagues(verbandId = 1): Promise<DbbLigaData[]> {
+    this.logger.log(`Starting pagination to discover all leagues for verbandId: ${verbandId}`);
+    let startIndex = 0;
+    let hasMore = true;
+    const allLeagues: DbbLigaData[] = [];
+
+    while (hasMore) {
+      this.logger.debug(`Fetching WAM leagues page starting at index ${startIndex}...`);
+      const response = await this.fetchWamLeagues(verbandId, startIndex);
+      const ligen = response.data?.ligen || [];
+
+      if (ligen.length === 0) {
+        break;
+      }
+
+      for (const liga of ligen) {
+        allLeagues.push(liga);
+      }
+
+      hasMore = Boolean(response.data?.hasMoreData);
+      startIndex += ligen.length;
+    }
+
+    this.logger.log(`Discovered ${allLeagues.length} total leagues for verbandId ${verbandId}`);
+
+    return allLeagues;
+  }
 }
+
