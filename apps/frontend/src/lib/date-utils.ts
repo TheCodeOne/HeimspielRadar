@@ -21,23 +21,38 @@ export function getTomorrowString(): string {
   return formatDateToISO(tomorrow);
 }
 
-export function getThisWeekendSaturdayString(): string {
+export interface DateRange {
+  dateFrom: string;
+  dateTo: string;
+}
+
+export function getWeekendRange(weeksOffset = 0): DateRange {
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0 is Sunday, 6 is Saturday
-  let daysToAdd = 0;
+  let daysToSaturday = 0;
 
   if (dayOfWeek === 6) {
-    daysToAdd = 0;
+    daysToSaturday = 0;
   } else if (dayOfWeek === 0) {
-    daysToAdd = -1; // Saturday was yesterday
+    daysToSaturday = -1; // Saturday was yesterday
   } else {
-    daysToAdd = 6 - dayOfWeek;
+    daysToSaturday = 6 - dayOfWeek;
   }
 
-  const targetDate = new Date(now);
-  targetDate.setDate(now.getDate() + daysToAdd);
+  const saturday = new Date(now);
+  saturday.setDate(now.getDate() + daysToSaturday + weeksOffset * 7);
 
-  return formatDateToISO(targetDate);
+  const sunday = new Date(saturday);
+  sunday.setDate(saturday.getDate() + 1);
+
+  return {
+    dateFrom: formatDateToISO(saturday),
+    dateTo: formatDateToISO(sunday),
+  };
+}
+
+export function getThisWeekendSaturdayString(): string {
+  return getWeekendRange(0).dateFrom;
 }
 
 export function formatDisplayDate(dateStr?: string | null): string {
@@ -71,6 +86,32 @@ export function formatDisplayDate(dateStr?: string | null): string {
   return dateStr;
 }
 
+export function formatDisplayDateRange(
+  dateFrom?: string | null,
+  dateTo?: string | null,
+): string {
+  const from = dateFrom?.trim() || '';
+  const to = dateTo?.trim() || '';
+
+  if (!from && !to) {
+    return 'Alle Termine';
+  }
+
+  if (from && to) {
+    if (from === to) {
+      return formatDisplayDate(from);
+    }
+
+    return `${formatDisplayDate(from)} – ${formatDisplayDate(to)}`;
+  }
+
+  if (from) {
+    return `Ab ${formatDisplayDate(from)}`;
+  }
+
+  return `Bis ${formatDisplayDate(to)}`;
+}
+
 export function formatKickoffTime(timeStr?: string | null): string {
   if (!timeStr || timeStr === '00:00') {
     return 'Uhrzeit offen';
@@ -85,6 +126,113 @@ export function isSameDay(dateStr1?: string, dateStr2?: string): boolean {
   }
 
   return dateStr1 === dateStr2;
+}
+
+export interface ChronologicalMatchItem {
+  id: number;
+  kickoffDate: string | null;
+  kickoffTime: string | null;
+}
+
+/**
+ * Compares two matches chronologically by kickoffDate ascending (null/empty last),
+ * then kickoffTime ascending (null/empty/'00:00' last), then id ascending.
+ */
+export function compareMatchesChronologically(
+  a: ChronologicalMatchItem,
+  b: ChronologicalMatchItem,
+): number {
+  const dateA = a.kickoffDate?.trim() || '';
+  const dateB = b.kickoffDate?.trim() || '';
+
+  if (dateA !== dateB) {
+    if (!dateA) {
+      return 1;
+    }
+
+    if (!dateB) {
+      return -1;
+    }
+
+    return dateA.localeCompare(dateB);
+  }
+
+  const rawTimeA = a.kickoffTime?.trim() || '';
+  const rawTimeB = b.kickoffTime?.trim() || '';
+  const timeA = rawTimeA === '00:00' ? '' : rawTimeA;
+  const timeB = rawTimeB === '00:00' ? '' : rawTimeB;
+
+  if (timeA !== timeB) {
+    if (!timeA) {
+      return 1;
+    }
+
+    if (!timeB) {
+      return -1;
+    }
+
+    return timeA.localeCompare(timeB);
+  }
+
+  return a.id - b.id;
+}
+
+export interface UpcomingCutoff {
+  cutoffDateStr: string;
+  cutoffTimeStr: string;
+}
+
+export function getUpcomingCutoffBerlin(nowMs = Date.now()): UpcomingCutoff {
+  const cutoff = new Date(nowMs - 2 * 60 * 60 * 1000);
+
+  const berlinParts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(cutoff);
+
+  const [cutoffDateStr = '', cutoffTimeStr = '00:00'] = berlinParts.split(' ');
+
+  return { cutoffDateStr, cutoffTimeStr };
+}
+
+export interface UpcomingMatchCandidate {
+  kickoffDate: string | null;
+  kickoffTime: string | null;
+  result?: string | null;
+}
+
+export function isMatchUpcoming(
+  match: UpcomingMatchCandidate,
+  nowMs = Date.now(),
+): boolean {
+  const hasResult = match.result != null && match.result.trim().length > 0;
+
+  if (hasResult || !match.kickoffDate) {
+    return false;
+  }
+
+  const { cutoffDateStr, cutoffTimeStr } = getUpcomingCutoffBerlin(nowMs);
+
+  if (match.kickoffDate > cutoffDateStr) {
+    return true;
+  }
+
+  if (match.kickoffDate < cutoffDateStr) {
+    return false;
+  }
+
+  const time = match.kickoffTime?.trim() || '';
+
+  if (!time || time === '00:00') {
+    return true;
+  }
+
+  return time > cutoffTimeStr;
 }
 
 /**

@@ -2,7 +2,6 @@ import * as React from 'react';
 import { Map, Overlay, ZoomControl } from 'pigeon-maps';
 import type { MapEngineProps } from '../map-engine.types';
 import { groupMatchesByVenue } from '../map-utils';
-import { VenuePopup } from '../VenuePopup';
 
 function osmSubdomainProvider(x: number, y: number, z: number): string {
   const subdomains = ['a', 'b', 'c'];
@@ -24,7 +23,6 @@ export function PigeonEngine({
   const [dimensions, setDimensions] = React.useState<{ width?: number; height?: number }>({});
   const [mapCenter, setMapCenter] = React.useState<[number, number]>(center);
   const [mapZoom, setMapZoom] = React.useState<number>(zoom);
-  const [activePopupVenueId, setActivePopupVenueId] = React.useState<number | null>(null);
 
   const groups = groupMatchesByVenue(matches, selectedMatchId);
 
@@ -63,7 +61,6 @@ export function PigeonEngine({
   }, [center[0], center[1]]);
 
   // Sync center when selection changes
-
   React.useEffect(() => {
     const selectedGroup = groups.find((g) => g.isSelected);
 
@@ -111,7 +108,6 @@ export function PigeonEngine({
           const isSelected = group.isSelected;
           const pinColor = isSelected ? '#2563eb' : '#0f172a';
           const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
-          const isPopupOpen = activePopupVenueId === group.venueId;
 
           return (
             <Overlay
@@ -119,15 +115,13 @@ export function PigeonEngine({
               anchor={[group.venue.latitude, group.venue.longitude]}
               offset={[17, 40]}
             >
-              <div className="relative">
+              <div
+                className="relative"
+                style={{ zIndex: isSelected ? 30 : 10 }}
+              >
                 <button
                   type="button"
-                  onClick={() => {
-                    onMarkerClick(group.matches[0]);
-                    setActivePopupVenueId(
-                      activePopupVenueId === group.venueId ? null : group.venueId,
-                    );
-                  }}
+                  onClick={() => onMarkerClick(group.matches[0])}
                   className="cursor-pointer transition-transform duration-200 focus:outline-none"
                   style={{ transform: scale }}
                   aria-label={`${group.venue.name} (${group.matches.length} Spiele)`}
@@ -160,16 +154,6 @@ export function PigeonEngine({
                     )}
                   </div>
                 </button>
-
-                {isPopupOpen && (
-                  <div className="absolute bottom-full left-1/2 z-50 mb-3 -translate-x-1/2">
-                    <VenuePopup
-                      group={group}
-                      onMarkerClick={onMarkerClick}
-                      onClose={() => setActivePopupVenueId(null)}
-                    />
-                  </div>
-                )}
               </div>
             </Overlay>
           );

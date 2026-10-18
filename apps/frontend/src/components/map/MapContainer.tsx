@@ -21,16 +21,18 @@ export interface MapContainerProps {
   className?: string;
   mapHeightClassName?: string;
   defaultEngine?: MapEngineType;
+  engine?: MapEngineType;
+  onEngineChange?: (engine: MapEngineType) => void;
 }
 
-interface EngineOption {
+export interface EngineOption {
   id: MapEngineType;
   label: string;
   badge: string;
   description: string;
 }
 
-const ENGINES: EngineOption[] = [
+export const MAP_ENGINE_OPTIONS: EngineOption[] = [
   {
     id: 'openlayers',
     label: 'OpenLayers',
@@ -57,7 +59,7 @@ const ENGINES: EngineOption[] = [
   },
 ];
 
-function isMapEngineType(val: string): val is MapEngineType {
+export function isMapEngineType(val?: string): val is MapEngineType {
   return (
     val === 'maplibre' ||
     val === 'leaflet' ||
@@ -78,8 +80,16 @@ export function MapContainer({
   className = '',
   mapHeightClassName,
   defaultEngine = 'openlayers',
+  engine: controlledEngine,
+  onEngineChange,
 }: MapContainerProps) {
-  const [engine, setEngine] = React.useState<MapEngineType>(defaultEngine);
+  const [internalEngine, setInternalEngine] = React.useState<MapEngineType>(defaultEngine);
+  const activeEngine = controlledEngine ?? internalEngine;
+
+  const handleSelectEngine = (nextEngine: MapEngineType) => {
+    setInternalEngine(nextEngine);
+    onEngineChange?.(nextEngine);
+  };
 
   const engineProps: MapEngineProps = {
     matches,
@@ -92,7 +102,7 @@ export function MapContainer({
   };
 
   const renderActiveEngine = () => {
-    switch (engine) {
+    switch (activeEngine) {
       case 'maplibre':
         return <MapLibreEngine key="maplibre" {...engineProps} />;
 
@@ -110,14 +120,14 @@ export function MapContainer({
 
   return (
     <div className={`relative flex-1 w-full h-full min-h-0 overflow-hidden ${className}`}>
-      {/* Full-bleed map canvas occupying 100% width and height */}
-      <div className="absolute inset-0 w-full h-full">{renderActiveEngine()}</div>
+      {/* Full-bleed map canvas occupying 100% width and height in an isolated z-0 stacking context */}
+      <div className="absolute inset-0 z-0 isolate w-full h-full">{renderActiveEngine()}</div>
 
       {/* Floating Map Engine Selector (top-right / bottom-right non-intrusive pill) */}
       <div className="pointer-events-none absolute bottom-4 right-4 z-20 hidden sm:flex items-center gap-1 rounded-full border border-border/80 bg-background/90 p-1 shadow-lg backdrop-blur-md">
         <Layers className="ml-2 mr-1 h-3.5 w-3.5 text-muted-foreground" />
-        {ENGINES.map((opt) => {
-          const isActive = opt.id === engine;
+        {MAP_ENGINE_OPTIONS.map((opt) => {
+          const isActive = opt.id === activeEngine;
 
           return (
             <button
@@ -125,7 +135,7 @@ export function MapContainer({
               type="button"
               onClick={() => {
                 if (isMapEngineType(opt.id)) {
-                  setEngine(opt.id);
+                  handleSelectEngine(opt.id);
                 }
               }}
               className={`pointer-events-auto rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${

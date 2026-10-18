@@ -52,10 +52,14 @@ export class MatchesController {
     @Query('genders') genders?: string | string[],
     @Query('ageClasses') ageClasses?: string | string[],
     @Query('skillLevels') skillLevels?: string | string[],
-    @Query('onlyUpcoming') onlyUpcoming?: string
+    @Query('onlyUpcoming') onlyUpcoming?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
   ) {
     return this.matchesService.findMatches({
       date,
+      dateFrom,
+      dateTo,
       lat: lat ? parseFloat(lat) : undefined,
       lng: lng ? parseFloat(lng) : undefined,
       radiusKm: radiusKm ? parseFloat(radiusKm) : undefined,

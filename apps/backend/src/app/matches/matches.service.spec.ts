@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
 import { LeagueRawData } from '../database/schema';
 import { LeaguesController } from './leagues.controller';
@@ -318,6 +319,8 @@ describe('MatchesService', () => {
 
       expect(findMatchesSpy).toHaveBeenCalledWith({
         date: '2026-10-25',
+        dateFrom: undefined,
+        dateTo: undefined,
         lat: 48.78,
         lng: 9.18,
         radiusKm: 30,
@@ -326,9 +329,72 @@ describe('MatchesService', () => {
         genders: ['männlich', 'weiblich'],
         ageClasses: ['Senioren', 'U18'],
         skillLevels: ['Oberliga', 'Bezirksliga'],
+        onlyUpcoming: undefined,
       });
       expect(capturedWhereConditions).toHaveLength(1);
       expect(results).toHaveLength(1);
+    });
+
+    it('supports filtering by dateFrom and dateTo range via controller and service', async () => {
+      const findMatchesSpy = jest.spyOn(service, 'findMatches');
+
+      const results = await matchesController.getMatches(
+        undefined,
+        '48.78',
+        '9.18',
+        '30',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'true',
+        '2026-10-24',
+        '2026-10-25'
+      );
+
+      expect(findMatchesSpy).toHaveBeenCalledWith({
+        date: undefined,
+        dateFrom: '2026-10-24',
+        dateTo: '2026-10-25',
+        lat: 48.78,
+        lng: 9.18,
+        radiusKm: 30,
+        leagueId: undefined,
+        leagueIds: undefined,
+        genders: undefined,
+        ageClasses: undefined,
+        skillLevels: undefined,
+        onlyUpcoming: true,
+      });
+      expect(capturedWhereConditions).toHaveLength(1);
+      expect(results).toHaveLength(1);
+    });
+
+    it('applies 2-hour Europe/Berlin cutoff when onlyUpcoming is true', async () => {
+      // 2026-10-18 14:00:00 Europe/Berlin (CEST = UTC+2 -> 12:00:00Z)
+      // 2 hours earlier in Berlin is 2026-10-18 12:00
+      const dateNowSpy = jest
+        .spyOn(Date, 'now')
+        .mockReturnValue(new Date('2026-10-18T12:00:00Z').getTime());
+
+      await service.findMatches({
+        onlyUpcoming: true,
+      });
+
+      expect(capturedWhereConditions).toHaveLength(1);
+      expect(capturedWhereConditions[0]).toBeDefined();
+
+      const dialect = new PgDialect();
+
+      const queryObj = capturedWhereConditions[0]
+        ? dialect.sqlToQuery(capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('2026-10-18');
+      expect(queryObj.params).toContain('12:00');
+
+      dateNowSpy.mockRestore();
     });
 
     it('cleanly maps matches with null kickoffDate and kickoffTime', async () => {

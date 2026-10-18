@@ -22,17 +22,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import {
+  compareMatchesChronologically,
   formatDisplayDate,
+  formatDisplayDateRange,
   formatKickoffTime,
   formatLastSyncedAt,
 } from '@/lib/date-utils';
 import {
   countActiveFilters,
-  type DateMode,
+  type DateFilterMode,
   DEFAULT_FILTER_STATE,
   loadPersistedFilters,
   type PersistedFilterState,
-  resolveSelectedDate,
+  resolveDateRangeFromMode,
   savePersistedFilters,
 } from '@/lib/filter-storage';
 import { formatDistance, STUTTGART_FALLBACK } from '@/lib/geo-utils';
@@ -89,10 +91,12 @@ export function App() {
 
   const {
     viewMode,
+    mapEngine,
     location,
     radiusKm,
     dateMode,
-    customDate,
+    customDateFrom,
+    customDateTo,
     onlyUpcoming,
     genders,
     ageClasses,
@@ -100,7 +104,13 @@ export function App() {
     leagueIds,
   } = filterState;
 
-  const selectedDate = resolveSelectedDate(dateMode, customDate);
+  const { dateFrom, dateTo } = resolveDateRangeFromMode(
+    dateMode,
+    customDateFrom,
+    customDateTo,
+  );
+
+  const dateRangeDisplay = formatDisplayDateRange(dateFrom, dateTo);
   const activeFilterCount = countActiveFilters(filterState);
 
   // User Geolocation hook integration
@@ -180,7 +190,8 @@ export function App() {
 
   // Query matches with debounced API integration and hierarchical filter params
   const { matches, isLoading } = useMatches({
-    date: selectedDate || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
     lat: location.lat,
     lng: location.lng,
     radiusKm,
@@ -201,13 +212,15 @@ export function App() {
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
 
-  // Group all matches taking place at the selected match's venue
+  // Group all matches taking place at the selected match's venue, sorted chronologically
   const selectedVenueMatches = React.useMemo(() => {
     if (!selectedMatch?.venue) {
       return [];
     }
 
-    return matches.filter((m) => isSameVenue(m, selectedMatch));
+    return matches
+      .filter((m) => isSameVenue(m, selectedMatch))
+      .sort(compareMatchesChronologically);
   }, [matches, selectedMatch]);
 
   // Handle marker click on map
@@ -215,11 +228,12 @@ export function App() {
     setSelectedMatchId(match.id);
   };
 
-  // Reset all filters to default while preserving current viewMode
+  // Reset all filters to default while preserving current viewMode and mapEngine
   const handleResetFilters = () => {
     setFilterState((prev) => ({
       ...DEFAULT_FILTER_STATE,
       viewMode: prev.viewMode,
+      mapEngine: prev.mapEngine,
     }));
   };
 
@@ -231,11 +245,41 @@ export function App() {
     }));
   };
 
-  const handleDateModeChange = (nextMode: DateMode, nextCustomDate?: string) => {
+  const handleDateModeChange = (nextMode: DateFilterMode) => {
+    const resolved = resolveDateRangeFromMode(
+      nextMode,
+      customDateFrom,
+      customDateTo,
+    );
+
     setFilterState((prev) => ({
       ...prev,
       dateMode: nextMode,
-      customDate: nextMode === 'custom' ? nextCustomDate : undefined,
+      customDateFrom: resolved.dateFrom,
+      customDateTo: resolved.dateTo,
+      customDate: resolved.dateFrom || undefined,
+    }));
+  };
+
+  const handleDateRangeChange = (nextFrom: string, nextTo: string) => {
+    if (!nextFrom && !nextTo) {
+      setFilterState((prev) => ({
+        ...prev,
+        dateMode: 'all',
+        customDateFrom: '',
+        customDateTo: '',
+        customDate: undefined,
+      }));
+
+      return;
+    }
+
+    setFilterState((prev) => ({
+      ...prev,
+      dateMode: 'custom',
+      customDateFrom: nextFrom,
+      customDateTo: nextTo,
+      customDate: nextFrom || undefined,
     }));
   };
 
@@ -378,7 +422,7 @@ export function App() {
                   • {radiusKm} km
                 </span>
                 <span className="hidden text-muted-foreground sm:inline shrink-0">
-                  • {formatDisplayDate(selectedDate)}
+                  • {dateRangeDisplay}
                 </span>
                 <Badge variant="outline" className="ml-1 shrink-0 font-mono text-[10px]">
                   {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
@@ -396,6 +440,13 @@ export function App() {
               onMarkerClick={handleMarkerClick}
               onLocateUser={handleLocateUser}
               isLocating={isLocating}
+              engine={mapEngine}
+              onEngineChange={(nextEngine) =>
+                setFilterState((prev) => ({
+                  ...prev,
+                  mapEngine: nextEngine,
+                }))
+              }
               className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none"
               mapHeightClassName="w-full h-full"
             />
@@ -569,7 +620,7 @@ export function App() {
 
                   <Badge variant="outline" className="gap-1 font-medium">
                     <Calendar className="h-3 w-3 text-primary" />
-                    {formatDisplayDate(selectedDate)}
+                    {dateRangeDisplay}
                   </Badge>
 
                   {onlyUpcoming && (
@@ -665,10 +716,18 @@ export function App() {
         isOpen={isFilterDrawerOpen}
         onClose={() => setIsFilterDrawerOpen(false)}
         matchCount={matches.length}
+        mapEngine={mapEngine}
+        onMapEngineChange={(nextEngine) =>
+          setFilterState((prev) => ({
+            ...prev,
+            mapEngine: nextEngine,
+          }))
+        }
         dateMode={dateMode}
-        customDate={customDate}
-        selectedDate={selectedDate}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         onDateModeChange={handleDateModeChange}
+        onDateRangeChange={handleDateRangeChange}
         onlyUpcoming={onlyUpcoming}
         onOnlyUpcomingChange={(nextOnlyUpcoming) =>
           setFilterState((prev) => ({

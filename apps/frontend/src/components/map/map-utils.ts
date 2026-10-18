@@ -1,4 +1,5 @@
 import type { Match, Venue } from '@sundayleague/shared-types';
+import { compareMatchesChronologically } from '@/lib/date-utils';
 
 export interface VenueGroup {
   venueId: number;
@@ -37,7 +38,13 @@ export function groupMatchesByVenue(
     }
   }
 
-  return Array.from(venueMap.values());
+  const groups = Array.from(venueMap.values());
+
+  for (const group of groups) {
+    group.matches.sort(compareMatchesChronologically);
+  }
+
+  return groups;
 }
 
 export function formatLeagueName(leagueId: number, leagueName?: string): string {

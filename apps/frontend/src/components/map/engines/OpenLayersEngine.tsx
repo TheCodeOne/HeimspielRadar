@@ -4,9 +4,8 @@ import { Map as OlMap, Overlay, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
 import { fromLonLat } from 'ol/proj';
 import OSM from 'ol/source/OSM';
-import type { Match } from '@sundayleague/shared-types';
 import type { MapEngineProps } from '../map-engine.types';
-import { formatLeagueName, groupMatchesByVenue, type VenueGroup } from '../map-utils';
+import { groupMatchesByVenue, type VenueGroup } from '../map-utils';
 
 function createOlMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElement {
   const el = document.createElement('div');
@@ -21,6 +20,7 @@ function createOlMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElem
   const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
 
   el.style.transform = scale;
+  el.style.zIndex = isSelected ? '30' : '10';
   el.innerHTML = `
     <div style="position:relative;display:flex;align-items:center;justify-content:center;">
       <svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -34,57 +34,6 @@ function createOlMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElem
   `;
 
   return el;
-}
-
-function renderOlPopupHtml(
-  group: VenueGroup,
-  onMarkerClick: (match: Match) => void,
-  onClose: () => void,
-): HTMLElement {
-  const container = document.createElement('div');
-
-  container.className =
-    'rounded-lg bg-white p-3 text-slate-900 shadow-xl border border-slate-200 text-xs w-64';
-
-  const primaryMatch = group.matches[0];
-  const leagueName = formatLeagueName(primaryMatch.leagueId, primaryMatch.league?.name);
-
-  const scoreHtml = primaryMatch.result
-    ? `<div style="text-align:center;font-weight:700;margin:4px 0;color:#2563eb;">${primaryMatch.result}</div>`
-    : '';
-
-  container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:between;margin-bottom:4px;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
-      <span style="font-size:10px;font-weight:600;color:#64748b;flex:1;">${leagueName}</span>
-      <button type="button" class="close-popup-btn" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:12px;padding:0 2px;">✕</button>
-    </div>
-    <div style="font-weight:700;font-size:13px;margin-bottom:2px;">${primaryMatch.homeTeam.name} vs. ${primaryMatch.guestTeam.name}</div>
-    ${scoreHtml}
-    <div style="font-size:11px;color:#475569;margin-top:4px;">
-      <div>🕒 ${primaryMatch.kickoffTime} Uhr (${primaryMatch.kickoffDate})</div>
-      <div style="margin-top:2px;">📍 <strong>${group.venue.name}</strong></div>
-      <div style="color:#94a3b8;font-size:10px;">${group.venue.street}, ${group.venue.city}</div>
-    </div>
-    <button type="button" class="select-btn" style="width:100%;margin-top:8px;padding:6px 8px;background:#2563eb;color:#ffffff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">
-      Spiel auswählen
-    </button>
-  `;
-
-  const closeBtn = container.querySelector('.close-popup-btn');
-
-  closeBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onClose();
-  });
-
-  const selectBtn = container.querySelector('.select-btn');
-
-  selectBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onMarkerClick(primaryMatch);
-  });
-
-  return container;
 }
 
 function createUserLocationOlElement(): HTMLElement {
@@ -113,27 +62,12 @@ export function OpenLayersEngine({
   const mapRef = React.useRef<OlMap | null>(null);
   const markerOverlaysRef = React.useRef<Overlay[]>([]);
   const userLocationOverlayRef = React.useRef<Overlay | null>(null);
-  const popupOverlayRef = React.useRef<Overlay | null>(null);
-  const popupContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Initialize OpenLayers Map
   React.useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return;
     }
-
-    const popupContainer = document.createElement('div');
-    popupContainerRef.current = popupContainer;
-
-    const popupOverlay = new Overlay({
-      element: popupContainer,
-      className: 'ol-overlay-container ol-selectable ol-popup-overlay',
-      positioning: 'bottom-center',
-      offset: [0, -45],
-      stopEvent: false,
-    });
-
-    popupOverlayRef.current = popupOverlay;
 
     const osmSource = new OSM();
 
@@ -148,7 +82,6 @@ export function OpenLayersEngine({
           source: osmSource,
         }),
       ],
-      overlays: [popupOverlay],
       view: new View({
         center: fromLonLat([center[1], center[0]]), // [lng, lat]
         zoom,
@@ -229,10 +162,8 @@ export function OpenLayersEngine({
   // Update Markers & Selection
   React.useEffect(() => {
     const map = mapRef.current;
-    const popupOverlay = popupOverlayRef.current;
-    const popupContainer = popupContainerRef.current;
 
-    if (!map || !popupOverlay || !popupContainer) {
+    if (!map) {
       return;
     }
 
@@ -255,7 +186,9 @@ export function OpenLayersEngine({
 
       const overlay = new Overlay({
         element: markerEl,
-        className: 'ol-overlay-container ol-selectable ol-marker-overlay',
+        className: group.isSelected
+          ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-selected'
+          : 'ol-overlay-container ol-selectable ol-marker-overlay',
         positioning: 'bottom-center',
         stopEvent: true,
       });
@@ -264,23 +197,9 @@ export function OpenLayersEngine({
       map.addOverlay(overlay);
       markerOverlaysRef.current.push(overlay);
 
-      const showPopup = () => {
-        popupContainer.innerHTML = '';
-
-        const popupContent = renderOlPopupHtml(
-          group,
-          onMarkerClick,
-          () => popupOverlay.setPosition(undefined),
-        );
-
-        popupContainer.appendChild(popupContent);
-        popupOverlay.setPosition(coordinates);
-      };
-
       markerEl.addEventListener('click', (e) => {
         e.stopPropagation();
         onMarkerClick(group.matches[0]);
-        showPopup();
       });
 
       if (group.isSelected) {
@@ -290,10 +209,6 @@ export function OpenLayersEngine({
         });
       }
     }
-
-    // Keep popupOverlay last in DOM order so it always renders above all marker pins
-    map.removeOverlay(popupOverlay);
-    map.addOverlay(popupOverlay);
   }, [matches, selectedMatchId, onMarkerClick]);
 
   return (

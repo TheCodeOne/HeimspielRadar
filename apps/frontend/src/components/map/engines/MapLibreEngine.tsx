@@ -3,14 +3,12 @@ import {
   Map as MapLibreMap,
   Marker as MapLibreMarker,
   NavigationControl,
-  Popup as MapLibrePopup,
   setWorkerUrl,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import type { Match } from '@sundayleague/shared-types';
 import type { MapEngineProps } from '../map-engine.types';
-import { formatLeagueName, groupMatchesByVenue, type VenueGroup } from '../map-utils';
+import { groupMatchesByVenue, type VenueGroup } from '../map-utils';
 
 // Configure MapLibre Web Worker for Vite
 setWorkerUrl(workerUrl);
@@ -28,6 +26,7 @@ function createMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElemen
   const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
 
   el.style.transform = scale;
+  el.style.zIndex = isSelected ? '30' : '10';
   el.innerHTML = `
     <div style="position:relative;display:flex;align-items:center;justify-content:center;">
       <svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -41,45 +40,6 @@ function createMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElemen
   `;
 
   return el;
-}
-
-function createPopupContent(
-  group: VenueGroup,
-  onMarkerClick: (match: Match) => void,
-): HTMLElement {
-  const container = document.createElement('div');
-  container.style.padding = '8px';
-  container.style.fontSize = '12px';
-  container.style.maxWidth = '250px';
-
-  const primaryMatch = group.matches[0];
-  const leagueName = formatLeagueName(primaryMatch.leagueId, primaryMatch.league?.name);
-
-  const scoreHtml = primaryMatch.result
-    ? `<div style="text-align:center;font-weight:700;margin:4px 0;color:#2563eb;">${primaryMatch.result}</div>`
-    : '';
-
-  container.innerHTML = `
-    <div style="font-size:10px;font-weight:600;color:#64748b;margin-bottom:4px;">${leagueName}</div>
-    <div style="font-weight:700;font-size:13px;margin-bottom:2px;">${primaryMatch.homeTeam.name} vs. ${primaryMatch.guestTeam.name}</div>
-    ${scoreHtml}
-    <div style="font-size:11px;color:#475569;margin-top:4px;">
-      <div>🕒 ${primaryMatch.kickoffTime} Uhr (${primaryMatch.kickoffDate})</div>
-      <div style="margin-top:2px;">📍 <strong>${group.venue.name}</strong></div>
-      <div style="color:#94a3b8;font-size:10px;">${group.venue.street}, ${group.venue.city}</div>
-    </div>
-    <button type="button" class="select-btn" style="width:100%;margin-top:8px;padding:6px 8px;background:#2563eb;color:#ffffff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">
-      Spiel auswählen
-    </button>
-  `;
-
-  const btn = container.querySelector('.select-btn');
-
-  btn?.addEventListener('click', () => {
-    onMarkerClick(primaryMatch);
-  });
-
-  return container;
 }
 
 function createUserLocationMapLibreElement(): HTMLElement {
@@ -109,7 +69,6 @@ export function MapLibreEngine({
   const markersRef = React.useRef<MapLibreMarker[]>([]);
   const userMarkerRef = React.useRef<MapLibreMarker | null>(null);
   const isLoadedRef = React.useRef<boolean>(false);
-
 
   // Initialize MapLibre
   React.useEffect(() => {
@@ -216,16 +175,13 @@ export function MapLibreEngine({
 
       const el = createMarkerElement(group, group.isSelected);
 
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         onMarkerClick(group.matches[0]);
       });
 
-      const popup = new MapLibrePopup({ offset: 25, closeButton: true });
-      popup.setDOMContent(createPopupContent(group, onMarkerClick));
-
       const marker = new MapLibreMarker({ element: el })
         .setLngLat([group.venue.longitude, group.venue.latitude])
-        .setPopup(popup)
         .addTo(map);
 
       markersRef.current.push(marker);
