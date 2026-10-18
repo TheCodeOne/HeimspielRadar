@@ -1,0 +1,80 @@
+name: Manual DBB Scraper Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbandId:
+        description: 'DBB Verband ID to sync (default: 1 for Baden-Württemberg)'
+        required: false
+        default: '1'
+        type: string
+      backendUrl:
+        description: 'Backend Base URL (defaults to production Render service)'
+        required: false
+        default: 'https://heimspiel-radar.onrender.com'
+        type: string
+
+jobs:
+  sync:
+    name: Sync DBB Verband
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger DBB Scraper Sync
+        id: sync
+        run: |
+          set -e
+          BACKEND_URL="${{ inputs.backendUrl }}"
+          BACKEND_URL="${BACKEND_URL%/}"
+          VERBAND_ID="${{ inputs.verbandId }}"
+          SYNC_URL="${BACKEND_URL}/api/scraper/sync/verband/${VERBAND_ID}"
+
+          echo "Triggering DBB Scraper Sync at: $SYNC_URL"
+
+          HTTP_STATUS=$(curl -s -S -o sync_response.json -w "%{http_code}" \
+            -X POST "$SYNC_URL" \
+            -H "Authorization: Bearer ${{ secrets.SCRAPER_SECRET }}" \
+            -H "Content-Type: application/json")
+
+          echo "Response HTTP Status: $HTTP_STATUS"
+          echo "Response Body:"
+          cat sync_response.json
+          echo ""
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Scraper sync failed with HTTP status $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Output Job Summary
+        if: always() && steps.sync.outcome == 'success'
+        run: |
+          echo "### 🏀 DBB Scraper Sync Succeeded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Verband ID** | $(jq -r '.verbandId // "N/A"' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Leagues** | $(jq -r '.totalLeagues // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Successful Leagues** | $(jq -r '.successfulLeagues // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Failed Leagues** | $(jq -r '.failedLeagues // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Matches** | $(jq -r '.totalMatches // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Synced Matches** | $(jq -r '.syncedMatches // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Synced Venues** | $(jq -r '.syncedVenues // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Geocoded Venues** | $(jq -r '.geocodedVenues // 0' sync_response.json) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Duration** | $(( $(jq -r '.durationMs // 0' sync_response.json) / 1000 ))s ($(jq -r '.durationMs // 0' sync_response.json) ms) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Target service: \`${{ inputs.backendUrl }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Output Failure Summary
+        if: always() && steps.sync.outcome == 'failure'
+        run: |
+          echo "### ❌ DBB Scraper Sync Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Failed to sync Verband \`${{ inputs.verbandId }}\` on \`${{ inputs.backendUrl }}\`." >> $GITHUB_STEP_SUMMARY
+          if [ -f sync_response.json ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Server Response" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat sync_response.json >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
