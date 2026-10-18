@@ -193,6 +193,8 @@ export class ScraperService {
                 }
               }
 
+              const location = lat !== null && lng !== null ? { lng, lat } : null;
+
               const venueValues = {
                 id: spielfeld.id,
                 name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
@@ -201,6 +203,7 @@ export class ScraperService {
                 city: spielfeld.ort || null,
                 latitude: lat,
                 longitude: lng,
+                location,
                 geocodedAt: lat !== null ? new Date() : null,
                 rawData: spielfeld,
                 updatedAt: new Date(),
@@ -215,9 +218,10 @@ export class ScraperService {
                 updatedAt: new Date(),
               };
 
-              if (lat !== null) {
+              if (lat !== null && lng !== null) {
                 venueUpdateValues.latitude = lat;
                 venueUpdateValues.longitude = lng;
+                venueUpdateValues.location = location;
                 venueUpdateValues.geocodedAt = new Date();
               }
 
