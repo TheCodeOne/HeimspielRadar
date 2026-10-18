@@ -68,6 +68,17 @@ When extending this codebase, follow these planned evolution steps:
    - Differentiate between:
      - **Full Season Sync:** Run weekly/monthly to catch rescheduled dates/venues.
      - **Live/Weekend Sync:** Run on Saturdays and Sundays to update match results and scores (`result`, `confirmed`).
+3. **Manual GitHub Actions Scraper Sync (`workflow_dispatch`):**
+   - Workflow file: `.github/workflows/scraper-sync.yml`
+   - Triggerable manually from the **Actions** tab in GitHub or via GitHub CLI:
+     ```bash
+     gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspiel-radar.onrender.com
+     ```
+   - **GitHub Secret Requirement:**
+     Configure `SCRAPER_SECRET` under **Settings -> Secrets and variables -> Actions** in the GitHub repository.
+     The workflow sends this as an authenticated header:
+     `Authorization: Bearer ${{ secrets.SCRAPER_SECRET }}`
+
 
 ---
 

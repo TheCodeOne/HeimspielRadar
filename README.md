@@ -99,3 +99,27 @@ Um die Beziehungen zwischen Apps und Libraries visuell im Browser anzuzeigen:
 ```bash
 npx nx graph
 ```
+
+---
+
+## 🤖 Scraper Sync & GitHub Actions
+
+Das Projekt enthält einen manuell auslösbaren GitHub-Actions-Workflow (`.github/workflows/scraper-sync.yml`), um DBB-Spieldaten in der Render-Backend-Instanz zu synchronisieren.
+
+### Workflow ausführen
+1. Gehe im GitHub Repository zum Reiter **Actions**.
+2. Wähle **Manual DBB Scraper Sync** in der linken Seitenleiste.
+3. Klicke auf **Run workflow**.
+4. Wähle optional die `verbandId` (Standard: `1` für Baden-Württemberg) und die `backendUrl` (Standard: `https://heimspiel-radar.onrender.com`).
+5. Nach Abschluss zeigt das Job-Summary eine strukturierte Übersicht der synchronisierten Ligen, Spiele und Sporthallen.
+
+Alternativ via GitHub CLI:
+```bash
+gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspiel-radar.onrender.com
+```
+
+### GitHub Secret Konfiguration
+Der Workflow benötigt das Secret `SCRAPER_SECRET` zur Authentifizierung am Backend (`Authorization: Bearer <SCRAPER_SECRET>`):
+- Gehe zu **Settings** → **Secrets and variables** → **Actions** im GitHub Repository.
+- Erstelle ein neues Repository-Secret mit dem Namen `SCRAPER_SECRET` und trage denselben Wert wie in der Backend-Umgebungsvariable ein.
+
