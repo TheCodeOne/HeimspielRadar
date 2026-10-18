@@ -15,6 +15,13 @@
       "when": 1792330039962,
       "tag": "0001_fair_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792340254766,
+      "tag": "0002_massive_nightcrawler",
+      "breakpoints": true
     }
   ]
 }
