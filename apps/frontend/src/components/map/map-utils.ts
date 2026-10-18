@@ -40,10 +40,19 @@ export function groupMatchesByVenue(
   return Array.from(venueMap.values());
 }
 
-export function formatLeagueName(leagueId: number): string {
+export function formatLeagueName(leagueId: number, leagueName?: string): string {
+  if (leagueName) {
+    return leagueName;
+  }
+
   if (leagueId === 1) {
     return 'Oberliga Württemberg';
   }
 
-  return 'Landesliga';
+  if (leagueId === 2) {
+    return 'Landesliga';
+  }
+
+  return `Liga #${leagueId}`;
 }
+

@@ -47,7 +47,7 @@ function renderOlPopupHtml(
     'rounded-lg bg-white p-3 text-slate-900 shadow-xl border border-slate-200 text-xs w-64';
 
   const primaryMatch = group.matches[0];
-  const leagueName = formatLeagueName(primaryMatch.leagueId);
+  const leagueName = formatLeagueName(primaryMatch.leagueId, primaryMatch.league?.name);
 
   const scoreHtml = primaryMatch.result
     ? `<div style="text-align:center;font-weight:700;margin:4px 0;color:#2563eb;">${primaryMatch.result}</div>`

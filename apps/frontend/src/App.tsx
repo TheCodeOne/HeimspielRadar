@@ -4,14 +4,18 @@ import {
   Calendar,
   Clock,
   Coffee,
-  Compass,
+  ExternalLink,
   MapPin,
-  Navigation,
+  RotateCcw,
+  SlidersHorizontal,
+  Trophy,
+  X,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
-import { MatchCard, MatchList } from '@/components/matches';
+import { formatLeagueName } from '@/components/map/map-utils';
+import { MatchList } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
@@ -19,29 +23,84 @@ import { Button } from '@/components/ui/button';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import {
   formatDisplayDate,
+  formatKickoffTime,
   formatLastSyncedAt,
-  getThisWeekendSaturdayString,
-  getTodayString,
 } from '@/lib/date-utils';
 import {
-  type LocationReference,
-  STUTTGART_FALLBACK,
-} from '@/lib/geo-utils';
-import { useMatches } from '@/lib/use-matches';
+  countActiveFilters,
+  type DateMode,
+  DEFAULT_FILTER_STATE,
+  loadPersistedFilters,
+  type PersistedFilterState,
+  resolveSelectedDate,
+  savePersistedFilters,
+} from '@/lib/filter-storage';
+import { formatDistance, STUTTGART_FALLBACK } from '@/lib/geo-utils';
+import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
 
+function isSameVenue(a: Match, b: Match): boolean {
+  if (!a.venue || !b.venue) {
+    return false;
+  }
+
+  if (a.venue.id === b.venue.id) {
+    return true;
+  }
+
+  return (
+    a.venue.latitude != null &&
+    a.venue.longitude != null &&
+    a.venue.latitude === b.venue.latitude &&
+    a.venue.longitude === b.venue.longitude
+  );
+}
+
+function buildGoogleMapsRouteUrl(match: Match): string {
+  const venue = match.venue;
+
+  if (!venue) {
+    return 'https://www.google.com/maps';
+  }
+
+  const destination =
+    venue.latitude != null && venue.longitude != null
+      ? `${venue.latitude},${venue.longitude}`
+      : `${venue.name}, ${venue.street}, ${venue.postalCode} ${venue.city}`;
+
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
 export function App() {
-  // Filter state
-  const [selectedDate, setSelectedDate] = React.useState<string>(getTodayString());
-  const [radiusKm, setRadiusKm] = React.useState<number>(30);
-  const [location, setLocation] = React.useState<LocationReference>(STUTTGART_FALLBACK);
-  const [selectedLeagueId, setSelectedLeagueId] = React.useState<number | undefined>(undefined);
+  // Restore persisted filter & view state on initial load
+  const [filterState, setFilterState] = React.useState<PersistedFilterState>(
+    () => loadPersistedFilters(),
+  );
 
-  // Mobile navigation tab: 'list' or 'map'
-  const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list');
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
 
-  // Selected match for bi-directional map/card synchronization
+  // Selected match for map marker / multi-match venue overlay
   const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
+
+  // Persist filter & view state changes to localStorage
+  React.useEffect(() => {
+    savePersistedFilters(filterState);
+  }, [filterState]);
+
+  const {
+    viewMode,
+    location,
+    radiusKm,
+    dateMode,
+    customDate,
+    genders,
+    ageClasses,
+    skillLevels,
+    leagueIds,
+  } = filterState;
+
+  const selectedDate = resolveSelectedDate(dateMode, customDate);
+  const activeFilterCount = countActiveFilters(filterState);
 
   // User Geolocation hook integration
   const {
@@ -53,16 +112,19 @@ export function App() {
 
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
-  // Sync cold-start stored coordinates if available
+  // Sync cold-start stored coordinates if available and user is still on fallback
   React.useEffect(() => {
     if (geoCoords && location.name === STUTTGART_FALLBACK.name) {
-      setLocation({
-        lat: geoCoords.lat,
-        lng: geoCoords.lng,
-        name: 'Mein Standort',
-      });
+      setFilterState((prev) => ({
+        ...prev,
+        location: {
+          lat: geoCoords.lat,
+          lng: geoCoords.lng,
+          name: 'Mein Standort',
+        },
+      }));
     }
-  }, [geoCoords]);
+  }, [geoCoords, location.name]);
 
   // Handle geolocation error feedback
   React.useEffect(() => {
@@ -78,11 +140,14 @@ export function App() {
     const coords = await requestLocation();
 
     if (coords) {
-      setLocation({
-        lat: coords.lat,
-        lng: coords.lng,
-        name: 'Mein Standort',
-      });
+      setFilterState((prev) => ({
+        ...prev,
+        location: {
+          lat: coords.lat,
+          lng: coords.lng,
+          name: 'Mein Standort',
+        },
+      }));
       setSelectedMatchId(null);
       setToastMessage('Standort ermittelt: Karte zentriert');
       const timer = setTimeout(() => setToastMessage(null), 3000);
@@ -90,7 +155,10 @@ export function App() {
       return () => clearTimeout(timer);
     }
 
-    setLocation(STUTTGART_FALLBACK);
+    setFilterState((prev) => ({
+      ...prev,
+      location: STUTTGART_FALLBACK,
+    }));
   };
 
   // Server health and cold-start detection
@@ -101,47 +169,72 @@ export function App() {
     lastSyncedAt,
   } = useServerHealth({ thresholdMs: 1500 });
 
-  // Query matches with debounced API integration
+  // Fetch available leagues and distinct hierarchy options from /api/leagues
+  const {
+    leagues,
+    genders: availableGenders,
+    ageClasses: availableAgeClasses,
+    skillLevels: availableSkillLevels,
+  } = useLeagues();
+
+  // Query matches with debounced API integration and hierarchical filter params
   const { matches, isLoading } = useMatches({
     date: selectedDate || undefined,
     lat: location.lat,
     lng: location.lng,
     radiusKm,
-    leagueId: selectedLeagueId,
+    leagueIds: leagueIds.length > 0 ? leagueIds : undefined,
+    genders: genders.length > 0 ? genders : undefined,
+    ageClasses: ageClasses.length > 0 ? ageClasses : undefined,
+    skillLevels: skillLevels.length > 0 ? skillLevels : undefined,
     debounceMs: 300,
   });
 
-  // Keep selectedMatchId valid when matches update
+  // Clear selectedMatchId if the selected match is no longer in the filtered results
   React.useEffect(() => {
-    if (matches.length > 0) {
-      const matchStillExists = matches.some((m) => m.id === selectedMatchId);
-
-      if (!matchStillExists) {
-        setSelectedMatchId(matches[0].id);
-      }
-    } else {
+    if (selectedMatchId !== null && !matches.some((m) => m.id === selectedMatchId)) {
       setSelectedMatchId(null);
     }
   }, [matches, selectedMatchId]);
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
 
+  // Group all matches taking place at the selected match's venue
+  const selectedVenueMatches = React.useMemo(() => {
+    if (!selectedMatch?.venue) {
+      return [];
+    }
+
+    return matches.filter((m) => isSameVenue(m, selectedMatch));
+  }, [matches, selectedMatch]);
+
   // Handle marker click on map
   const handleMarkerClick = (match: Match) => {
     setSelectedMatchId(match.id);
   };
 
-  // Reset all filters to default
+  // Reset all filters to default while preserving current viewMode
   const handleResetFilters = () => {
-    setSelectedDate('');
-    setRadiusKm(30);
-    setLocation(STUTTGART_FALLBACK);
-    setSelectedLeagueId(undefined);
+    setFilterState((prev) => ({
+      ...DEFAULT_FILTER_STATE,
+      viewMode: prev.viewMode,
+    }));
   };
 
   // Expand radius helper for empty state
   const handleExpandRadius = () => {
-    setRadiusKm((current) => Math.min(50, current + 15));
+    setFilterState((prev) => ({
+      ...prev,
+      radiusKm: Math.min(50, prev.radiusKm + 15),
+    }));
+  };
+
+  const handleDateModeChange = (nextMode: DateMode, nextCustomDate?: string) => {
+    setFilterState((prev) => ({
+      ...prev,
+      dateMode: nextMode,
+      customDate: nextMode === 'custom' ? nextCustomDate : undefined,
+    }));
   };
 
   // Center coordinate for map view: center on selected match venue or user reference point
@@ -152,56 +245,95 @@ export function App() {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      {/* Top Application Header */}
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/90 px-4 backdrop-blur-md sm:px-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card shadow-xs">
+      {/* Unified Application Header (Desktop & Mobile) */}
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
+        {/* Left: Brand Logo & Title */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card shadow-xs">
             <Activity className="h-4 w-4 text-primary" />
           </div>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold tracking-tight text-sm sm:text-base">
-                HeimspielRadar
-              </span>
-              <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
-                Amateur-Basketball
-              </Badge>
-              <Badge
-                variant="outline"
-                className="hidden text-[10px] font-mono text-muted-foreground md:inline-flex border-border/60 bg-muted/30"
-                title={lastSyncedAt ? `Letzte DBB-Synchronisierung: ${lastSyncedAt}` : undefined}
-              >
-                <Clock className="mr-1 h-3 w-3 text-primary/70" />
-                {formatLastSyncedAt(lastSyncedAt)}
-              </Badge>
-            </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate font-bold tracking-tight text-sm sm:text-base">
+              HeimspielRadar
+            </span>
+            <Badge variant="outline" className="hidden text-[10px] lg:inline-flex">
+              Amateur-Basketball
+            </Badge>
+            <Badge
+              variant="outline"
+              className="hidden text-[10px] font-mono text-muted-foreground xl:inline-flex border-border/60 bg-muted/30"
+              title={lastSyncedAt ? `Letzte DBB-Synchronisierung: ${lastSyncedAt}` : undefined}
+            >
+              <Clock className="mr-1 h-3 w-3 text-primary/70" />
+              {formatLastSyncedAt(lastSyncedAt)}
+            </Badge>
           </div>
         </div>
 
-        {/* Header Indicators / Quick Info */}
+        {/* Center: Segmented View Switcher (🗺️ Karte vs. 📋 Liste) */}
+        <div
+          className="flex items-center rounded-lg border border-border/80 bg-muted/60 p-1"
+          role="tablist"
+          aria-label="Ansicht wechseln"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'map'}
+            onClick={() =>
+              setFilterState((prev) => ({
+                ...prev,
+                viewMode: 'map',
+              }))
+            }
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all sm:px-3.5 ${
+              viewMode === 'map'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🗺️</span>
+            <span>Karte</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'list'}
+            onClick={() =>
+              setFilterState((prev) => ({
+                ...prev,
+                viewMode: 'list',
+              }))
+            }
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all sm:px-3.5 ${
+              viewMode === 'list'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>📋</span>
+            <span>Liste ({matches.length})</span>
+          </button>
+        </div>
+
+        {/* Right: Filter Drawer Trigger Button with Active Count Badge */}
         <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedDate(getThisWeekendSaturdayString())}
-            className="hidden text-xs sm:inline-flex"
-            title="Auf dieses Wochenende filtern"
-          >
-            <Calendar className="mr-1.5 h-3.5 w-3.5 text-primary" />
-            <span>{formatDisplayDate(selectedDate)}</span>
-          </Button>
-
-          <Button
+            type="button"
             variant="outline"
             size="sm"
-            onClick={() => setMobileTab(mobileTab === 'list' ? 'map' : 'list')}
-            className="text-xs font-mono"
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
           >
-            <Navigation className="mr-1.5 h-3.5 w-3.5 text-primary" />
-            <span>
-              {location.name} + {radiusKm}km
-            </span>
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            <span>Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
         </div>
       </header>
@@ -225,181 +357,278 @@ export function App() {
         </div>
       )}
 
-      {/* Main Layout Area */}
-      <main className="flex flex-1 min-h-0 overflow-hidden">
-        {/* ======================================================== */}
-        {/* DESKTOP SPLIT-SCREEN VIEW (>= 1024px)                     */}
-        {/* ======================================================== */}
-        <div className="hidden lg:flex w-full h-full min-h-0">
-          {/* Left Pane: Sticky Filter Bar + Scrollable Match Cards */}
-          <aside className="w-[440px] xl:w-[480px] 2xl:w-[520px] shrink-0 border-r border-border/80 bg-background/50 flex flex-col h-full min-h-0">
-            {/* Filter Controls (Sticky in left pane) */}
-            <div className="p-4 border-b border-border/60 bg-card/40 shrink-0">
-              <FilterBar
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-                radiusKm={radiusKm}
-                onRadiusChange={setRadiusKm}
-                location={location}
-                onLocationChange={setLocation}
-                selectedLeagueId={selectedLeagueId}
-                onLeagueChange={setSelectedLeagueId}
-                onResetFilters={handleResetFilters}
-                onRequestLocation={handleLocateUser}
-                isLocating={isLocating}
-                lastSyncedAt={lastSyncedAt}
-                className="border-0 bg-transparent p-0 shadow-none"
-              />
-            </div>
-
-            {/* Match List Header Status */}
-            <div className="flex items-center justify-between border-b border-border/40 bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-foreground">
-                  {matches.length}
+      {/* Main Content Area: Full-Screen Map View OR Full-Screen List View */}
+      <main className="relative flex flex-1 min-h-0 w-full flex-col overflow-hidden">
+        {viewMode === 'map' ? (
+          <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
+            {/* Compact Floating Top Summary Pill */}
+            <div className="pointer-events-none absolute top-3 left-1/2 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                className="pointer-events-auto flex items-center gap-2 rounded-full border border-border/80 bg-background/90 px-3.5 py-1.5 text-xs shadow-lg backdrop-blur-md transition-colors hover:border-primary/60"
+              >
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="truncate font-medium max-w-[140px] sm:max-w-[220px]">
+                  {location.name}
                 </span>
-                <span>
-                  {matches.length === 1 ? 'Heimspiel' : 'Heimspiele'} im Umkreis von {radiusKm} km
+                <span className="font-mono text-muted-foreground shrink-0">
+                  • {radiusKm} km
                 </span>
-              </div>
-
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate('')}
-                  className="text-[11px] text-primary hover:underline"
-                >
-                  Alle Daten
-                </button>
-              )}
+                <span className="hidden text-muted-foreground sm:inline shrink-0">
+                  • {formatDisplayDate(selectedDate)}
+                </span>
+                <Badge variant="outline" className="ml-1 shrink-0 font-mono text-[10px]">
+                  {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                </Badge>
+              </button>
             </div>
 
-            {/* Scrollable Match List */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 scroll-smooth">
-              <MatchList
-                matches={matches}
-                selectedMatchId={selectedMatchId}
-                onSelectMatch={(match) => setSelectedMatchId(match.id)}
-                onHoverMatch={(match) => setSelectedMatchId(match.id)}
-                isLoading={isLoading}
-                radiusKm={radiusKm}
-                onExpandRadius={handleExpandRadius}
-                onResetFilters={handleResetFilters}
-              />
-            </div>
-          </aside>
+            {/* Full-Bleed MapContainer */}
+            <MapContainer
+              matches={matches}
+              selectedMatchId={selectedMatchId}
+              center={mapCenter}
+              zoom={9}
+              userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
+              onMarkerClick={handleMarkerClick}
+              onLocateUser={handleLocateUser}
+              isLocating={isLocating}
+              className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none flex flex-col"
+              mapHeightClassName="w-full h-full min-h-[400px]"
+            />
 
-          {/* Right Pane: Full-Height Interactive Map Container */}
-          <section className="flex-1 h-full min-h-0 relative flex flex-col bg-muted/10">
-            <div className="h-full w-full flex-1 min-h-0 flex flex-col">
-              <MapContainer
-                matches={matches}
-                selectedMatchId={selectedMatchId}
-                center={mapCenter}
-                zoom={9}
-                userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
-                onMarkerClick={handleMarkerClick}
-                onLocateUser={handleLocateUser}
-                isLocating={isLocating}
-                className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
-                mapHeightClassName="w-full h-full min-h-[500px]"
-              />
-            </div>
-
-            {/* Cold-Start Map Overlay (Desktop) */}
+            {/* Cold-Start Map Overlay */}
             <ColdStartOverlay
               isVisible={isColdStarting && !isHealthDismissed}
               onDismiss={dismissColdStart}
             />
 
-            {/* Floating Venue Quick Card Preview (Overlay on Map) */}
+            {/* Multi-Match Venue Overlay Card at Bottom of Full-Screen Map */}
             {selectedMatch?.venue && (
-              <div className="absolute bottom-6 right-6 z-20 w-80 rounded-xl border border-border/80 bg-background/95 p-4 shadow-xl backdrop-blur-md">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <MapPin className="h-3.5 w-3.5 text-primary" />
-                    <span>Austragungsort</span>
+              <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 rounded-xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur-md">
+                {/* Venue Header */}
+                <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                      <h3 className="truncate text-sm font-bold text-foreground">
+                        {selectedMatch.venue.name}
+                      </h3>
+                      {selectedMatch.distanceKm != null && (
+                        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                          {formatDistance(selectedMatch.distanceKm)}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {selectedMatch.venue.street}, {selectedMatch.venue.postalCode}{' '}
+                      {selectedMatch.venue.city}
+                    </p>
                   </div>
 
-                  <span className="font-mono text-[11px] font-medium text-primary">
-                    {selectedMatch.distanceKm} km
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a
+                      href={buildGoogleMapsRouteUrl(selectedMatch)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                      title="Route in Google Maps öffnen"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Route</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMatchId(null)}
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="Hallen-Details schließen"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1 text-xs">
-                  <div className="font-semibold text-foreground">
-                    {selectedMatch.venue.name}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {selectedMatch.venue.street}, {selectedMatch.venue.postalCode}{' '}
-                    {selectedMatch.venue.city}
-                  </div>
-                  <div className="pt-2 text-[11px] text-muted-foreground flex justify-between items-center border-t border-border/30">
+                {/* Scrollable List of All Matches at This Venue */}
+                <div className="mt-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
                     <span>
-                      {selectedMatch.homeTeam.name} vs. {selectedMatch.guestTeam.name}
+                      {selectedVenueMatches.length}{' '}
+                      {selectedVenueMatches.length === 1
+                        ? 'Heimspiel in dieser Halle'
+                        : 'Heimspiele in dieser Halle'}
                     </span>
-                    <span className="font-mono font-medium text-foreground">
-                      {selectedMatch.kickoffTime} Uhr
-                    </span>
+                  </div>
+
+                  <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                    {selectedVenueMatches.map((venueMatch) => {
+                      const isActiveMatch = venueMatch.id === selectedMatch.id;
+
+                      const matchLeagueName = formatLeagueName(
+                        venueMatch.leagueId,
+                        venueMatch.league?.name,
+                      );
+
+                      const categoryBadge = [
+                        venueMatch.league?.akName,
+                        venueMatch.league?.geschlecht,
+                      ]
+                        .filter(Boolean)
+                        .join(' • ');
+
+                      return (
+                        <div
+                          key={venueMatch.id}
+                          onClick={() => setSelectedMatchId(venueMatch.id)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedMatchId(venueMatch.id);
+                            }
+                          }}
+                          className={`cursor-pointer rounded-lg border p-2.5 text-xs transition-colors ${
+                            isActiveMatch
+                              ? 'border-primary/60 bg-primary/10'
+                              : 'border-border/60 bg-card/60 hover:border-primary/40'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1">
+                              <Badge variant="league" className="text-[10px]">
+                                <Trophy className="mr-1 h-2.5 w-2.5" />
+                                {matchLeagueName}
+                              </Badge>
+                              {categoryBadge && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  {categoryBadge}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <span className="font-mono text-[11px] font-medium text-foreground">
+                              {formatDisplayDate(venueMatch.kickoffDate)} •{' '}
+                              {formatKickoffTime(venueMatch.kickoffTime)}
+                            </span>
+                          </div>
+
+                          <div className="mt-1.5 flex items-center justify-between gap-2 font-semibold text-foreground">
+                            <span className="truncate">{venueMatch.homeTeam.name}</span>
+                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                              vs.
+                            </span>
+                            <span className="truncate text-right">
+                              {venueMatch.guestTeam.name}
+                            </span>
+                          </div>
+
+                          {venueMatch.result && (
+                            <div className="mt-1 text-right font-mono text-[11px] font-bold text-primary">
+                              Endstand: {venueMatch.result}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
-          </section>
-        </div>
-
-        {/* ======================================================== */}
-        {/* MOBILE VIEW (< 1024px) WITH LIST / MAP TOGGLE            */}
-        {/* ======================================================== */}
-        <div className="flex lg:hidden flex-1 min-h-0 flex-col w-full pb-16">
-          {mobileTab === 'list' ? (
-            /* Mobile List View */
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          </div>
+        ) : (
+          /* Full-Screen Scrollable List View */
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            <div className="mx-auto max-w-4xl space-y-4">
               {isColdStarting && !isHealthDismissed && (
-                <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground flex items-center justify-between backdrop-blur-xs">
+                <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground backdrop-blur-xs">
                   <div className="flex items-center gap-2">
-                    <Coffee className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+                    <Coffee className="h-4 w-4 shrink-0 animate-pulse text-primary" />
                     <span>☕ Kostenloser Server wacht auf (~30 Sek.)...</span>
                   </div>
                   <button
                     type="button"
                     onClick={dismissColdStart}
-                    className="text-[11px] text-muted-foreground hover:text-foreground underline shrink-0"
+                    className="shrink-0 text-[11px] text-muted-foreground underline hover:text-foreground"
                   >
                     Ausblenden
                   </button>
                 </div>
               )}
 
-              <FilterBar
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-                radiusKm={radiusKm}
-                onRadiusChange={setRadiusKm}
-                location={location}
-                onLocationChange={setLocation}
-                selectedLeagueId={selectedLeagueId}
-                onLeagueChange={setSelectedLeagueId}
-                onResetFilters={handleResetFilters}
-                onRequestLocation={handleLocateUser}
-                isLocating={isLocating}
-                lastSyncedAt={lastSyncedAt}
-              />
+              {/* Active Filter Summary Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/60 p-3 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="gap-1 font-medium">
+                    <MapPin className="h-3 w-3 text-primary" />
+                    {location.name} ({radiusKm} km)
+                  </Badge>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                  <Badge variant="outline" className="gap-1 font-medium">
+                    <Calendar className="h-3 w-3 text-primary" />
+                    {formatDisplayDate(selectedDate)}
+                  </Badge>
+
+                  {genders.map((g) => (
+                    <Badge key={`g-${g}`} variant="secondary" className="text-[11px]">
+                      {g}
+                    </Badge>
+                  ))}
+
+                  {ageClasses.map((ak) => (
+                    <Badge key={`ak-${ak}`} variant="secondary" className="text-[11px]">
+                      {ak}
+                    </Badge>
+                  ))}
+
+                  {skillLevels.map((sk) => (
+                    <Badge key={`sk-${sk}`} variant="secondary" className="text-[11px]">
+                      {sk}
+                    </Badge>
+                  ))}
+
+                  {leagueIds.length > 0 && (
+                    <Badge variant="secondary" className="text-[11px]">
+                      {leagueIds.length} {leagueIds.length === 1 ? 'Liga' : 'Ligen'}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResetFilters}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <RotateCcw className="mr-1 h-3 w-3" />
+                      Zurücksetzen
+                    </Button>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFilterDrawerOpen(true)}
+                    className="h-7 text-xs"
+                  >
+                    <SlidersHorizontal className="mr-1.5 h-3 w-3 text-primary" />
+                    Filter anpassen
+                  </Button>
+                </div>
+              </div>
+
+              {/* Match List Header Status */}
+              <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
                 <span>
-                  <strong>{matches.length}</strong> Spiele im Umkreis ({radiusKm} km)
+                  <strong className="text-foreground">{matches.length}</strong>{' '}
+                  {matches.length === 1 ? 'Heimspiel' : 'Heimspiele'} im Umkreis von{' '}
+                  {radiusKm} km
                 </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMobileTab('map')}
-                  className="h-7 text-xs"
-                >
-                  <Compass className="mr-1 h-3 w-3 text-primary" />
-                  Zur Karte
-                </Button>
               </div>
 
               <MatchList
@@ -407,97 +636,82 @@ export function App() {
                 selectedMatchId={selectedMatchId}
                 onSelectMatch={(match) => {
                   setSelectedMatchId(match.id);
-                  setMobileTab('map');
+                  setFilterState((prev) => ({
+                    ...prev,
+                    viewMode: 'map',
+                  }));
                 }}
+                onHoverMatch={(match) => setSelectedMatchId(match.id)}
                 isLoading={isLoading}
                 radiusKm={radiusKm}
                 onExpandRadius={handleExpandRadius}
                 onResetFilters={handleResetFilters}
               />
             </div>
-          ) : (
-            /* Mobile Map View */
-            <div className="relative flex-1 min-h-0 flex flex-col h-full">
-              {/* Map Floating Summary Bar */}
-              <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between rounded-lg border border-border/80 bg-background/90 px-3 py-1.5 shadow-md backdrop-blur-md text-xs">
-                <div className="flex items-center gap-1.5 truncate">
-                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="font-medium truncate">{location.name}</span>
-                  <span className="font-mono text-muted-foreground">
-                    ({radiusKm} km)
-                  </span>
-                </div>
-
-                <Badge variant="outline" className="text-[10px] shrink-0 font-mono">
-                  {matches.length} Spiele
-                </Badge>
-              </div>
-
-              <MapContainer
-                matches={matches}
-                selectedMatchId={selectedMatchId}
-                center={mapCenter}
-                zoom={9}
-                userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
-                onMarkerClick={handleMarkerClick}
-                onLocateUser={handleLocateUser}
-                isLocating={isLocating}
-                className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
-                mapHeightClassName="w-full h-full min-h-[400px]"
-              />
-
-              {/* Cold-Start Map Overlay (Mobile) */}
-              <ColdStartOverlay
-                isVisible={isColdStarting && !isHealthDismissed}
-                onDismiss={dismissColdStart}
-              />
-
-              {/* Mobile Selected Match Card Preview at Bottom of Map */}
-              {selectedMatch && (
-                <div className="absolute bottom-2 left-2 right-2 z-20">
-                  <MatchCard
-                    match={selectedMatch}
-                    isSelected
-                    onClick={() => setMobileTab('list')}
-                    className="shadow-xl bg-card/95 backdrop-blur-md"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Mobile Bottom Navigation Bar (< 1024px) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-border/80 bg-background/95 px-4 backdrop-blur-md lg:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileTab('list')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-6 rounded-lg transition-colors ${
-            mobileTab === 'list'
-              ? 'text-primary font-semibold'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <span className="text-base">📋</span>
-          <span className="text-xs">
-            Liste ({matches.length})
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMobileTab('map')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-6 rounded-lg transition-colors ${
-            mobileTab === 'map'
-              ? 'text-primary font-semibold'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <span className="text-base">🗺️</span>
-          <span className="text-xs">Karte</span>
-        </button>
-      </nav>
+      {/* Slide-Over Filter Drawer */}
+      <FilterBar
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        matchCount={matches.length}
+        dateMode={dateMode}
+        customDate={customDate}
+        selectedDate={selectedDate}
+        onDateModeChange={handleDateModeChange}
+        radiusKm={radiusKm}
+        onRadiusChange={(nextRadius) =>
+          setFilterState((prev) => ({
+            ...prev,
+            radiusKm: nextRadius,
+          }))
+        }
+        location={location}
+        onLocationChange={(nextLocation) =>
+          setFilterState((prev) => ({
+            ...prev,
+            location: nextLocation,
+          }))
+        }
+        leagues={leagues}
+        availableGenders={availableGenders}
+        availableAgeClasses={availableAgeClasses}
+        availableSkillLevels={availableSkillLevels}
+        selectedGenders={genders}
+        onGendersChange={(nextGenders) =>
+          setFilterState((prev) => ({
+            ...prev,
+            genders: nextGenders,
+          }))
+        }
+        selectedAgeClasses={ageClasses}
+        onAgeClassesChange={(nextAgeClasses) =>
+          setFilterState((prev) => ({
+            ...prev,
+            ageClasses: nextAgeClasses,
+          }))
+        }
+        selectedSkillLevels={skillLevels}
+        onSkillLevelsChange={(nextSkillLevels) =>
+          setFilterState((prev) => ({
+            ...prev,
+            skillLevels: nextSkillLevels,
+          }))
+        }
+        selectedLeagueIds={leagueIds}
+        onLeagueIdsChange={(nextLeagueIds) =>
+          setFilterState((prev) => ({
+            ...prev,
+            leagueIds: nextLeagueIds,
+          }))
+        }
+        onResetFilters={handleResetFilters}
+        onRequestLocation={handleLocateUser}
+        isLocating={isLocating}
+        lastSyncedAt={lastSyncedAt}
+      />
 
       {/* PWA Service Worker Update / Offline Prompt */}
       <ReloadPrompt />
