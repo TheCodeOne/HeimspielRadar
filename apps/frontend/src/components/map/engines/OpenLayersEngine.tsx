@@ -127,6 +127,7 @@ export function OpenLayersEngine({
 
     const popupOverlay = new Overlay({
       element: popupContainer,
+      className: 'ol-overlay-container ol-selectable ol-popup-overlay',
       positioning: 'bottom-center',
       offset: [0, -45],
       stopEvent: false,
@@ -254,6 +255,7 @@ export function OpenLayersEngine({
 
       const overlay = new Overlay({
         element: markerEl,
+        className: 'ol-overlay-container ol-selectable ol-marker-overlay',
         positioning: 'bottom-center',
         stopEvent: true,
       });
@@ -288,13 +290,17 @@ export function OpenLayersEngine({
         });
       }
     }
+
+    // Keep popupOverlay last in DOM order so it always renders above all marker pins
+    map.removeOverlay(popupOverlay);
+    map.addOverlay(popupOverlay);
   }, [matches, selectedMatchId, onMarkerClick]);
 
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-hidden rounded-lg ${className}`}
-      style={{ width: '100%', height: '450px', touchAction: 'none' }}
+      className={`relative overflow-hidden ${className}`}
+      style={{ width: '100%', height: '100%', touchAction: 'none' }}
     />
   );
 }
