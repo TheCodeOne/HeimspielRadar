@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { Match } from '@sundayleague/shared-types';
+import { getTodayString } from './date-utils';
 import { calculateDistanceKm } from './geo-utils';
 import { getSampleMatches } from './sample-matches';
 
@@ -15,6 +16,7 @@ export interface UseMatchesOptions {
   genders?: string[];
   ageClasses?: string[];
   skillLevels?: string[];
+  onlyUpcoming?: boolean;
   debounceMs?: number;
 }
 
@@ -35,6 +37,7 @@ export function useMatches({
   genders,
   ageClasses,
   skillLevels,
+  onlyUpcoming,
   debounceMs = 300,
 }: UseMatchesOptions): UseMatchesResult {
   const [matches, setMatches] = React.useState<Match[]>([]);
@@ -88,6 +91,10 @@ export function useMatches({
           queryParams.set('skillLevels', skillLevelsKey);
         }
 
+        if (onlyUpcoming) {
+          queryParams.set('onlyUpcoming', 'true');
+        }
+
         const res = await fetch(`/api/matches?${queryParams.toString()}`, {
           signal: abortController.signal,
         });
@@ -138,6 +145,7 @@ export function useMatches({
         // Fallback to sample matches with local spatial, date, and league filtering
         const samplePool = getSampleMatches();
         const fallbackResults: Match[] = [];
+        const todayStr = getTodayString();
 
         for (const sample of samplePool) {
           let dist = sample.distanceKm;
@@ -154,6 +162,16 @@ export function useMatches({
           // Apply date filter if selected
           if (date && sample.kickoffDate !== date) {
             continue;
+          }
+
+          // Apply upcoming & no-result filter if selected
+          if (onlyUpcoming) {
+            const hasResult =
+              sample.result != null && sample.result.trim().length > 0;
+
+            if (hasResult || sample.kickoffDate < todayStr) {
+              continue;
+            }
           }
 
           // Apply single league filter if selected
@@ -232,6 +250,7 @@ export function useMatches({
     gendersKey,
     ageClassesKey,
     skillLevelsKey,
+    onlyUpcoming,
     debounceMs,
     triggerCount,
   ]);

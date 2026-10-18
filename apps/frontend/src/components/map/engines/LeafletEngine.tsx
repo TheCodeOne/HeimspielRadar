@@ -90,7 +90,7 @@ export function LeafletEngine({
   zoom,
   userLocation,
   onMarkerClick,
-  className = 'w-full h-full min-h-[400px]',
+  className = 'w-full h-full',
 }: MapEngineProps) {
   const groups = groupMatchesByVenue(matches, selectedMatchId);
   const selectedGroup = groups.find((g) => g.isSelected);
@@ -101,7 +101,7 @@ export function LeafletEngine({
         center={center}
         zoom={zoom}
         scrollWheelZoom
-        className="h-full w-full min-h-[400px] rounded-lg"
+        className="h-full w-full"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

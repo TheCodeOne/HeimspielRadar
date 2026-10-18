@@ -78,6 +78,8 @@ export interface NearbyMatchesQuery {
   genders?: string[];
   ageClasses?: string[];
   skillLevels?: string[];
+  onlyUpcoming?: boolean;
 }
+
 
 

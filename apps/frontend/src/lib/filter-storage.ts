@@ -17,6 +17,7 @@ export interface PersistedFilterState {
   radiusKm: number;
   dateMode: DateMode;
   customDate?: string;
+  onlyUpcoming: boolean;
   genders: string[];
   ageClasses: string[];
   skillLevels: string[];
@@ -29,6 +30,7 @@ export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   radiusKm: 30,
   dateMode: 'today',
   customDate: undefined,
+  onlyUpcoming: true,
   genders: [],
   ageClasses: [],
   skillLevels: [],
@@ -131,6 +133,11 @@ export function loadPersistedFilters(): PersistedFilterState {
       customDate = undefined;
     }
 
+    const onlyUpcoming =
+      parsed.onlyUpcoming === true || parsed.onlyUpcoming === false
+        ? parsed.onlyUpcoming
+        : DEFAULT_FILTER_STATE.onlyUpcoming;
+
     const genders = Array.isArray(parsed.genders)
       ? parsed.genders.map((item) => String(item)).filter(Boolean)
       : [];
@@ -155,6 +162,7 @@ export function loadPersistedFilters(): PersistedFilterState {
       radiusKm,
       dateMode,
       customDate,
+      onlyUpcoming,
       genders,
       ageClasses,
       skillLevels,
@@ -181,6 +189,10 @@ export function countActiveFilters(state: PersistedFilterState): number {
   }
 
   if (state.dateMode !== 'today') {
+    count += 1;
+  }
+
+  if (state.onlyUpcoming !== DEFAULT_FILTER_STATE.onlyUpcoming) {
     count += 1;
   }
 

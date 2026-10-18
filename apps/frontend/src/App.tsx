@@ -93,6 +93,7 @@ export function App() {
     radiusKm,
     dateMode,
     customDate,
+    onlyUpcoming,
     genders,
     ageClasses,
     skillLevels,
@@ -187,6 +188,7 @@ export function App() {
     genders: genders.length > 0 ? genders : undefined,
     ageClasses: ageClasses.length > 0 ? ageClasses : undefined,
     skillLevels: skillLevels.length > 0 ? skillLevels : undefined,
+    onlyUpcoming,
     debounceMs: 300,
   });
 
@@ -394,8 +396,8 @@ export function App() {
               onMarkerClick={handleMarkerClick}
               onLocateUser={handleLocateUser}
               isLocating={isLocating}
-              className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none flex flex-col"
-              mapHeightClassName="w-full h-full min-h-[400px]"
+              className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none"
+              mapHeightClassName="w-full h-full"
             />
 
             {/* Cold-Start Map Overlay */}
@@ -570,6 +572,12 @@ export function App() {
                     {formatDisplayDate(selectedDate)}
                   </Badge>
 
+                  {onlyUpcoming && (
+                    <Badge variant="outline" className="text-[11px]">
+                      Nur anstehende Spiele
+                    </Badge>
+                  )}
+
                   {genders.map((g) => (
                     <Badge key={`g-${g}`} variant="secondary" className="text-[11px]">
                       {g}
@@ -661,6 +669,13 @@ export function App() {
         customDate={customDate}
         selectedDate={selectedDate}
         onDateModeChange={handleDateModeChange}
+        onlyUpcoming={onlyUpcoming}
+        onOnlyUpcomingChange={(nextOnlyUpcoming) =>
+          setFilterState((prev) => ({
+            ...prev,
+            onlyUpcoming: nextOnlyUpcoming,
+          }))
+        }
         radiusKm={radiusKm}
         onRadiusChange={(nextRadius) =>
           setFilterState((prev) => ({

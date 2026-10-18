@@ -34,6 +34,8 @@ export interface FilterBarProps {
   customDate?: string;
   selectedDate: string;
   onDateModeChange: (mode: DateMode, customDate?: string) => void;
+  onlyUpcoming?: boolean;
+  onOnlyUpcomingChange?: (onlyUpcoming: boolean) => void;
   radiusKm: number;
   onRadiusChange: (radius: number) => void;
   location: LocationReference;
@@ -91,6 +93,8 @@ export function FilterBar({
   customDate,
   selectedDate,
   onDateModeChange,
+  onlyUpcoming = true,
+  onOnlyUpcomingChange,
   radiusKm,
   onRadiusChange,
   location,
@@ -414,6 +418,38 @@ export function FilterBar({
             aria-label="Eigenes Datum wählen"
           />
         </div>
+
+        {/* Toggle: Only Upcoming Matches Without Results */}
+        {onOnlyUpcomingChange && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={onlyUpcoming}
+            onClick={() => onOnlyUpcomingChange(!onlyUpcoming)}
+            className="mt-1 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground">
+                Nur anstehende Spiele (ohne Ergebnis)
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Blendet vergangene und bereits gespielte Partien aus
+              </div>
+            </div>
+
+            <span
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                onlyUpcoming ? 'bg-primary' : 'bg-muted-foreground/30'
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
+                  onlyUpcoming ? 'translate-x-4' : 'translate-x-1'
+                }`}
+              />
+            </span>
+          </button>
+        )}
       </div>
 
       <hr className="border-border/60" />
