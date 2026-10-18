@@ -40,7 +40,11 @@ export function getThisWeekendSaturdayString(): string {
   return formatDateToISO(targetDate);
 }
 
-export function formatDisplayDate(dateStr?: string): string {
+export function formatDisplayDate(dateStr?: string | null): string {
+  if (dateStr === null) {
+    return 'Termin offen';
+  }
+
   if (!dateStr) {
     return 'Alle Termine';
   }
@@ -67,9 +71,9 @@ export function formatDisplayDate(dateStr?: string): string {
   return dateStr;
 }
 
-export function formatKickoffTime(timeStr?: string): string {
-  if (!timeStr) {
-    return '--:--';
+export function formatKickoffTime(timeStr?: string | null): string {
+  if (!timeStr || timeStr === '00:00') {
+    return 'Uhrzeit offen';
   }
 
   return `${timeStr} Uhr`;

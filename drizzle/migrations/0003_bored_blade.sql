@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ALTER COLUMN "kickoff_date" DROP NOT NULL;
