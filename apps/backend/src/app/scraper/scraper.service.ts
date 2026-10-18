@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { SyncResult, VerbandSyncResult } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { leagues, matches, teams, venues } from '../database/schema';
+import { leagues, matches, systemSettings, teams, venues } from '../database/schema';
 import { DbbClientService, DbbTeam } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 
@@ -20,6 +20,7 @@ export interface SyncVerbandOptions {
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
+  private lastSyncedAt: Date | null = null;
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null,
@@ -287,6 +288,10 @@ export class ScraperService {
     }
 
     const durationMs = Date.now() - startTime;
+    const completionDate = new Date();
+
+    this.lastSyncedAt = completionDate;
+    await this.persistLastSyncedAt(completionDate);
 
     this.logger.log(
       `Finished sync for league ${ligaId} ("${ligaData.liganame}"): ` +
@@ -393,6 +398,10 @@ export class ScraperService {
     await Promise.all(workers);
 
     const durationMs = Date.now() - startTime;
+    const completionDate = new Date();
+
+    this.lastSyncedAt = completionDate;
+    await this.persistLastSyncedAt(completionDate);
 
     this.logger.log(
       `Verband ${verbandId} sync completed in ${durationMs}ms: ` +
@@ -443,5 +452,89 @@ export class ScraperService {
     const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
 
     return id ? idMap.get(id) || null : null;
+  }
+
+  /**
+   * Returns the ISO timestamp of the last successful sync.
+   * Checks in-memory cache first, then the system_settings table,
+   * and finally falls back to the latest updatedAt among matches and leagues.
+   */
+  async getLastSyncedAt(): Promise<string | null> {
+    if (this.lastSyncedAt) {
+      return this.lastSyncedAt.toISOString();
+    }
+
+    if (!this.db) {
+      return null;
+    }
+
+    try {
+      const [setting] = await this.db
+        .select()
+        .from(systemSettings)
+        .where(eq(systemSettings.key, 'last_synced_at'))
+        .limit(1);
+
+      if (setting?.value) {
+        return setting.value;
+      }
+    } catch {
+      this.logger.debug('system_settings table not accessible, falling back to matches/leagues');
+    }
+
+    try {
+      const [latestMatch] = await this.db
+        .select({ updatedAt: matches.updatedAt })
+        .from(matches)
+        .orderBy(desc(matches.updatedAt))
+        .limit(1);
+
+      if (latestMatch?.updatedAt) {
+        return latestMatch.updatedAt.toISOString();
+      }
+
+      const [latestLeague] = await this.db
+        .select({ updatedAt: leagues.updatedAt })
+        .from(leagues)
+        .orderBy(desc(leagues.updatedAt))
+        .limit(1);
+
+      if (latestLeague?.updatedAt) {
+        return latestLeague.updatedAt.toISOString();
+      }
+    } catch (err) {
+      this.logger.warn('Failed to query fallback sync timestamp from database:', err);
+    }
+
+    return null;
+  }
+
+  setLastSyncedAt(date: Date | null): void {
+    this.lastSyncedAt = date;
+  }
+
+  private async persistLastSyncedAt(date: Date): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      await this.db
+        .insert(systemSettings)
+        .values({
+          key: 'last_synced_at',
+          value: date.toISOString(),
+          updatedAt: date,
+        })
+        .onConflictDoUpdate({
+          target: systemSettings.key,
+          set: {
+            value: date.toISOString(),
+            updatedAt: date,
+          },
+        });
+    } catch (err) {
+      this.logger.warn('Could not persist lastSyncedAt to system_settings table:', err);
+    }
   }
 }

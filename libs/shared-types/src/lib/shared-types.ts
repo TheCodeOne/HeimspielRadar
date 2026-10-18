@@ -9,3 +9,9 @@ export interface User {
   name: string;
   email: string;
 }
+
+export interface HealthCheckResponse {
+  status: 'ok';
+  timestamp: string; // ISO string
+  lastSyncedAt: string | null; // ISO string or null if never synced
+}

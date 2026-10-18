@@ -282,4 +282,42 @@ describe('ScraperService', () => {
       expect(result.totalLeagues).toBe(280);
     });
   });
+
+  describe('getLastSyncedAt', () => {
+    it('should return in-memory lastSyncedAt ISO string if set', async () => {
+      const date = new Date('2026-10-18T10:00:00.000Z');
+      service.setLastSyncedAt(date);
+
+      const result = await service.getLastSyncedAt();
+
+      expect(result).toBe('2026-10-18T10:00:00.000Z');
+    });
+
+    it('should return null when no database and no in-memory timestamp', async () => {
+      service.setLastSyncedAt(null);
+
+      const nullDbModule = await Test.createTestingModule({
+        providers: [
+          ScraperService,
+          {
+            provide: DRIZZLE_DB,
+            useValue: null,
+          },
+          {
+            provide: DbbClientService,
+            useValue: mockDbbClient,
+          },
+          {
+            provide: GeocoderService,
+            useValue: mockGeocoder,
+          },
+        ],
+      }).compile();
+
+      const nullDbService = nullDbModule.get<ScraperService>(ScraperService);
+      const result = await nullDbService.getLastSyncedAt();
+
+      expect(result).toBeNull();
+    });
+  });
 });
