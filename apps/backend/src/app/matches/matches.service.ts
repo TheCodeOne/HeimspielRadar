@@ -58,6 +58,7 @@ export class MatchesService {
       genders,
       ageClasses,
       skillLevels,
+      onlyUpcoming,
     } = query;
 
     const hasSpatialCoords =
@@ -72,6 +73,19 @@ export class MatchesService {
 
     if (date) {
       conditions.push(eq(matches.kickoffDate, date));
+    }
+
+    if (onlyUpcoming) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      conditions.push(
+        sql`(${matches.result} IS NULL OR btrim(${matches.result}) = '')`
+      );
+      conditions.push(sql`${matches.kickoffDate} >= ${todayStr}`);
     }
 
     if (leagueId) {

@@ -51,7 +51,8 @@ export class MatchesController {
     @Query('leagueIds') leagueIds?: string | string[],
     @Query('genders') genders?: string | string[],
     @Query('ageClasses') ageClasses?: string | string[],
-    @Query('skillLevels') skillLevels?: string | string[]
+    @Query('skillLevels') skillLevels?: string | string[],
+    @Query('onlyUpcoming') onlyUpcoming?: string
   ) {
     return this.matchesService.findMatches({
       date,
@@ -63,6 +64,8 @@ export class MatchesController {
       genders: parseStringArrayParam(genders),
       ageClasses: parseStringArrayParam(ageClasses),
       skillLevels: parseStringArrayParam(skillLevels),
+      onlyUpcoming:
+        onlyUpcoming === 'true' || onlyUpcoming === '1' ? true : undefined,
     });
   }
 
