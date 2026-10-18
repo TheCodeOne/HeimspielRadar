@@ -1,0 +1,36 @@
+name: CI Quality Gates
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Lint, Schema Check, Build & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Clean install dependencies (verifies package-lock.json sync)
+        run: npm ci
+
+      - name: Verify Drizzle migrations consistency
+        run: npm run db:check
+
+      - name: Run Oxlint & Anti-Slop AST checks
+        run: npx oxlint
+
+      - name: Run Backend Unit Tests
+        run: npm run test:backend
+
+      - name: Build Backend & Frontend
+        run: npm run build
