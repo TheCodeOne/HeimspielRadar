@@ -246,7 +246,7 @@ export function App() {
       : [location.lat, location.lng];
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+    <div className="fixed inset-0 flex h-dvh w-full flex-col overflow-hidden overscroll-none bg-background text-foreground selection:bg-primary/20 selection:text-primary">
       {/* Unified Application Header (Desktop & Mobile) */}
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
         {/* Left: Brand Logo & Title */}
@@ -463,7 +463,7 @@ export function App() {
                     </span>
                   </div>
 
-                  <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
                     {selectedVenueMatches.map((venueMatch) => {
                       const isActiveMatch = venueMatch.id === selectedMatch.id;
 
@@ -541,7 +541,7 @@ export function App() {
           </div>
         ) : (
           /* Full-Screen Scrollable List View */
-          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
             <div className="mx-auto max-w-4xl space-y-4">
               {isColdStarting && !isHealthDismissed && (
                 <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground backdrop-blur-xs">

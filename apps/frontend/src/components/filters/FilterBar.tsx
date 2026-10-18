@@ -642,7 +642,7 @@ export function FilterBar({
         </div>
 
         {/* Filtered League Items */}
-        <div className="max-h-52 overflow-y-auto rounded-lg border border-border/70 bg-muted/20 p-1.5 space-y-1">
+        <div className="max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-border/70 bg-muted/20 p-1.5 space-y-1">
           {filteredLeagues.length === 0 ? (
             <div className="py-4 text-center text-xs text-muted-foreground">
               Keine passenden Ligen für die gewählten Filter gefunden.
@@ -715,7 +715,7 @@ export function FilterBar({
   if (onClose) {
     return (
       <div
-        className="fixed inset-0 z-50 flex justify-end"
+        className="fixed inset-0 z-50 flex justify-end overscroll-none"
         role="dialog"
         aria-modal="true"
         aria-label="Filtereinstellungen"
@@ -728,7 +728,7 @@ export function FilterBar({
         />
 
         {/* Slide-Over Sheet Panel */}
-        <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-border/80 bg-background shadow-2xl">
+        <aside className="relative z-10 flex h-dvh w-full max-w-md flex-col border-l border-border/80 bg-background shadow-2xl">
           {/* Sticky Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-5 py-4">
             <div className="flex items-center gap-2">
@@ -749,7 +749,7 @@ export function FilterBar({
           </div>
 
           {/* Scrollable Filter Body */}
-          <div className="flex-1 overflow-y-auto p-5">{filterFormContent}</div>
+          <div className="flex-1 overflow-y-auto overscroll-contain p-5">{filterFormContent}</div>
 
           {/* Sticky Drawer Footer */}
           <div className="flex items-center justify-between gap-3 border-t border-border/80 bg-card/80 px-5 py-3.5 backdrop-blur-md">
