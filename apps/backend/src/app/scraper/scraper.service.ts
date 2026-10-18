@@ -1,14 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { SyncResult, VerbandSyncResult } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { leagues, matches, systemSettings, teams, venues } from '../database/schema';
-import { DbbClientService, DbbTeam } from './dbb-client.service';
+import { DbbClientService, DbbTeam, DbbVenue } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 
 export interface SyncLeagueOptions {
   quickSync?: boolean;
+  matchConcurrency?: number;
   venueCache?: Map<number, typeof venues.$inferSelect>;
+  venueInFlight?: Map<number, Promise<typeof venues.$inferSelect | null>>;
 }
 
 export interface SyncVerbandOptions {
@@ -64,6 +66,7 @@ export class ScraperService {
       );
     }
 
+    const db = this.db;
     const startTime = Date.now();
     this.logger.log(`Starting sync for league ${ligaId}...`);
 
@@ -75,7 +78,7 @@ export class ScraperService {
     }
 
     // 1. Upsert League
-    const [dbLeague] = await this.db
+    const [dbLeague] = await db
       .insert(leagues)
       .values({
         dbbId: ligaData.ligaId,
@@ -103,8 +106,11 @@ export class ScraperService {
       })
       .returning();
 
-    // 2. Collect & Upsert Teams
-    const teamMap = new Map<number, { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }>();
+    // 2. Collect & Batch Upsert Teams
+    const teamMap = new Map<
+      number,
+      { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }
+    >();
 
     for (const m of rawMatches) {
       this.collectTeam(m.homeTeam, teamMap);
@@ -113,43 +119,62 @@ export class ScraperService {
 
     const teamDbIdMap = new Map<number, number>(); // dbbId -> internal team.id
 
-    for (const t of teamMap.values()) {
-      const [upserted] = await this.db
+    const teamValues = Array.from(teamMap.values()).map((t) => ({
+      dbbId: t.dbbId,
+      name: t.name,
+      shortName: t.shortName,
+      clubId: t.clubId,
+      rawData: t.raw,
+    }));
+
+    if (teamValues.length > 0) {
+      const upsertedTeams = await db
         .insert(teams)
-        .values({
-          dbbId: t.dbbId,
-          name: t.name,
-          shortName: t.shortName,
-          clubId: t.clubId,
-          rawData: t.raw,
-        })
+        .values(teamValues)
         .onConflictDoUpdate({
           target: teams.dbbId,
           set: {
-            name: t.name,
-            shortName: t.shortName,
-            clubId: t.clubId,
-            rawData: t.raw,
+            name: sql`excluded.name`,
+            shortName: sql`excluded.short_name`,
+            clubId: sql`excluded.club_id`,
+            rawData: sql`excluded.raw_data`,
           },
         })
         .returning();
 
-      teamDbIdMap.set(t.dbbId, upserted.id);
+      for (let i = 0; i < teamValues.length; i++) {
+        const upserted = upsertedTeams[i] ?? upsertedTeams[0];
+
+        if (upserted) {
+          const dbbId = upserted.dbbId ?? teamValues[i].dbbId;
+          teamDbIdMap.set(dbbId, upserted.id);
+        }
+      }
     }
 
-    // 3. Preload Existing Matches for this League to detect already known venues
-    const existingLeagueMatches = await this.db
-      .select({ id: matches.id, venueId: matches.venueId })
+    // 3. Preload Existing Matches for this League to detect known venues and finished results
+    const existingLeagueMatches = await db
+      .select({
+        id: matches.id,
+        venueId: matches.venueId,
+        result: matches.result,
+      })
       .from(matches)
       .where(eq(matches.leagueId, dbLeague.id));
 
-    const existingMatchVenueMap = new Map<number, number | null>();
+    const existingMatchMap = new Map<
+      number,
+      { venueId: number | null; result: string | null }
+    >();
 
     for (const em of existingLeagueMatches) {
-      existingMatchVenueMap.set(em.id, em.venueId);
+      existingMatchMap.set(em.id, {
+        venueId: em.venueId,
+        result: em.result ?? null,
+      });
     }
 
-    // 4. Sync Matches and Venues (Gyms)
+    // 4. Sync Matches and Venues (Gyms) with Bounded Intra-League Concurrency
     let geocodedVenuesCount = 0;
     let syncedVenuesCount = 0;
     let syncedMatchesCount = 0;
@@ -157,7 +182,7 @@ export class ScraperService {
     let venueCache = options?.venueCache;
 
     if (!venueCache) {
-      const existingVenues = await this.db.select().from(venues);
+      const existingVenues = await db.select().from(venues);
       venueCache = new Map<number, typeof venues.$inferSelect>();
 
       for (const v of existingVenues) {
@@ -165,132 +190,129 @@ export class ScraperService {
       }
     }
 
-    for (const m of rawMatches) {
-      let venueId: number | null = null;
-      const knownVenueId = existingMatchVenueMap.get(m.matchId);
+    const resolvedVenueCache = venueCache;
 
-      if (knownVenueId !== undefined && knownVenueId !== null) {
-        venueId = knownVenueId;
-      } else if (!options?.quickSync) {
-        // Fetch venue details from matchInfo if venue is not yet known
-        try {
-          const info = await this.dbbClient.fetchMatchInfo(m.matchId);
-          const spielfeld = info.data?.matchInfo?.spielfeld;
+    const venueInFlight =
+      options?.venueInFlight ??
+      new Map<number, Promise<typeof venues.$inferSelect | null>>();
 
-          if (spielfeld && spielfeld.id) {
-            venueId = spielfeld.id;
-            const cachedVenue = venueCache.get(spielfeld.id);
+    const matchConcurrency = options?.matchConcurrency ?? 6;
+    const matchRowsToUpsert: Array<typeof matches.$inferInsert> = [];
+    let nextMatchIndex = 0;
 
-            if (!cachedVenue || cachedVenue.latitude === null) {
-              // Geocode new or unlocated venue
-              let lat: number | null = null;
-              let lng: number | null = null;
+    const matchWorker = async () => {
+      while (nextMatchIndex < rawMatches.length) {
+        const index = nextMatchIndex++;
+        const m = rawMatches[index];
 
-              if (spielfeld.strasse || spielfeld.ort) {
-                const geo = await this.geocoder.geocodeAddress(
-                  spielfeld.strasse,
-                  spielfeld.plz,
-                  spielfeld.ort
-                );
+        const homeId = this.getTeamId(m.homeTeam, teamDbIdMap);
+        const guestId = this.getTeamId(m.guestTeam, teamDbIdMap);
 
-                if (geo) {
-                  lat = geo.latitude;
-                  lng = geo.longitude;
-                  geocodedVenuesCount++;
-                }
-              }
-
-              const location = lat !== null && lng !== null ? { lng, lat } : null;
-
-              const venueValues = {
-                id: spielfeld.id,
-                name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
-                street: spielfeld.strasse || null,
-                postalCode: spielfeld.plz || null,
-                city: spielfeld.ort || null,
-                latitude: lat,
-                longitude: lng,
-                location,
-                geocodedAt: lat !== null ? new Date() : null,
-                rawData: spielfeld,
-                updatedAt: new Date(),
-              };
-
-              const venueUpdateValues: Partial<typeof venues.$inferInsert> = {
-                name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
-                street: spielfeld.strasse || null,
-                postalCode: spielfeld.plz || null,
-                city: spielfeld.ort || null,
-                rawData: spielfeld,
-                updatedAt: new Date(),
-              };
-
-              if (lat !== null && lng !== null) {
-                venueUpdateValues.latitude = lat;
-                venueUpdateValues.longitude = lng;
-                venueUpdateValues.location = location;
-                venueUpdateValues.geocodedAt = new Date();
-              }
-
-              const [insertedVenue] = await this.db
-                .insert(venues)
-                .values(venueValues)
-                .onConflictDoUpdate({
-                  target: venues.id,
-                  set: venueUpdateValues,
-                })
-                .returning();
-
-              venueCache.set(spielfeld.id, insertedVenue);
-              syncedVenuesCount++;
-            }
-          }
-        } catch (err) {
-          this.logger.warn(`Could not fetch matchInfo for match ${m.matchId}:`, err);
+        if (!homeId || !guestId) {
+          continue;
         }
-      }
 
-      const homeId = this.getTeamId(m.homeTeam, teamDbIdMap);
-      const guestId = this.getTeamId(m.guestTeam, teamDbIdMap);
+        const existingMatch = existingMatchMap.get(m.matchId);
 
-      if (homeId && guestId) {
-        const matchUpdateValues: Partial<typeof matches.$inferInsert> = {
-          kickoffDate: m.kickoffDate,
+        if (
+          existingMatch &&
+          existingMatch.result !== null &&
+          existingMatch.result.trim() !== ''
+        ) {
+          continue;
+        }
+
+        let venueId: number | null = null;
+        const knownVenueId = existingMatch?.venueId;
+
+        if (knownVenueId !== undefined && knownVenueId !== null) {
+          venueId = knownVenueId;
+        } else if (!options?.quickSync) {
+          try {
+            const info = await this.dbbClient.fetchMatchInfo(m.matchId);
+            const spielfeld = info.data?.matchInfo?.spielfeld;
+
+            if (spielfeld && spielfeld.id) {
+              venueId = spielfeld.id;
+              const cachedVenue = resolvedVenueCache.get(spielfeld.id);
+
+              if (!cachedVenue || cachedVenue.latitude === null) {
+                let inFlightPromise = venueInFlight.get(spielfeld.id);
+
+                if (!inFlightPromise) {
+                  inFlightPromise = this.geocodeAndUpsertVenue(
+                    db,
+                    spielfeld,
+                    resolvedVenueCache
+                  )
+                    .then((res) => {
+                      if (res.synced) {
+                        syncedVenuesCount++;
+                      }
+
+                      if (res.geocoded) {
+                        geocodedVenuesCount++;
+                      }
+
+                      return res.venue;
+                    })
+                    .finally(() => {
+                      venueInFlight.delete(spielfeld.id);
+                    });
+
+                  venueInFlight.set(spielfeld.id, inFlightPromise);
+                }
+
+                await inFlightPromise;
+              }
+            }
+          } catch (err) {
+            this.logger.warn(`Could not fetch matchInfo for match ${m.matchId}:`, err);
+          }
+        }
+
+        matchRowsToUpsert.push({
+          id: m.matchId,
+          leagueId: dbLeague.id,
+          matchDay: m.matchDay,
+          matchNo: m.matchNo || null,
+          kickoffDate: m.kickoffDate ?? null,
           kickoffTime: m.kickoffTime || '00:00',
+          homeTeamId: homeId,
+          guestTeamId: guestId,
+          venueId,
           result: m.result || null,
           confirmed: Boolean(m.ergebnisbestaetigt),
           rawData: m,
           updatedAt: new Date(),
-        };
-
-        if (venueId !== null) {
-          matchUpdateValues.venueId = venueId;
-        }
-
-        await this.db
-          .insert(matches)
-          .values({
-            id: m.matchId,
-            leagueId: dbLeague.id,
-            matchDay: m.matchDay,
-            matchNo: m.matchNo || null,
-            kickoffDate: m.kickoffDate,
-            kickoffTime: m.kickoffTime || '00:00',
-            homeTeamId: homeId,
-            guestTeamId: guestId,
-            venueId: venueId,
-            result: m.result || null,
-            confirmed: Boolean(m.ergebnisbestaetigt),
-            rawData: m,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: matches.id,
-            set: matchUpdateValues,
-          });
-
-        syncedMatchesCount++;
+        });
       }
+    };
+
+    const matchWorkerCount = Math.min(matchConcurrency, rawMatches.length);
+    const matchWorkers = Array.from({ length: matchWorkerCount }, () => matchWorker());
+
+    await Promise.all(matchWorkers);
+
+    // 5. Batch Upsert Matches
+    if (matchRowsToUpsert.length > 0) {
+      await db
+        .insert(matches)
+        .values(matchRowsToUpsert)
+        .onConflictDoUpdate({
+          target: matches.id,
+          set: {
+            kickoffDate: sql`excluded.kickoff_date`,
+            kickoffTime: sql`excluded.kickoff_time`,
+            venueId: sql`coalesce(excluded.venue_id, ${matches.venueId})`,
+            result: sql`excluded.result`,
+            confirmed: sql`excluded.confirmed`,
+            rawData: sql`excluded.raw_data`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        });
+
+      syncedMatchesCount = matchRowsToUpsert.length;
     }
 
     const durationMs = Date.now() - startTime;
@@ -330,7 +352,7 @@ export class ScraperService {
     }
 
     const startTime = Date.now();
-    const concurrency = options?.concurrency ?? 3;
+    const concurrency = options?.concurrency ?? 5;
     const throttleMs = options?.throttleMs ?? 50;
 
     this.logger.log(
@@ -349,6 +371,11 @@ export class ScraperService {
     for (const v of existingVenues) {
       venueCache.set(v.id, v);
     }
+
+    const venueInFlight = new Map<
+      number,
+      Promise<typeof venues.$inferSelect | null>
+    >();
 
     let totalMatches = 0;
     let syncedMatches = 0;
@@ -369,6 +396,7 @@ export class ScraperService {
           const result = await this.syncLeague(league.ligaId, {
             quickSync: options?.quickSync,
             venueCache,
+            venueInFlight,
           });
 
           totalMatches += result.totalMatches;
@@ -437,10 +465,91 @@ export class ScraperService {
     return this.syncVerbandLeagues(1, options);
   }
 
+  private async geocodeAndUpsertVenue(
+    db: DrizzleDb,
+    spielfeld: DbbVenue,
+    venueCache: Map<number, typeof venues.$inferSelect>
+  ): Promise<{
+    venue: typeof venues.$inferSelect | null;
+    synced: boolean;
+    geocoded: boolean;
+  }> {
+    let lat: number | null = null;
+    let lng: number | null = null;
+    let geocoded = false;
+
+    if (spielfeld.strasse || spielfeld.ort) {
+      const geo = await this.geocoder.geocodeAddress(
+        spielfeld.strasse,
+        spielfeld.plz,
+        spielfeld.ort
+      );
+
+      if (geo) {
+        lat = geo.latitude;
+        lng = geo.longitude;
+        geocoded = true;
+      }
+    }
+
+    const location = lat !== null && lng !== null ? { lng, lat } : null;
+
+    const venueValues = {
+      id: spielfeld.id,
+      name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
+      street: spielfeld.strasse || null,
+      postalCode: spielfeld.plz || null,
+      city: spielfeld.ort || null,
+      latitude: lat,
+      longitude: lng,
+      location,
+      geocodedAt: lat !== null ? new Date() : null,
+      rawData: spielfeld,
+      updatedAt: new Date(),
+    };
+
+    const venueUpdateValues: Partial<typeof venues.$inferInsert> = {
+      name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
+      street: spielfeld.strasse || null,
+      postalCode: spielfeld.plz || null,
+      city: spielfeld.ort || null,
+      rawData: spielfeld,
+      updatedAt: new Date(),
+    };
+
+    if (lat !== null && lng !== null) {
+      venueUpdateValues.latitude = lat;
+      venueUpdateValues.longitude = lng;
+      venueUpdateValues.location = location;
+      venueUpdateValues.geocodedAt = new Date();
+    }
+
+    const [insertedVenue] = await db
+      .insert(venues)
+      .values(venueValues)
+      .onConflictDoUpdate({
+        target: venues.id,
+        set: venueUpdateValues,
+      })
+      .returning();
+
+    venueCache.set(spielfeld.id, insertedVenue);
+
+    return {
+      venue: insertedVenue,
+      synced: true,
+      geocoded,
+    };
+  }
+
   private collectTeam(
-    t: DbbTeam,
+    t: DbbTeam | null | undefined,
     map: Map<number, { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }>
   ) {
+    if (!t) {
+      return;
+    }
+
     const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
 
     if (id && !map.has(id)) {
@@ -454,7 +563,14 @@ export class ScraperService {
     }
   }
 
-  private getTeamId(t: DbbTeam, idMap: Map<number, number>): number | null {
+  private getTeamId(
+    t: DbbTeam | null | undefined,
+    idMap: Map<number, number>
+  ): number | null {
+    if (!t) {
+      return null;
+    }
+
     const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
 
     return id ? idMap.get(id) || null : null;

@@ -14,10 +14,10 @@ export interface DbbMatch {
   matchId: number;
   matchDay: number;
   matchNo?: number;
-  kickoffDate: string; // 'YYYY-MM-DD'
-  kickoffTime: string; // 'HH:mm'
-  homeTeam: DbbTeam;
-  guestTeam: DbbTeam;
+  kickoffDate: string | null; // 'YYYY-MM-DD'
+  kickoffTime: string | null; // 'HH:mm'
+  homeTeam: DbbTeam | null;
+  guestTeam: DbbTeam | null;
   result?: string;
   ergebnisbestaetigt?: boolean;
 }

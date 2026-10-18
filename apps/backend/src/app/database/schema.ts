@@ -135,7 +135,7 @@ export const matches = pgTable('matches', {
     .references(() => leagues.id, { onDelete: 'cascade' }),
   matchDay: integer('match_day').notNull(),
   matchNo: integer('match_no'),
-  kickoffDate: text('kickoff_date').notNull(), // 'YYYY-MM-DD'
+  kickoffDate: text('kickoff_date'), // 'YYYY-MM-DD'
   kickoffTime: text('kickoff_time'), // 'HH:mm'
   homeTeamId: integer('home_team_id')
     .notNull()
