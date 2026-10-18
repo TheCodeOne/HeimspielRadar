@@ -39,16 +39,36 @@ interface InsertCallRecord {
   rowCount: number;
 }
 
+interface VenueCoordinatesUpdate {
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface UpdateCallRecord {
+  table: PgTable;
+  values: VenueCoordinatesUpdate;
+}
+
 class FakeDatabase {
   existingVenues: Array<typeof venues.$inferSelect> = [];
   existingMatches: ExistingMatchRow[] = [];
   insertCalls: InsertCallRecord[] = [];
+  updateCalls: UpdateCallRecord[] = [];
 
   select() {
     return {
       from: (table: PgTable) => {
         if (table === venues) {
-          return Promise.resolve(this.existingVenues);
+          const promise = Promise.resolve(this.existingVenues);
+
+          return Object.assign(promise, {
+            where: () =>
+              Promise.resolve(
+                this.existingVenues.filter(
+                  (v) => v.latitude === null || v.longitude === null
+                )
+              ),
+          });
         }
 
         return {
@@ -80,6 +100,18 @@ class FakeDatabase {
           },
         };
       },
+    };
+  }
+
+  update(table: PgTable) {
+    return {
+      set: (vals: VenueCoordinatesUpdate) => ({
+        where: () => {
+          this.updateCalls.push({ table, values: vals });
+
+          return Promise.resolve();
+        },
+      }),
     };
   }
 }
@@ -483,6 +515,59 @@ describe('ScraperService', () => {
       const result = await nullDbService.getLastSyncedAt();
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('geocodeMissingVenues', () => {
+    it('should geocode venues with missing coordinates and update them in DB', async () => {
+      fakeDb.existingVenues = [
+        {
+          id: 501,
+          name: 'Halle 1',
+          street: 'Waldhörnlestr. 24',
+          postalCode: '72072',
+          city: 'Tübingen',
+          latitude: null,
+          longitude: null,
+          location: null,
+          geocodedAt: null,
+          rawData: null,
+          updatedAt: new Date(),
+        },
+        {
+          id: 502,
+          name: 'Halle 2',
+          street: 'Unknown Str. 99',
+          postalCode: '00000',
+          city: 'Nowhere',
+          latitude: null,
+          longitude: null,
+          location: null,
+          geocodedAt: null,
+          rawData: null,
+          updatedAt: new Date(),
+        },
+      ];
+
+      mockGeocoder.geocodeAddress
+        .mockResolvedValueOnce({
+          latitude: 48.5,
+          longitude: 9.05,
+          displayName: 'Tübingen',
+        })
+        .mockResolvedValueOnce(null);
+
+      const result = await service.geocodeMissingVenues();
+
+      expect(result).toEqual({
+        totalMissing: 2,
+        geocoded: 1,
+        failed: 1,
+      });
+      expect(mockGeocoder.geocodeAddress).toHaveBeenCalledTimes(2);
+      expect(fakeDb.updateCalls).toHaveLength(1);
+      expect(fakeDb.updateCalls[0].values.latitude).toBe(48.5);
+      expect(fakeDb.updateCalls[0].values.longitude).toBe(9.05);
     });
   });
 });

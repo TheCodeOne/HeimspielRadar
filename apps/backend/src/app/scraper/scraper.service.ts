@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { SyncResult, VerbandSyncResult } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { leagues, matches, systemSettings, teams, venues } from '../database/schema';
@@ -463,6 +463,66 @@ export class ScraperService {
    */
   async syncAllBawueLeagues(options?: SyncVerbandOptions): Promise<VerbandSyncResult> {
     return this.syncVerbandLeagues(1, options);
+  }
+
+  /**
+   * Backfills coordinates for all venues in the database that currently have null latitude or longitude.
+   */
+  async geocodeMissingVenues(): Promise<{
+    totalMissing: number;
+    geocoded: number;
+    failed: number;
+  }> {
+    if (!this.db) {
+      throw new Error(
+        'Database is not configured! Please set DATABASE_URL in .env to geocode venues.'
+      );
+    }
+
+    const missingVenues = await this.db
+      .select()
+      .from(venues)
+      .where(or(isNull(venues.latitude), isNull(venues.longitude)));
+
+    this.logger.log(`Found ${missingVenues.length} venues with missing coordinates.`);
+
+    let geocoded = 0;
+    let failed = 0;
+
+    for (const venue of missingVenues) {
+      const coords = await this.geocoder.geocodeAddress(
+        venue.street ?? '',
+        venue.postalCode ?? '',
+        venue.city ?? ''
+      );
+
+      if (coords) {
+        await this.db
+          .update(venues)
+          .set({
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            location: { lng: coords.longitude, lat: coords.latitude },
+            geocodedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(venues.id, venue.id));
+
+        geocoded++;
+      } else {
+        failed++;
+      }
+    }
+
+    this.logger.log(
+      `Finished geocoding missing venues: ${geocoded} geocoded, ${failed} failed (out of ${missingVenues.length}).`
+    );
+
+    return {
+      totalMissing: missingVenues.length,
+      geocoded,
+      failed,
+    };
   }
 
   private async geocodeAndUpsertVenue(
