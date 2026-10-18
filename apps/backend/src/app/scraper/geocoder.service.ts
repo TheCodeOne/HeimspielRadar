@@ -46,9 +46,11 @@ export class GeocoderService {
 
       if (!response.ok) {
         this.logger.warn(`Nominatim returned HTTP ${response.status} for "${query}"`);
+
         return null;
       }
 
+      // SAFETY: Nominatim search API returns an array of Place objects
       const results = (await response.json()) as Array<{
         lat: string;
         lon: string;
@@ -57,6 +59,7 @@ export class GeocoderService {
 
       if (results && results.length > 0) {
         const item = results[0];
+
         return {
           latitude: parseFloat(item.lat),
           longitude: parseFloat(item.lon),
@@ -67,7 +70,9 @@ export class GeocoderService {
       // Fallback: Try with just PLZ and City if street search returned 0 results
       if (street && (postalCode || city)) {
         await this.enforceRateLimit();
+
         const fallbackQuery = `${postalCode} ${city}, Deutschland`.trim();
+
         const fallbackUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           fallbackQuery
         )}&format=json&limit=1`;
@@ -82,11 +87,13 @@ export class GeocoderService {
         });
 
         if (fallbackRes.ok) {
+          // SAFETY: Nominatim search API returns an array of Place objects
           const fallbackResults = (await fallbackRes.json()) as Array<{
             lat: string;
             lon: string;
             display_name: string;
           }>;
+
           if (fallbackResults && fallbackResults.length > 0) {
             return {
               latitude: parseFloat(fallbackResults[0].lat),
@@ -98,9 +105,11 @@ export class GeocoderService {
       }
 
       this.logger.warn(`No geocoding results found for "${query}"`);
+
       return null;
     } catch (error) {
       this.logger.error(`Error geocoding address "${query}":`, error);
+
       return null;
     }
   }
@@ -108,10 +117,12 @@ export class GeocoderService {
   private async enforceRateLimit(): Promise<void> {
     const now = Date.now();
     const elapsed = now - this.lastRequestTimestamp;
+
     if (elapsed < this.minDelayMs) {
       const waitTime = this.minDelayMs - elapsed;
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
+
     this.lastRequestTimestamp = Date.now();
   }
 }

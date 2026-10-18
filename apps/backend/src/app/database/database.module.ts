@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import * as schema from './schema';
 
 export const DRIZZLE_DB = 'DRIZZLE_DB';
+
 export type DrizzleDb = NodePgDatabase<typeof schema>;
 
 @Global()
@@ -21,6 +22,7 @@ export type DrizzleDb = NodePgDatabase<typeof schema>;
           logger.warn(
             '⚠️ DATABASE_URL is not configured! Please provide a DATABASE_URL in .env (e.g. from Neon Postgres).'
           );
+
           // Return null so the app can still boot for testing/preview endpoints
           return null;
         }
@@ -32,9 +34,11 @@ export type DrizzleDb = NodePgDatabase<typeof schema>;
           });
 
           logger.log('Connected to PostgreSQL database via Drizzle');
+
           return drizzle(pool, { schema });
         } catch (error) {
           logger.error('Failed to initialize database connection', error);
+
           return null;
         }
       },

@@ -1,9 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
 import { SyncResult } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { leagues, matches, teams, venues } from '../database/schema';
-import { DbbClientService, DbbMatch, DbbTeam } from './dbb-client.service';
+import { DbbClientService, DbbTeam } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 
 @Injectable()
@@ -24,11 +23,12 @@ export class ScraperService {
     const { ligaData, matches: matchData } = spielplan.data;
 
     let sampleVenue = null;
+
     if (matchData.length > 0) {
       try {
         const info = await this.dbbClient.fetchMatchInfo(matchData[0].matchId);
         sampleVenue = info.data?.matchInfo?.spielfeld || null;
-      } catch (e) {
+      } catch {
         this.logger.debug(`Could not fetch sample venue for match ${matchData[0].matchId}`);
       }
     }
@@ -86,12 +86,14 @@ export class ScraperService {
 
     // 2. Collect & Upsert Teams
     const teamMap = new Map<number, { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }>();
+
     for (const m of rawMatches) {
       this.collectTeam(m.homeTeam, teamMap);
       this.collectTeam(m.guestTeam, teamMap);
     }
 
     const teamDbIdMap = new Map<number, number>(); // dbbId -> internal team.id
+
     for (const t of teamMap.values()) {
       const [upserted] = await this.db
         .insert(teams)
@@ -124,6 +126,7 @@ export class ScraperService {
     // Load all existing venues into cache to avoid duplicate DB calls & geocoding
     const existingVenues = await this.db.select().from(venues);
     const venueCache = new Map<number, typeof venues.$inferSelect>();
+
     for (const v of existingVenues) {
       venueCache.set(v.id, v);
     }
@@ -150,6 +153,7 @@ export class ScraperService {
                 spielfeld.plz,
                 spielfeld.ort
               );
+
               if (geo) {
                 lat = geo.latitude;
                 lng = geo.longitude;
@@ -255,6 +259,7 @@ export class ScraperService {
     map: Map<number, { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }>
   ) {
     const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
+
     if (id && !map.has(id)) {
       map.set(id, {
         dbbId: id,
@@ -268,6 +273,7 @@ export class ScraperService {
 
   private getTeamId(t: DbbTeam, idMap: Map<number, number>): number | null {
     const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
+
     return id ? idMap.get(id) || null : null;
   }
 }

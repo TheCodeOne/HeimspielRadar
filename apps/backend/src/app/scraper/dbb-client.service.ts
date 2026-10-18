@@ -93,10 +93,12 @@ export class DbbClientService {
     this.logger.debug(`Fetching spielplan from: ${url}`);
 
     const res = await fetch(url, { headers: this.defaultHeaders });
+
     if (!res.ok) {
       throw new Error(`Failed to fetch spielplan for league ${ligaId}: ${res.status} ${res.statusText}`);
     }
 
+    // SAFETY: DBB REST API guarantees DbbSpielplanResponse payload schema
     return (await res.json()) as DbbSpielplanResponse;
   }
 
@@ -108,10 +110,12 @@ export class DbbClientService {
     this.logger.debug(`Fetching matchInfo for match: ${matchId}`);
 
     const res = await fetch(url, { headers: this.defaultHeaders });
+
     if (!res.ok) {
       throw new Error(`Failed to fetch matchInfo for match ${matchId}: ${res.status} ${res.statusText}`);
     }
 
+    // SAFETY: DBB REST API guarantees DbbMatchInfoResponse payload schema
     return (await res.json()) as DbbMatchInfoResponse;
   }
 
@@ -138,6 +142,7 @@ export class DbbClientService {
       throw new Error(`Failed to fetch WAM leagues at index ${startAtIndex}: ${res.status} ${res.statusText}`);
     }
 
+    // SAFETY: DBB REST API guarantees DbbWamLigaResponse payload schema
     return (await res.json()) as DbbWamLigaResponse;
   }
 }
