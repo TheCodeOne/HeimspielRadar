@@ -66,6 +66,12 @@ export const matches = pgTable('matches', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const systemSettings = pgTable('system_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const leaguesRelations = relations(leagues, ({ many }) => ({
   matches: many(matches),
 }));

@@ -1,4 +1,13 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ScraperAuthGuard } from './scraper-auth.guard';
 import { ScraperService } from './scraper.service';
 
 @Controller('scraper')
@@ -20,11 +29,13 @@ export class ScraperController {
   }
 
   @Post('sync/:leagueId')
+  @UseGuards(ScraperAuthGuard)
   async syncLeague(@Param('leagueId', ParseIntPipe) leagueId: number) {
     return this.scraperService.syncLeague(leagueId);
   }
 
   @Post('sync/verband/:verbandId')
+  @UseGuards(ScraperAuthGuard)
   async syncVerband(
     @Param('verbandId', ParseIntPipe) verbandId: number,
     @Query('quickSync') quickSync?: string,

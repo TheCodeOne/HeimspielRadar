@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SyncResult, VerbandSyncResult } from '@sundayleague/shared-types';
+import { ScraperAuthGuard } from './scraper-auth.guard';
 import { ScraperController } from './scraper.controller';
 import { ScraperService, SyncLeagueOptions, SyncVerbandOptions } from './scraper.service';
 
@@ -49,7 +50,10 @@ describe('ScraperController', () => {
           useValue: fakeScraperService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ScraperAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ScraperController>(ScraperController);
   });
