@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { aliasedTable, and, eq, sql, SQL } from 'drizzle-orm';
-import { Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
+import { aliasedTable, and, asc, eq, inArray, sql, SQL } from 'drizzle-orm';
+import { League, Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { leagues, matches, teams, venues } from '../database/schema';
+import { LeagueRawData, leagues, matches, teams, venues } from '../database/schema';
 
 @Injectable()
 export class MatchesService {
@@ -11,7 +11,35 @@ export class MatchesService {
   constructor(@Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null) {}
 
   /**
-   * Search matches for map display by date, coordinates (lat/lng), radius in km, or league.
+   * Retrieve all synced leagues ordered alphabetically by name,
+   * using COALESCE fallback to raw_data JSON fields for backward compatibility.
+   */
+  async findAllLeagues(): Promise<League[]> {
+    if (!this.db) {
+      throw new Error('Database is not configured! Please configure DATABASE_URL in .env.');
+    }
+
+    const rows = await this.db
+      .select({
+        id: leagues.id,
+        dbbId: leagues.dbbId,
+        name: leagues.name,
+        seasonId: leagues.seasonId,
+        seasonName: leagues.seasonName,
+        verbandName: leagues.verbandName,
+        skName: sql<string | null>`coalesce(${leagues.skName}, ${leagues.rawData}->>'skName')`,
+        akName: sql<string | null>`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`,
+        geschlecht: sql<string | null>`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`,
+        rawData: leagues.rawData,
+      })
+      .from(leagues)
+      .orderBy(asc(leagues.name));
+
+    return rows.map((r) => this.mapLeague(r));
+  }
+
+  /**
+   * Search matches for map display by date, coordinates (lat/lng), radius in km, or league dimensions.
    * Uses native PostGIS ST_DWithin and ST_Distance when spatial coordinates are provided,
    * with fallback to standard attribute filtering when coordinates are null or omitted.
    */
@@ -20,7 +48,18 @@ export class MatchesService {
       throw new Error('Database is not configured! Please configure DATABASE_URL in .env.');
     }
 
-    const { date, lat, lng, radiusKm = 30, leagueId } = query;
+    const {
+      date,
+      lat,
+      lng,
+      radiusKm = 30,
+      leagueId,
+      leagueIds,
+      genders,
+      ageClasses,
+      skillLevels,
+      onlyUpcoming,
+    } = query;
 
     const hasSpatialCoords =
       lat !== undefined &&
@@ -36,8 +75,52 @@ export class MatchesService {
       conditions.push(eq(matches.kickoffDate, date));
     }
 
+    if (onlyUpcoming) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      conditions.push(
+        sql`(${matches.result} IS NULL OR btrim(${matches.result}) = '')`
+      );
+      conditions.push(sql`${matches.kickoffDate} >= ${todayStr}`);
+    }
+
     if (leagueId) {
       conditions.push(eq(matches.leagueId, leagueId));
+    }
+
+    if (leagueIds && leagueIds.length > 0) {
+      conditions.push(inArray(matches.leagueId, leagueIds));
+    }
+
+    if (genders && genders.length > 0) {
+      conditions.push(
+        inArray(
+          sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`,
+          genders
+        )
+      );
+    }
+
+    if (ageClasses && ageClasses.length > 0) {
+      conditions.push(
+        inArray(
+          sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`,
+          ageClasses
+        )
+      );
+    }
+
+    if (skillLevels && skillLevels.length > 0) {
+      conditions.push(
+        inArray(
+          sql`coalesce(${leagues.skName}, ${leagues.rawData}->>'skName')`,
+          skillLevels
+        )
+      );
     }
 
     const homeTeam = aliasedTable(teams, 'home_team');
@@ -91,6 +174,7 @@ export class MatchesService {
       return {
         id: r.match.id,
         leagueId: r.match.leagueId,
+        league: r.league ? this.mapLeague(r.league) : undefined,
         matchDay: r.match.matchDay,
         matchNo: r.match.matchNo ?? undefined,
         kickoffDate: r.match.kickoffDate,
@@ -153,6 +237,7 @@ export class MatchesService {
     return {
       id: row.id,
       leagueId: row.leagueId,
+      league: row.league ? this.mapLeague(row.league) : undefined,
       matchDay: row.matchDay,
       matchNo: row.matchNo ?? undefined,
       kickoffDate: row.kickoffDate,
@@ -188,6 +273,31 @@ export class MatchesService {
     };
   }
 
+  private mapLeague(league: {
+    id: number;
+    dbbId?: number;
+    name: string;
+    seasonId?: number | null;
+    seasonName?: string | null;
+    verbandName?: string | null;
+    skName?: string | null;
+    akName?: string | null;
+    geschlecht?: string | null;
+    rawData?: LeagueRawData | null;
+  }): League {
+    return {
+      id: league.id,
+      dbbId: league.dbbId ?? league.id,
+      name: league.name,
+      seasonId: league.seasonId ?? undefined,
+      seasonName: league.seasonName ?? undefined,
+      verbandName: league.verbandName ?? undefined,
+      skName: league.skName ?? league.rawData?.skName ?? undefined,
+      akName: league.akName ?? league.rawData?.akName ?? undefined,
+      geschlecht: league.geschlecht ?? league.rawData?.geschlecht ?? undefined,
+    };
+  }
+
   /**
    * Haversine formula to compute great-circle distance between two points in kilometers.
    */
@@ -215,3 +325,4 @@ export class MatchesService {
     return Math.round(R * c * 10) / 10; // Round to 1 decimal place (e.g. 14.2 km)
   }
 }
+

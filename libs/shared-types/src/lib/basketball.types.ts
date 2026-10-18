@@ -32,6 +32,7 @@ export interface Venue {
 export interface Match {
   id: number; // matchId from DBB
   leagueId: number;
+  league?: League;
   matchDay: number;
   matchNo?: number;
   kickoffDate: string; // YYYY-MM-DD
@@ -73,5 +74,12 @@ export interface NearbyMatchesQuery {
   lng?: number;
   radiusKm?: number;
   leagueId?: number;
+  leagueIds?: number[];
+  genders?: string[];
+  ageClasses?: string[];
+  skillLevels?: string[];
+  onlyUpcoming?: boolean;
 }
+
+
 
