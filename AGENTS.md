@@ -63,11 +63,29 @@ This repository strictly enforces AST-level rules via **Oxlint** with Dillon Mul
    - `npx oxlint` exits with code 0 (zero errors, zero warnings).
    - Relevant build passes (`npm run build:backend` / `npm run build:frontend` / `npm run build`).
    - Relevant tests pass (`npm run test:backend`).
+   - Whenever frontend files (`apps/frontend/`) are modified, agents MUST follow the **Local Visual & Interactive Verification with Playwright** protocol below.
 
 ---
 
-## 4. Domain & Architectural Anchors
+## 4. Local Visual & Interactive Verification with Playwright (Frontend Agents)
+
+Playwright is not just a static CI suite—it is the primary tool for **every Frontend Agent to locally boot their worktree's frontend and verify their own changes in a real headless Chromium browser** on both Desktop (`1280x800`) and Mobile (`390x844`):
+
+1. **Step 1 — Interactive E2E Verification of Your Changes**:
+   - Whenever you modify `apps/frontend/`, add or update a Playwright test in `e2e/` that exercises the exact feature, layout, or bugfix you implemented.
+   - Run Playwright from inside your worktree (use a worktree-specific `PLAYWRIGHT_PORT` if multiple agents are active concurrently so Playwright boots your worktree's own Vite server):
+     ```bash
+     PLAYWRIGHT_PORT=4241 npm run test:e2e
+     ```
+2. **Step 2 — Visual Self-Check via Screenshots + `view_file`**:
+   - Capture Playwright screenshots on both Desktop (`1280x800`) and Mobile (`390x844`) (e.g. `await page.screenshot({ path: \`test-results/verify-\${testInfo.project.name}.png\` })`).
+   - **Open those PNG screenshots using the `view_file` tool** to visually inspect the rendered UI yourself—confirming that full-screen maps fill 100% of the viewport, headers and drawers are properly aligned, and no elements are clipped or overlapping—before opening a Pull Request.
+
+---
+
+## 5. Domain & Architectural Anchors
 * **GLOSSARY.md**: Consult for canonical domain terms (*Heimspiel*, *Match*, *Venue*, *Radius*, *Map Spike*).
 * **docs/adr/**:
   - `docs/adr/0001-monolith-static-serving.md`: Monolithic static asset serving via NestJS backend.
   - `docs/adr/0002-multi-spike-map-architecture.md`: 4-engine polymorphic map spike architecture (`MapEngineProps`).
+

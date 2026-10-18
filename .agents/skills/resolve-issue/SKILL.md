@@ -65,10 +65,14 @@ Inside `.worktrees/issue-<issue-id>`:
    - For frontend changes: `npm run build:frontend`
    - For monorepo changes: `npm run build`
    *Must compile with zero errors.*
-3. **Automated Tests:**
-   ```bash
-   npm run test:backend
-   ```
+3. **Automated Tests & Local Visual/Interactive Verification:**
+   - **Backend unit tests:**
+     ```bash
+     npm run test:backend
+     ```
+   - **Frontend E2E & Visual Self-Check (Mandatory whenever `apps/frontend/` is modified):**
+     1. **Step 1 (Interactive E2E Verification):** Add or update a Playwright check in `e2e/` that exercises the exact UI feature or bugfix you implemented, then run `PLAYWRIGHT_PORT=42<issue-id> npm run test:e2e` so Playwright boots your worktree's local Vite server and tests your changes live on both Desktop (`1280x800`) and Mobile (`390x844`).
+     2. **Step 2 (Visual Self-Check via Screenshots + `view_file`):** Capture Playwright screenshots on Desktop and Mobile (e.g. `await page.screenshot({ path: \`test-results/verify-\${testInfo.project.name}.png\` })`) and **open those PNG files with the `view_file` tool** to visually verify that the map fills 100% of the screen, headers/drawers are aligned, and nothing is clipped or broken before opening a PR.
 
 ---
 

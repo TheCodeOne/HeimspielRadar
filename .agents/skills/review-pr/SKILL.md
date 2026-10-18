@@ -41,7 +41,8 @@ To execute build, lint, or tests against the PR branch:
    *(Always set Cwd to `.worktrees/pr-<pr-number>`)*
    - **Oxlint & Anti-Slop:** `npx oxlint` (must exit 0)
    - **Build Verification:** `npm run build:backend` / `npm run build:frontend`
-   - **Tests:** `npm run test:backend`
+   - **Backend Tests:** `npm run test:backend`
+   - **Frontend E2E & Visual Verification (for PRs touching `apps/frontend/`):** Run `PLAYWRIGHT_PORT=42<pr-number> npm run test:e2e` inside the PR worktree to boot the PR's Vite server and verify Desktop (`1280x800`) and Mobile (`390x844`) geometry, scroll-lock, and interactive behavior (optionally inspecting screenshots in `test-results/` via `view_file`).
 3. **Clean Up Worktree Immediately**:
    ```bash
    git worktree remove .worktrees/pr-<pr-number>
