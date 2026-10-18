@@ -2,13 +2,46 @@
   "name": "@sundayleague/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "start": "nx serve backend",
+    "start:backend": "nx serve backend",
+    "build": "nx run-many -t build",
+    "build:backend": "nx build backend",
+    "test": "nx run-many -t test",
+    "test:backend": "nx test backend",
+    "lint": "nx run-many -t lint"
+  },
   "private": true,
-  "dependencies": {},
   "devDependencies": {
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@nx/jest": "23.3.0",
     "@nx/js": "23.3.0",
+    "@nx/nest": "^23.3.0",
+    "@nx/node": "23.3.0",
+    "@nx/web": "23.3.0",
+    "@nx/webpack": "23.3.0",
     "@nx/workspace": "23.3.0",
+    "@swc/helpers": "~0.5.18",
+    "@types/jest": "~30.0.0",
+    "@types/node": "^22.0.0",
+    "jest": "~30.3.0",
+    "jest-environment-node": "~30.3.0",
+    "jest-util": "~30.3.0",
     "nx": "23.3.0",
-    "typescript": "~6.0.3"
+    "ts-jest": "^29.4.7",
+    "ts-node": "10.9.1",
+    "tslib": "^2.3.0",
+    "typescript": "~6.0.3",
+    "webpack": "~5.110.0",
+    "webpack-cli": "^7.0.0",
+    "webpack-dev-server": "^5.2.1"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0"
   }
 }
