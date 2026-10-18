@@ -10,8 +10,10 @@ import type { Match } from '@sundayleague/shared-types';
 import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
 import { MatchCard, MatchList } from '@/components/matches';
+import { ReloadPrompt } from '@/components/pwa';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import {
   formatDisplayDate,
   getThisWeekendSaturdayString,
@@ -35,6 +37,56 @@ export function App() {
 
   // Selected match for bi-directional map/card synchronization
   const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
+
+  // User Geolocation hook integration
+  const {
+    location: geoCoords,
+    error: geoError,
+    loading: isLocating,
+    requestLocation,
+  } = useGeolocation();
+
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+
+  // Sync cold-start stored coordinates if available
+  React.useEffect(() => {
+    if (geoCoords && location.name === STUTTGART_FALLBACK.name) {
+      setLocation({
+        lat: geoCoords.lat,
+        lng: geoCoords.lng,
+        name: 'Mein Standort',
+      });
+    }
+  }, [geoCoords]);
+
+  // Handle geolocation error feedback
+  React.useEffect(() => {
+    if (geoError) {
+      setToastMessage(geoError);
+      const timer = setTimeout(() => setToastMessage(null), 6000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [geoError]);
+
+  const handleLocateUser = async () => {
+    const coords = await requestLocation();
+
+    if (coords) {
+      setLocation({
+        lat: coords.lat,
+        lng: coords.lng,
+        name: 'Mein Standort',
+      });
+      setSelectedMatchId(null);
+      setToastMessage('Standort ermittelt: Karte zentriert');
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+
+      return () => clearTimeout(timer);
+    }
+
+    setLocation(STUTTGART_FALLBACK);
+  };
 
   // Query matches with debounced API integration
   const { matches, isLoading } = useMatches({
@@ -133,6 +185,25 @@ export function App() {
         </div>
       </header>
 
+      {/* Feedback Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed top-16 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+        >
+          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-muted-foreground hover:text-foreground text-xs"
+            aria-label="Schließen"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main Layout Area */}
       <main className="flex flex-1 min-h-0 overflow-hidden">
         {/* ======================================================== */}
@@ -153,6 +224,8 @@ export function App() {
                 selectedLeagueId={selectedLeagueId}
                 onLeagueChange={setSelectedLeagueId}
                 onResetFilters={handleResetFilters}
+                onRequestLocation={handleLocateUser}
+                isLocating={isLocating}
                 className="border-0 bg-transparent p-0 shadow-none"
               />
             </div>
@@ -202,7 +275,10 @@ export function App() {
                 selectedMatchId={selectedMatchId}
                 center={mapCenter}
                 zoom={9}
+                userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
                 onMarkerClick={handleMarkerClick}
+                onLocateUser={handleLocateUser}
+                isLocating={isLocating}
                 className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
                 mapHeightClassName="w-full h-full min-h-[500px]"
               />
@@ -261,6 +337,8 @@ export function App() {
                 selectedLeagueId={selectedLeagueId}
                 onLeagueChange={setSelectedLeagueId}
                 onResetFilters={handleResetFilters}
+                onRequestLocation={handleLocateUser}
+                isLocating={isLocating}
               />
 
               <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
@@ -315,7 +393,10 @@ export function App() {
                 selectedMatchId={selectedMatchId}
                 center={mapCenter}
                 zoom={9}
+                userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
                 onMarkerClick={handleMarkerClick}
+                onLocateUser={handleLocateUser}
+                isLocating={isLocating}
                 className="h-full w-full flex-1 min-h-0 rounded-none border-0 shadow-none"
                 mapHeightClassName="w-full h-full min-h-[400px]"
               />
@@ -366,6 +447,9 @@ export function App() {
           <span className="text-xs">Karte</span>
         </button>
       </nav>
+
+      {/* PWA Service Worker Update / Offline Prompt */}
+      <ReloadPrompt />
     </div>
   );
 }

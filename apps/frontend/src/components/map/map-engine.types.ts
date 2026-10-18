@@ -7,6 +7,7 @@ export interface MapEngineProps {
   selectedMatchId?: number | null;
   center: [number, number]; // [lat, lng]
   zoom: number;
+  userLocation?: [number, number] | null; // [lat, lng]
   onMarkerClick: (match: Match) => void;
   className?: string;
 }

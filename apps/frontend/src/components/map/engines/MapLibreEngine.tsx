@@ -77,17 +77,32 @@ function createPopupContent(
   return container;
 }
 
+function createUserLocationMapLibreElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'user-location-marker pointer-events-none';
+  el.innerHTML = `
+    <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
+      <span class="user-location-ping" style="position:absolute;width:24px;height:24px;border-radius:9999px;background-color:#3b82f6;"></span>
+      <span style="position:relative;width:14px;height:14px;border-radius:9999px;background-color:#2563eb;border:2.5px solid #ffffff;box-shadow:0 0 8px rgba(37,99,235,0.8);"></span>
+    </div>
+  `;
+
+  return el;
+}
+
 export function MapLibreEngine({
   matches,
   selectedMatchId,
   center,
   zoom,
+  userLocation,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
 }: MapEngineProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<MapLibreMap | null>(null);
   const markersRef = React.useRef<MapLibreMarker[]>([]);
+  const userMarkerRef = React.useRef<MapLibreMarker | null>(null);
 
   // Initialize MapLibre
   React.useEffect(() => {
@@ -110,6 +125,46 @@ export function MapLibreEngine({
       mapRef.current = null;
     };
   }, []);
+
+  // Update center smoothly when center coordinate changes
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    map.flyTo({
+      center: [center[1], center[0]],
+      duration: 600,
+    });
+  }, [center[0], center[1]]);
+
+  // Update user location marker
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+      userMarkerRef.current = null;
+    }
+
+    if (!userLocation) {
+      return;
+    }
+
+    const el = createUserLocationMapLibreElement();
+
+    const marker = new MapLibreMarker({ element: el })
+      .setLngLat([userLocation[1], userLocation[0]])
+      .addTo(map);
+
+    userMarkerRef.current = marker;
+  }, [userLocation]);
 
   // Update markers
   React.useEffect(() => {
