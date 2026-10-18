@@ -34,6 +34,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   );
 
   const clientIp = request.headers.get("CF-Connecting-IP");
+
   if (clientIp) {
     headers.set("X-Forwarded-For", clientIp);
   }

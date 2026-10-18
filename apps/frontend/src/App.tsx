@@ -92,6 +92,7 @@ export function App() {
 
     setLocation(STUTTGART_FALLBACK);
   };
+
   // Server health and cold-start detection
   const {
     isColdStarting,
