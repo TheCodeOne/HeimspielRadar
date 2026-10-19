@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { League } from '@sundayleague/shared-types';
-import { MAP_ENGINE_OPTIONS, type MapEngineType } from '@/components/map';
+import { MAP_ENGINE_OPTIONS } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -26,47 +26,29 @@ import {
   searchCuratedCities,
 } from '@/lib/cities';
 import { formatLastSyncedAt } from '@/lib/date-utils';
-import type { DateFilterMode } from '@/lib/filter-storage';
-import { type LocationReference, STUTTGART_FALLBACK } from '@/lib/geo-utils';
+import { STUTTGART_FALLBACK } from '@/lib/geo-utils';
+import {
+  filterLeaguesByHierarchy,
+  type MatchFiltersActions,
+  type MatchFiltersState,
+} from '@/lib/use-match-filters';
+
+export interface FilterAvailableOptions {
+  leagues: League[];
+  genders: string[];
+  ageClasses: string[];
+  skillLevels: string[];
+  matchCount?: number;
+  matchesCount?: number;
+  lastSyncedAt?: string | null;
+}
 
 export interface FilterBarProps {
   isOpen?: boolean;
   onClose?: () => void;
-  matchCount?: number;
-  matchesCount?: number;
-  viewMode?: 'map' | 'list';
-  onViewModeChange?: (mode: 'map' | 'list') => void;
-  mapEngine?: MapEngineType;
-  onMapEngineChange?: (engine: MapEngineType) => void;
-  dateMode: DateFilterMode;
-  dateFrom: string;
-  dateTo: string;
-  onDateModeChange: (mode: DateFilterMode) => void;
-  onDateRangeChange: (dateFrom: string, dateTo: string) => void;
-  onlyUpcoming?: boolean;
-  onOnlyUpcomingChange?: (onlyUpcoming: boolean) => void;
-  radiusKm: number;
-  onRadiusChange: (radius: number) => void;
-  showRadiusCircle?: boolean;
-  onShowRadiusCircleChange?: (show: boolean) => void;
-  location: LocationReference;
-  onLocationChange: (loc: LocationReference) => void;
-  leagues: League[];
-  availableGenders: string[];
-  availableAgeClasses: string[];
-  availableSkillLevels: string[];
-  selectedGenders: string[];
-  onGendersChange: (genders: string[]) => void;
-  selectedAgeClasses: string[];
-  onAgeClassesChange: (ageClasses: string[]) => void;
-  selectedSkillLevels: string[];
-  onSkillLevelsChange: (skillLevels: string[]) => void;
-  selectedLeagueIds: number[];
-  onLeagueIdsChange: (leagueIds: number[]) => void;
-  onResetFilters: () => void;
-  onRequestLocation?: () => void;
-  isLocating?: boolean;
-  lastSyncedAt?: string | null;
+  filters: MatchFiltersState;
+  availableOptions: FilterAvailableOptions;
+  actions: MatchFiltersActions;
   className?: string;
 }
 
@@ -99,44 +81,55 @@ function toggleArrayItem<T>(items: T[], item: T): T[] {
 export function FilterBar({
   isOpen = true,
   onClose,
-  matchCount = 0,
-  matchesCount,
-  viewMode = 'map',
-  onViewModeChange,
-  mapEngine = 'openlayers',
-  onMapEngineChange,
-  dateMode,
-  dateFrom,
-  dateTo,
-  onDateModeChange,
-  onDateRangeChange,
-  onlyUpcoming = true,
-  onOnlyUpcomingChange,
-  radiusKm,
-  onRadiusChange,
-  showRadiusCircle = true,
-  onShowRadiusCircleChange,
-  location,
-  onLocationChange,
-  leagues,
-  availableGenders,
-  availableAgeClasses,
-  availableSkillLevels,
-  selectedGenders,
-  onGendersChange,
-  selectedAgeClasses,
-  onAgeClassesChange,
-  selectedSkillLevels,
-  onSkillLevelsChange,
-  selectedLeagueIds,
-  onLeagueIdsChange,
-  onResetFilters,
-  onRequestLocation,
-  isLocating = false,
-  lastSyncedAt,
+  filters,
+  availableOptions,
+  actions,
   className = '',
 }: FilterBarProps) {
-  const [internalLocating, setInternalLocating] = React.useState(false);
+  const {
+    viewMode,
+    mapEngine,
+    location,
+    radiusKm,
+    showRadiusCircle,
+    dateMode,
+    dateFrom,
+    dateTo,
+    onlyUpcoming,
+    genders: selectedGenders,
+    ageClasses: selectedAgeClasses,
+    skillLevels: selectedSkillLevels,
+    leagueIds: selectedLeagueIds,
+    isLocating,
+  } = filters;
+
+  const {
+    leagues,
+    genders: availableGenders,
+    ageClasses: availableAgeClasses,
+    skillLevels: availableSkillLevels,
+    matchCount = 0,
+    matchesCount,
+    lastSyncedAt,
+  } = availableOptions;
+
+  const {
+    setViewMode,
+    setMapEngine,
+    setLocation,
+    setRadius,
+    setShowRadiusCircle,
+    setDateMode,
+    setDateRange,
+    setOnlyUpcoming,
+    setGenders,
+    setAgeClasses,
+    setSkillLevels,
+    setLeagueIds,
+    resetFilters,
+    locateUser,
+  } = actions;
+
   const [leagueSearch, setLeagueSearch] = React.useState('');
   const [cityQuery, setCityQuery] = React.useState('');
   const [isCityDropdownOpen, setIsCityDropdownOpen] = React.useState(false);
@@ -262,7 +255,7 @@ export function FilterBar({
         selectedName = `${q} ${item.name}`;
       }
 
-      onLocationChange({
+      setLocation({
         lat: item.lat,
         lng: item.lng,
         name: selectedName,
@@ -273,7 +266,7 @@ export function FilterBar({
       setLocalSuggestions([]);
       setOnlineSuggestions([]);
     },
-    [cityQuery, onLocationChange],
+    [cityQuery, setLocation],
   );
 
   const handleSearchSubmit = async (e?: React.FormEvent) => {
@@ -379,93 +372,16 @@ export function FilterBar({
   }, [isOpen, onClose]);
 
   const handleGetCurrentLocation = () => {
-    if (onRequestLocation) {
-      onRequestLocation();
-
-      return;
-    }
-
-    setInternalLocating(true);
-
-    if (!navigator.geolocation) {
-      onLocationChange({
-        lat: 48.7758,
-        lng: 9.1829,
-        name: 'Stuttgart (Fallback)',
-      });
-      setInternalLocating(false);
-
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = Math.round(pos.coords.latitude * 10000) / 10000;
-        const lng = Math.round(pos.coords.longitude * 10000) / 10000;
-
-        onLocationChange({
-          lat,
-          lng,
-          name: 'Mein Standort',
-        });
-        setInternalLocating(false);
-      },
-      () => {
-        onLocationChange({
-          lat: 48.7758,
-          lng: 9.1829,
-          name: 'Stuttgart (Fallback)',
-        });
-        setInternalLocating(false);
-      },
-      { timeout: 8000, enableHighAccuracy: true },
-    );
+    void locateUser();
   };
 
   // Narrow individual leagues dynamically based on selected hierarchy + search query
   const filteredLeagues = React.useMemo(() => {
-    const query = leagueSearch.trim().toLowerCase();
-
-    return leagues.filter((league) => {
-      if (
-        selectedGenders.length > 0 &&
-        (!league.geschlecht || !selectedGenders.includes(league.geschlecht))
-      ) {
-        return false;
-      }
-
-      if (
-        selectedAgeClasses.length > 0 &&
-        (!league.akName || !selectedAgeClasses.includes(league.akName))
-      ) {
-        return false;
-      }
-
-      if (
-        selectedSkillLevels.length > 0 &&
-        (!league.skName || !selectedSkillLevels.includes(league.skName))
-      ) {
-        return false;
-      }
-
-      if (query.length > 0) {
-        const haystack = [
-          league.name,
-          league.akName,
-          league.skName,
-          league.geschlecht,
-          league.verbandName,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-
-        if (!haystack.includes(query)) {
-          return false;
-        }
-      }
-
-      return true;
+    return filterLeaguesByHierarchy(leagues, {
+      genders: selectedGenders,
+      ageClasses: selectedAgeClasses,
+      skillLevels: selectedSkillLevels,
+      search: leagueSearch,
     });
   }, [
     leagues,
@@ -479,7 +395,6 @@ export function FilterBar({
     return null;
   }
 
-  const isLocatingActive = isLocating || internalLocating;
   const effectiveMatchCount = matchesCount ?? matchCount;
 
   const filterFormContent = (
@@ -502,7 +417,7 @@ export function FilterBar({
             type="button"
             role="tab"
             aria-selected={viewMode === 'map'}
-            onClick={() => onViewModeChange?.('map')}
+            onClick={() => setViewMode('map')}
             className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
               viewMode === 'map'
                 ? 'bg-background text-foreground shadow-xs font-semibold'
@@ -517,7 +432,7 @@ export function FilterBar({
             type="button"
             role="tab"
             aria-selected={viewMode === 'list'}
-            onClick={() => onViewModeChange?.('list')}
+            onClick={() => setViewMode('list')}
             className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
               viewMode === 'list'
                 ? 'bg-background text-foreground shadow-xs font-semibold'
@@ -547,11 +462,11 @@ export function FilterBar({
             variant="outline"
             size="sm"
             onClick={handleGetCurrentLocation}
-            disabled={isLocatingActive}
+            disabled={isLocating}
             className="h-7 text-xs font-medium"
             title="Eigenen Standort abfragen (Fallback: Stuttgart)"
           >
-            {isLocatingActive ? (
+            {isLocating ? (
               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-primary" />
             ) : (
               <LocateFixed className="mr-1.5 h-3.5 w-3.5 text-primary" />
@@ -694,7 +609,7 @@ export function FilterBar({
             {location.name !== STUTTGART_FALLBACK.name && (
               <button
                 type="button"
-                onClick={() => onLocationChange(STUTTGART_FALLBACK)}
+                onClick={() => setLocation(STUTTGART_FALLBACK)}
                 className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 title="Auf Stuttgart zurücksetzen"
                 aria-label="Auf Stuttgart zurücksetzen"
@@ -719,7 +634,7 @@ export function FilterBar({
               const [nextRadius] = val;
 
               if (nextRadius !== undefined) {
-                onRadiusChange(nextRadius);
+                setRadius(nextRadius);
               }
             }}
             aria-label="Suchradius in Kilometern"
@@ -732,36 +647,34 @@ export function FilterBar({
           </div>
         </div>
 
-        {onShowRadiusCircleChange && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showRadiusCircle}
-            onClick={() => onShowRadiusCircleChange(!showRadiusCircle)}
-            className="mt-2.5 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground">
-                Suchradius auf Karte anzeigen
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
-              </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showRadiusCircle}
+          onClick={() => setShowRadiusCircle(!showRadiusCircle)}
+          className="mt-2.5 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-foreground">
+              Suchradius auf Karte anzeigen
             </div>
+            <div className="text-[11px] text-muted-foreground">
+              Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
+            </div>
+          </div>
 
+          <span
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+              showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+          >
             <span
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
+                showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
               }`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
-                  showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
-                }`}
-              />
-            </span>
-          </button>
-        )}
+            />
+          </span>
+        </button>
       </div>
 
       <hr className="border-border/60" />
@@ -779,7 +692,7 @@ export function FilterBar({
           {dateMode !== 'all' && (
             <button
               type="button"
-              onClick={() => onDateModeChange('all')}
+              onClick={() => setDateMode('all')}
               className="text-[11px] text-primary hover:underline"
             >
               Alle Termine
@@ -793,7 +706,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'today' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('today')}
+            onClick={() => setDateMode('today')}
             className="h-8 text-xs"
           >
             Heute
@@ -803,7 +716,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'tomorrow' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('tomorrow')}
+            onClick={() => setDateMode('tomorrow')}
             className="h-8 text-xs"
           >
             Morgen
@@ -813,7 +726,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'weekend' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('weekend')}
+            onClick={() => setDateMode('weekend')}
             className="h-8 text-xs truncate"
             title="Samstag & Sonntag dieses Wochenendes"
           >
@@ -824,7 +737,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'next-weekend' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('next-weekend')}
+            onClick={() => setDateMode('next-weekend')}
             className="h-8 text-xs truncate"
             title="Samstag & Sonntag des nächsten Wochenendes"
           >
@@ -835,7 +748,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'weekend-after-next' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('weekend-after-next')}
+            onClick={() => setDateMode('weekend-after-next')}
             className="h-8 text-xs truncate"
             title="Samstag & Sonntag des übernächsten Wochenendes"
           >
@@ -846,7 +759,7 @@ export function FilterBar({
             type="button"
             variant={dateMode === 'all' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => onDateModeChange('all')}
+            onClick={() => setDateMode('all')}
             className="h-8 text-xs truncate"
           >
             Alle Termine
@@ -878,7 +791,7 @@ export function FilterBar({
                   const nextTo =
                     dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
 
-                  onDateRangeChange(nextFrom, nextTo);
+                  setDateRange(nextFrom, nextTo);
                 }}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 aria-label="Startdatum (Von)"
@@ -898,7 +811,7 @@ export function FilterBar({
                   const nextFrom =
                     dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
 
-                  onDateRangeChange(nextFrom, nextTo);
+                  setDateRange(nextFrom, nextTo);
                 }}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 aria-label="Enddatum (Bis)"
@@ -908,36 +821,34 @@ export function FilterBar({
         </div>
 
         {/* Toggle: Only Upcoming Matches Without Results */}
-        {onOnlyUpcomingChange && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={onlyUpcoming}
-            onClick={() => onOnlyUpcomingChange(!onlyUpcoming)}
-            className="mt-1 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground">
-                Nur anstehende Spiele (ohne Ergebnis)
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Blendet vergangene und bereits gespielte Partien aus
-              </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={onlyUpcoming}
+          onClick={() => setOnlyUpcoming(!onlyUpcoming)}
+          className="mt-1 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-foreground">
+              Nur anstehende Spiele (ohne Ergebnis)
             </div>
+            <div className="text-[11px] text-muted-foreground">
+              Blendet vergangene und bereits gespielte Partien aus
+            </div>
+          </div>
 
+          <span
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+              onlyUpcoming ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+          >
             <span
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                onlyUpcoming ? 'bg-primary' : 'bg-muted-foreground/30'
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
+                onlyUpcoming ? 'translate-x-4' : 'translate-x-1'
               }`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
-                  onlyUpcoming ? 'translate-x-4' : 'translate-x-1'
-                }`}
-              />
-            </span>
-          </button>
-        )}
+            />
+          </span>
+        </button>
       </div>
 
       <hr className="border-border/60" />
@@ -955,7 +866,7 @@ export function FilterBar({
           {selectedGenders.length > 0 && (
             <button
               type="button"
-              onClick={() => onGendersChange([])}
+              onClick={() => setGenders([])}
               className="text-[11px] text-primary hover:underline"
             >
               Alle ({selectedGenders.length} gewählt)
@@ -972,7 +883,7 @@ export function FilterBar({
                 key={gender}
                 type="button"
                 onClick={() =>
-                  onGendersChange(toggleArrayItem(selectedGenders, gender))
+                  setGenders(toggleArrayItem(selectedGenders, gender))
                 }
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                   isSelected
@@ -1002,7 +913,7 @@ export function FilterBar({
           {selectedAgeClasses.length > 0 && (
             <button
               type="button"
-              onClick={() => onAgeClassesChange([])}
+              onClick={() => setAgeClasses([])}
               className="text-[11px] text-primary hover:underline"
             >
               Alle ({selectedAgeClasses.length} gewählt)
@@ -1019,7 +930,7 @@ export function FilterBar({
                 key={ageClass}
                 type="button"
                 onClick={() =>
-                  onAgeClassesChange(toggleArrayItem(selectedAgeClasses, ageClass))
+                  setAgeClasses(toggleArrayItem(selectedAgeClasses, ageClass))
                 }
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                   isSelected
@@ -1049,7 +960,7 @@ export function FilterBar({
           {selectedSkillLevels.length > 0 && (
             <button
               type="button"
-              onClick={() => onSkillLevelsChange([])}
+              onClick={() => setSkillLevels([])}
               className="text-[11px] text-primary hover:underline"
             >
               Alle ({selectedSkillLevels.length} gewählt)
@@ -1066,9 +977,7 @@ export function FilterBar({
                 key={skillLevel}
                 type="button"
                 onClick={() =>
-                  onSkillLevelsChange(
-                    toggleArrayItem(selectedSkillLevels, skillLevel),
-                  )
+                  setSkillLevels(toggleArrayItem(selectedSkillLevels, skillLevel))
                 }
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                   isSelected
@@ -1098,7 +1007,7 @@ export function FilterBar({
           {selectedLeagueIds.length > 0 && (
             <button
               type="button"
-              onClick={() => onLeagueIdsChange([])}
+              onClick={() => setLeagueIds([])}
               className="text-[11px] text-primary hover:underline"
             >
               Auswahl aufheben ({selectedLeagueIds.length})
@@ -1150,7 +1059,7 @@ export function FilterBar({
                   key={league.id}
                   type="button"
                   onClick={() =>
-                    onLeagueIdsChange(toggleArrayItem(selectedLeagueIds, league.id))
+                    setLeagueIds(toggleArrayItem(selectedLeagueIds, league.id))
                   }
                   className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs transition-colors ${
                     isSelected
@@ -1183,53 +1092,49 @@ export function FilterBar({
         </div>
       </div>
 
-      {onMapEngineChange && (
-        <>
-          <hr className="border-border/60" />
+      <hr className="border-border/60" />
 
-          {/* 7. Karten-Renderer (Map Engine Selector) */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Map className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Karten-Renderer
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              {MAP_ENGINE_OPTIONS.map((opt) => {
-                const isSelected = opt.id === mapEngine;
-
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => onMapEngineChange(opt.id)}
-                    className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left text-xs transition-all ${
-                      isSelected
-                        ? 'border-primary bg-primary/15 text-foreground shadow-xs'
-                        : 'border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
-                    }`}
-                    title={opt.description}
-                  >
-                    <div className="flex w-full items-center justify-between gap-1">
-                      <span className="font-semibold text-foreground">{opt.label}</span>
-                      <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-mono">
-                        {opt.badge}
-                      </Badge>
-                    </div>
-                    <span className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">
-                      {opt.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+      {/* 7. Karten-Renderer (Map Engine Selector) */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Map className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Karten-Renderer
+            </span>
           </div>
-        </>
-      )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-1.5">
+          {MAP_ENGINE_OPTIONS.map((opt) => {
+            const isSelected = opt.id === mapEngine;
+
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMapEngine(opt.id)}
+                className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                  isSelected
+                    ? 'border-primary bg-primary/15 text-foreground shadow-xs'
+                    : 'border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
+                }`}
+                title={opt.description}
+              >
+                <div className="flex w-full items-center justify-between gap-1">
+                  <span className="font-semibold text-foreground">{opt.label}</span>
+                  <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-mono">
+                    {opt.badge}
+                  </Badge>
+                </div>
+                <span className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">
+                  {opt.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <hr className="border-border/60" />
 
@@ -1293,7 +1198,7 @@ export function FilterBar({
               type="button"
               variant="outline"
               size="sm"
-              onClick={onResetFilters}
+              onClick={resetFilters}
               className="text-xs"
             >
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
