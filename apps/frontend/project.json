@@ -26,6 +26,14 @@
         "command": "vite preview apps/frontend",
         "cwd": "{workspaceRoot}"
       }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/apps/frontend"],
+      "options": {
+        "jestConfig": "apps/frontend/jest.config.cts",
+        "passWithNoTests": true
+      }
     }
   }
 }
