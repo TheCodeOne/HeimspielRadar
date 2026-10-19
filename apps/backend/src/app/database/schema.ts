@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  serial,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
@@ -153,6 +154,19 @@ export const matches = pgTable('matches', {
 export const systemSettings = pgTable('system_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const syncFailures = pgTable('sync_failures', {
+  id: serial('id').primaryKey(),
+  entityType: text('entity_type').notNull(), // 'league' | 'match'
+  dbbLeagueId: integer('dbb_league_id').notNull(),
+  leagueName: text('league_name'),
+  dbbMatchId: integer('dbb_match_id'),
+  verbandId: integer('verband_id'),
+  errorMessage: text('error_message').notNull(),
+  retryCount: integer('retry_count').default(0).notNull(),
+  failedAt: timestamp('failed_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
