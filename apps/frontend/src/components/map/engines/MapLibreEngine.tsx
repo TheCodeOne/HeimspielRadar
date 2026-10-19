@@ -1,5 +1,6 @@
 import * as React from 'react';
 import {
+  type GeoJSONSource,
   Map as MapLibreMap,
   Marker as MapLibreMarker,
   NavigationControl,
@@ -8,49 +9,50 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { MapEngineProps } from '../map-engine.types';
-import { groupMatchesByVenue, type VenueGroup } from '../map-utils';
+import {
+  clusterVenueGroups,
+  createGeoJsonCircle,
+  getBasketballPinHtml,
+  getClusterBadgeHtml,
+  getSearchCenterPinHtml,
+  getUserLocationPinHtml,
+  groupMatchesByVenue,
+  type VenueCluster,
+} from '../map-utils';
 
 // Configure MapLibre Web Worker for Vite
 setWorkerUrl(workerUrl);
 
-function createMarkerElement(group: VenueGroup, isSelected: boolean): HTMLElement {
+function createVenueMarkerElement(cluster: VenueCluster): HTMLElement {
   const el = document.createElement('div');
   el.className = 'cursor-pointer transition-transform duration-200';
-
-  const badgeHtml =
-    group.matches.length > 1
-      ? `<span style="position:absolute;top:-4px;right:-4px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;">${group.matches.length}</span>`
-      : '';
-
-  const pinColor = isSelected ? '#2563eb' : '#0f172a';
-  const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
-
-  el.style.transform = scale;
-  el.style.zIndex = isSelected ? '30' : '10';
-  el.innerHTML = `
-    <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-      <svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}"/>
-        <circle cx="18" cy="18" r="10" fill="#ffffff"/>
-        <circle cx="18" cy="18" r="8" fill="${pinColor}"/>
-        <path d="M18 10V26M10 18H26" stroke="#ffffff" stroke-width="1.2"/>
-      </svg>
-      ${badgeHtml}
-    </div>
-  `;
+  el.style.zIndex = cluster.isSelected ? '30' : '10';
+  el.innerHTML = getBasketballPinHtml(cluster.isSelected, cluster.matchCount);
 
   return el;
 }
 
-function createUserLocationMapLibreElement(): HTMLElement {
+function createClusterMarkerElement(cluster: VenueCluster): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'cursor-pointer transition-transform duration-200';
+  el.style.zIndex = cluster.isSelected ? '30' : '20';
+  el.innerHTML = getClusterBadgeHtml(cluster.matchCount, cluster.isSelected);
+
+  return el;
+}
+
+function createSearchCenterElement(cityName: string): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'search-center-marker pointer-events-auto';
+  el.innerHTML = getSearchCenterPinHtml(cityName);
+
+  return el;
+}
+
+function createUserLocationElement(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'user-location-marker pointer-events-none';
-  el.innerHTML = `
-    <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
-      <span class="user-location-ping" style="position:absolute;width:24px;height:24px;border-radius:9999px;background-color:#3b82f6;"></span>
-      <span style="position:relative;width:14px;height:14px;border-radius:9999px;background-color:#2563eb;border:2.5px solid #ffffff;box-shadow:0 0 8px rgba(37,99,235,0.8);"></span>
-    </div>
-  `;
+  el.innerHTML = getUserLocationPinHtml();
 
   return el;
 }
@@ -61,6 +63,9 @@ export function MapLibreEngine({
   center,
   zoom,
   userLocation,
+  searchLocation,
+  radiusKm,
+  showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
 }: MapEngineProps) {
@@ -68,7 +73,19 @@ export function MapLibreEngine({
   const mapRef = React.useRef<MapLibreMap | null>(null);
   const markersRef = React.useRef<MapLibreMarker[]>([]);
   const userMarkerRef = React.useRef<MapLibreMarker | null>(null);
+  const searchMarkerRef = React.useRef<MapLibreMarker | null>(null);
   const isLoadedRef = React.useRef<boolean>(false);
+  const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
+
+  const groups = React.useMemo(
+    () => groupMatchesByVenue(matches, selectedMatchId),
+    [matches, selectedMatchId],
+  );
+
+  const clusters = React.useMemo(
+    () => clusterVenueGroups(groups, currentZoom),
+    [groups, currentZoom],
+  );
 
   // Initialize MapLibre
   React.useEffect(() => {
@@ -88,6 +105,42 @@ export function MapLibreEngine({
     map.on('load', () => {
       isLoadedRef.current = true;
       map.resize();
+
+      // Setup radius circle source and layers
+      if (!map.getSource('search-radius-source')) {
+        map.addSource('search-radius-source', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        });
+
+        map.addLayer({
+          id: 'search-radius-fill',
+          type: 'fill',
+          source: 'search-radius-source',
+          paint: {
+            'fill-color': '#ea580c',
+            'fill-opacity': 0.08,
+          },
+        });
+
+        map.addLayer({
+          id: 'search-radius-line',
+          type: 'line',
+          source: 'search-radius-source',
+          paint: {
+            'line-color': '#ea580c',
+            'line-width': 1.5,
+            'line-dasharray': [2, 2],
+          },
+        });
+      }
+    });
+
+    map.on('zoomend', () => {
+      setCurrentZoom(Math.round(map.getZoom()));
     });
 
     map.on('error', (e) => {
@@ -96,7 +149,6 @@ export function MapLibreEngine({
 
     mapRef.current = map;
 
-    // ResizeObserver ensures canvas adapts to container changes on tab switches
     const resizeObserver = new ResizeObserver(() => {
       map.resize();
     });
@@ -142,16 +194,16 @@ export function MapLibreEngine({
       return;
     }
 
-    const el = createUserLocationMapLibreElement();
+    const el = createUserLocationElement();
 
-    const marker = new MapLibreMarker({ element: el })
+    const marker = new MapLibreMarker({ element: el, anchor: 'center' })
       .setLngLat([userLocation[1], userLocation[0]])
       .addTo(map);
 
     userMarkerRef.current = marker;
   }, [userLocation]);
 
-  // Update markers
+  // Update search center marker
   React.useEffect(() => {
     const map = mapRef.current;
 
@@ -159,49 +211,150 @@ export function MapLibreEngine({
       return;
     }
 
-    // Clean up previous markers
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove();
+      searchMarkerRef.current = null;
+    }
+
+    if (!searchLocation || searchLocation.name === 'Mein Standort') {
+      return;
+    }
+
+    const el = createSearchCenterElement(searchLocation.name);
+
+    const marker = new MapLibreMarker({ element: el, anchor: 'bottom' })
+      .setLngLat([searchLocation.lng, searchLocation.lat])
+      .addTo(map);
+
+    searchMarkerRef.current = marker;
+  }, [searchLocation]);
+
+  // Update radius circle GeoJSON data
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
+    const updateSourceData = () => {
+      // SAFETY: MapLibre getSource returns GeoJSONSource for geojson type source
+      const source = map.getSource('search-radius-source') as GeoJSONSource | undefined;
+
+      if (!source) {
+        return;
+      }
+
+      if (
+        !showRadiusCircle ||
+        !searchLocation ||
+        radiusKm == null ||
+        radiusKm <= 0
+      ) {
+        source.setData({
+          type: 'FeatureCollection',
+          features: [],
+        });
+
+        return;
+      }
+
+      const circleFeature = createGeoJsonCircle(
+        [searchLocation.lng, searchLocation.lat],
+        radiusKm,
+      );
+
+      source.setData({
+        type: 'FeatureCollection',
+        features: [circleFeature],
+      });
+    };
+
+    if (isLoadedRef.current) {
+      updateSourceData();
+    } else {
+      map.once('load', updateSourceData);
+    }
+  }, [searchLocation, radiusKm, showRadiusCircle]);
+
+  // Update venue & cluster markers
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return;
+    }
+
     for (const marker of markersRef.current) {
       marker.remove();
     }
 
     markersRef.current = [];
 
-    const groups = groupMatchesByVenue(matches, selectedMatchId);
+    for (const cluster of clusters) {
+      if (cluster.isCluster) {
+        const el = createClusterMarkerElement(cluster);
 
-    for (const group of groups) {
-      if (group.venue.latitude == null || group.venue.longitude == null) {
-        continue;
-      }
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
 
-      const el = createMarkerElement(group, group.isSelected);
+          const isSinglePoint =
+            Math.abs(cluster.bounds.maxLat - cluster.bounds.minLat) < 0.0001 &&
+            Math.abs(cluster.bounds.maxLng - cluster.bounds.minLng) < 0.0001;
 
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onMarkerClick(group.matches[0]);
-      });
+          if (currentZoom >= 15 || isSinglePoint) {
+            onMarkerClick(cluster.matches[0]);
+          } else {
+            map.fitBounds(
+              [
+                [cluster.bounds.minLng, cluster.bounds.minLat],
+                [cluster.bounds.maxLng, cluster.bounds.maxLat],
+              ],
+              {
+                padding: 50,
+                maxZoom: 15,
+                duration: 500,
+              },
+            );
+          }
+        });
 
-      const marker = new MapLibreMarker({ element: el })
-        .setLngLat([group.venue.longitude, group.venue.latitude])
-        .addTo(map);
+        const marker = new MapLibreMarker({ element: el, anchor: 'center' })
+          .setLngLat([cluster.longitude, cluster.latitude])
+          .addTo(map);
 
-      markersRef.current.push(marker);
+        markersRef.current.push(marker);
+      } else {
+        const el = createVenueMarkerElement(cluster);
 
-      if (group.isSelected) {
-        const flyToSelected = () => {
-          map.flyTo({
-            center: [group.venue.longitude, group.venue.latitude],
-            duration: 600,
-          });
-        };
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onMarkerClick(cluster.matches[0]);
+        });
 
-        if (isLoadedRef.current) {
-          flyToSelected();
-        } else {
-          map.once('load', flyToSelected);
+        const marker = new MapLibreMarker({ element: el, anchor: 'bottom' })
+          .setLngLat([cluster.longitude, cluster.latitude])
+          .addTo(map);
+
+        markersRef.current.push(marker);
+
+        if (cluster.isSelected) {
+          const flyToSelected = () => {
+            map.flyTo({
+              center: [cluster.longitude, cluster.latitude],
+              duration: 600,
+            });
+          };
+
+          if (isLoadedRef.current) {
+            flyToSelected();
+          } else {
+            map.once('load', flyToSelected);
+          }
         }
       }
     }
-  }, [matches, selectedMatchId, onMarkerClick]);
+  }, [clusters, currentZoom, onMarkerClick]);
 
   return <div ref={containerRef} className={className} />;
 }

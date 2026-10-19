@@ -47,6 +47,8 @@ export interface FilterBarProps {
   onOnlyUpcomingChange?: (onlyUpcoming: boolean) => void;
   radiusKm: number;
   onRadiusChange: (radius: number) => void;
+  showRadiusCircle?: boolean;
+  onShowRadiusCircleChange?: (show: boolean) => void;
   location: LocationReference;
   onLocationChange: (loc: LocationReference) => void;
   leagues: League[];
@@ -112,6 +114,8 @@ export function FilterBar({
   onOnlyUpcomingChange,
   radiusKm,
   onRadiusChange,
+  showRadiusCircle = true,
+  onShowRadiusCircleChange,
   location,
   onLocationChange,
   leagues,
@@ -727,6 +731,37 @@ export function FilterBar({
             <span>50 km</span>
           </div>
         </div>
+
+        {onShowRadiusCircleChange && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showRadiusCircle}
+            onClick={() => onShowRadiusCircleChange(!showRadiusCircle)}
+            className="mt-2.5 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-foreground">
+                Suchradius auf Karte anzeigen
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
+              </div>
+            </div>
+
+            <span
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
+                  showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
+                }`}
+              />
+            </span>
+          </button>
+        )}
       </div>
 
       <hr className="border-border/60" />

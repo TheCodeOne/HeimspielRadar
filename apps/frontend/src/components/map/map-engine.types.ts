@@ -8,6 +8,9 @@ export interface MapEngineProps {
   center: [number, number]; // [lat, lng]
   zoom: number;
   userLocation?: [number, number] | null; // [lat, lng]
+  searchLocation?: { lat: number; lng: number; name: string } | null;
+  radiusKm?: number;
+  showRadiusCircle?: boolean;
   onMarkerClick: (match: Match) => void;
   className?: string;
 }

@@ -1,7 +1,16 @@
 import * as React from 'react';
 import { Map, Overlay, ZoomControl } from 'pigeon-maps';
 import type { MapEngineProps } from '../map-engine.types';
-import { groupMatchesByVenue } from '../map-utils';
+import {
+  BasketballPinMarker,
+  calculateRadiusInPixels,
+  ClusterBadgeMarker,
+  clusterVenueGroups,
+  groupMatchesByVenue,
+  SearchCenterMarker,
+  UserLocationMarker,
+  type VenueCluster,
+} from '../map-utils';
 
 function osmSubdomainProvider(x: number, y: number, z: number): string {
   const subdomains = ['a', 'b', 'c'];
@@ -16,6 +25,9 @@ export function PigeonEngine({
   center,
   zoom,
   userLocation,
+  searchLocation,
+  radiusKm,
+  showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full',
 }: MapEngineProps) {
@@ -24,7 +36,15 @@ export function PigeonEngine({
   const [mapCenter, setMapCenter] = React.useState<[number, number]>(center);
   const [mapZoom, setMapZoom] = React.useState<number>(zoom);
 
-  const groups = groupMatchesByVenue(matches, selectedMatchId);
+  const groups = React.useMemo(
+    () => groupMatchesByVenue(matches, selectedMatchId),
+    [matches, selectedMatchId],
+  );
+
+  const clusters = React.useMemo(
+    () => clusterVenueGroups(groups, Math.round(mapZoom)),
+    [groups, mapZoom],
+  );
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -73,6 +93,31 @@ export function PigeonEngine({
     }
   }, [selectedMatchId]);
 
+  const handleClusterClick = (cluster: VenueCluster) => {
+    if (cluster.isCluster) {
+      const isSinglePoint =
+        Math.abs(cluster.bounds.maxLat - cluster.bounds.minLat) < 0.0001 &&
+        Math.abs(cluster.bounds.maxLng - cluster.bounds.minLng) < 0.0001;
+
+      if (mapZoom >= 15 || isSinglePoint) {
+        onMarkerClick(cluster.matches[0]);
+      } else {
+        setMapCenter([cluster.latitude, cluster.longitude]);
+        setMapZoom((z) => Math.min(z + 2, 15));
+      }
+    } else {
+      onMarkerClick(cluster.matches[0]);
+    }
+  };
+
+  const shouldRenderSearchCenter =
+    searchLocation != null && searchLocation.name !== 'Mein Standort';
+
+  const radiusPx =
+    showRadiusCircle && searchLocation != null && radiusKm != null && radiusKm > 0
+      ? Math.round(calculateRadiusInPixels(searchLocation.lat, mapZoom, radiusKm))
+      : 0;
+
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`}>
       <Map
@@ -88,71 +133,94 @@ export function PigeonEngine({
       >
         <ZoomControl />
 
+        {/* Radius circle overlay */}
+        {radiusPx > 0 && searchLocation && (
+          <Overlay
+            anchor={[searchLocation.lat, searchLocation.lng]}
+            offset={[radiusPx, radiusPx]}
+          >
+            <svg
+              width={radiusPx * 2}
+              height={radiusPx * 2}
+              className="pointer-events-none"
+              style={{ overflow: 'visible' }}
+            >
+              <circle
+                cx={radiusPx}
+                cy={radiusPx}
+                r={radiusPx}
+                fill="rgba(234, 88, 12, 0.08)"
+                stroke="#ea580c"
+                strokeWidth={1.5}
+                strokeDasharray="6 4"
+              />
+            </svg>
+          </Overlay>
+        )}
+
+        {/* User GPS location marker */}
         {userLocation && (
           <Overlay anchor={userLocation} offset={[12, 12]}>
-            <div
-              className="relative flex h-6 w-6 items-center justify-center pointer-events-none"
-              title="📍 Mein Standort"
-            >
-              <span className="user-location-ping absolute h-6 w-6 rounded-full bg-blue-500 opacity-75" />
-              <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-600 shadow-md" />
+            <UserLocationMarker />
+          </Overlay>
+        )}
+
+        {/* Search center marker */}
+        {shouldRenderSearchCenter && (
+          <Overlay
+            anchor={[searchLocation.lat, searchLocation.lng]}
+            offset={[0, 0]}
+          >
+            <div className="-translate-x-1/2 -translate-y-full">
+              <SearchCenterMarker cityName={searchLocation.name} />
             </div>
           </Overlay>
         )}
 
-        {groups.map((group) => {
-          if (group.venue.latitude == null || group.venue.longitude == null) {
-            return null;
+        {/* Venue markers and cluster badges */}
+        {clusters.map((cluster) => {
+          if (cluster.isCluster) {
+            return (
+              <Overlay
+                key={cluster.id}
+                anchor={[cluster.latitude, cluster.longitude]}
+                offset={[23, 23]}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleClusterClick(cluster)}
+                  className="cursor-pointer focus:outline-none"
+                  aria-label={`Cluster mit ${cluster.matchCount} Spielen`}
+                >
+                  <ClusterBadgeMarker
+                    matchCount={cluster.matchCount}
+                    isSelected={cluster.isSelected}
+                  />
+                </button>
+              </Overlay>
+            );
           }
-
-          const isSelected = group.isSelected;
-          const pinColor = isSelected ? '#2563eb' : '#0f172a';
-          const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
 
           return (
             <Overlay
-              key={group.venueId}
-              anchor={[group.venue.latitude, group.venue.longitude]}
+              key={cluster.id}
+              anchor={[cluster.latitude, cluster.longitude]}
               offset={[17, 40]}
             >
               <div
                 className="relative"
-                style={{ zIndex: isSelected ? 30 : 10 }}
+                style={{ zIndex: cluster.isSelected ? 30 : 10 }}
               >
                 <button
                   type="button"
-                  onClick={() => onMarkerClick(group.matches[0])}
-                  className="cursor-pointer transition-transform duration-200 focus:outline-none"
-                  style={{ transform: scale }}
-                  aria-label={`${group.venue.name} (${group.matches.length} Spiele)`}
+                  onClick={() => handleClusterClick(cluster)}
+                  className="cursor-pointer focus:outline-none"
+                  aria-label={`${cluster.venueGroups[0]?.venue.name ?? 'Halle'} (${cluster.matchCount} Spiele)`}
                 >
-                  <div className="relative flex items-center justify-center">
-                    <svg
-                      width="34"
-                      height="40"
-                      viewBox="0 0 36 42"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z"
-                        fill={pinColor}
-                      />
-                      <circle cx="18" cy="18" r="10" fill="#ffffff" />
-                      <circle cx="18" cy="18" r="8" fill={pinColor} />
-                      <path
-                        d="M18 10V26M10 18H26"
-                        stroke="#ffffff"
-                        strokeWidth="1.2"
-                      />
-                    </svg>
-
-                    {group.matches.length > 1 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-[10px] font-bold text-white shadow-xs">
-                        {group.matches.length}
-                      </span>
-                    )}
-                  </div>
+                  <BasketballPinMarker
+                    isSelected={cluster.isSelected}
+                    matchCount={cluster.matchCount}
+                  />
                 </button>
               </div>
             </Overlay>

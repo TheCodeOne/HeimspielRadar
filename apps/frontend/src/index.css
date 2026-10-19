@@ -235,3 +235,25 @@
 .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   filter: invert(1) brightness(0.9);
 }
+
+/* Custom map markers and cluster styling across all 4 map engines */
+.custom-leaflet-marker,
+.custom-user-location-marker,
+.custom-search-center-marker,
+.custom-cluster-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-cluster-marker {
+  z-index: 25 !important;
+}
+
+.cluster-badge {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cluster-badge:hover {
+  transform: scale(1.08) !important;
+}
+
