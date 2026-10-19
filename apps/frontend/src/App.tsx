@@ -317,53 +317,6 @@ export function App() {
           </div>
         </div>
 
-        {/* Center: Segmented View Switcher (Desktop >= sm: 🗺️ Karte vs. 📋 Liste) */}
-        <div
-          className="hidden sm:flex items-center rounded-lg border border-border/80 bg-muted/60 p-1"
-          role="tablist"
-          aria-label="Ansicht wechseln"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={viewMode === 'map'}
-            onClick={() =>
-              setFilterState((prev) => ({
-                ...prev,
-                viewMode: 'map',
-              }))
-            }
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all sm:px-3.5 ${
-              viewMode === 'map'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🗺️</span>
-            <span>Karte</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={viewMode === 'list'}
-            onClick={() =>
-              setFilterState((prev) => ({
-                ...prev,
-                viewMode: 'list',
-              }))
-            }
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all sm:px-3.5 ${
-              viewMode === 'list'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>📋</span>
-            <span>Liste ({matches.length})</span>
-          </button>
-        </div>
-
         {/* Right: Filter Drawer Trigger Button with Active Count Badge */}
         <div className="flex items-center gap-2">
           <Button
