@@ -94,6 +94,7 @@ export function App() {
     mapEngine,
     location,
     radiusKm,
+    showRadiusCircle,
     dateMode,
     customDateFrom,
     customDateTo,
@@ -440,6 +441,9 @@ export function App() {
               center={mapCenter}
               zoom={9}
               userLocation={geoCoords ? [geoCoords.lat, geoCoords.lng] : null}
+              searchLocation={location}
+              radiusKm={radiusKm}
+              showRadiusCircle={showRadiusCircle}
               onMarkerClick={handleMarkerClick}
               onLocateUser={handleLocateUser}
               isLocating={isLocating}
@@ -751,6 +755,13 @@ export function App() {
           setFilterState((prev) => ({
             ...prev,
             radiusKm: nextRadius,
+          }))
+        }
+        showRadiusCircle={showRadiusCircle}
+        onShowRadiusCircleChange={(nextShow) =>
+          setFilterState((prev) => ({
+            ...prev,
+            showRadiusCircle: nextShow,
           }))
         }
         location={location}

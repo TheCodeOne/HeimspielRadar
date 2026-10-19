@@ -27,6 +27,7 @@ export interface PersistedFilterState {
   mapEngine: MapEngineType;
   location: LocationReference;
   radiusKm: number;
+  showRadiusCircle: boolean;
   dateMode: DateFilterMode;
   customDate?: string;
   customDateFrom: string;
@@ -43,6 +44,7 @@ export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   mapEngine: 'openlayers',
   location: STUTTGART_FALLBACK,
   radiusKm: 30,
+  showRadiusCircle: true,
   dateMode: 'today',
   customDate: undefined,
   customDateFrom: '',
@@ -214,6 +216,11 @@ export function loadPersistedFilters(): PersistedFilterState {
         ? parsed.onlyUpcoming
         : DEFAULT_FILTER_STATE.onlyUpcoming;
 
+    const showRadiusCircle =
+      parsed.showRadiusCircle === true || parsed.showRadiusCircle === false
+        ? parsed.showRadiusCircle
+        : DEFAULT_FILTER_STATE.showRadiusCircle;
+
     const genders = Array.isArray(parsed.genders)
       ? parsed.genders.map((item) => String(item)).filter(Boolean)
       : [];
@@ -237,6 +244,7 @@ export function loadPersistedFilters(): PersistedFilterState {
       mapEngine,
       location,
       radiusKm,
+      showRadiusCircle,
       dateMode,
       customDate: customDateFrom || undefined,
       customDateFrom,

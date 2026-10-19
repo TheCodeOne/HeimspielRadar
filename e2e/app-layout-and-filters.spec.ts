@@ -205,7 +205,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     // 2. Select 'Alle Termine' so our future mock match is visible, toggle 'Nur anstehende Spiele', and select 'Männlich'
     await drawer.getByRole('button', { name: 'Alle Termine' }).first().click();
 
-    const upcomingSwitch = drawer.getByRole('switch');
+    const upcomingSwitch = drawer.getByRole('switch', { name: /Nur anstehende Spiele/i });
     await expect(upcomingSwitch).toHaveAttribute('aria-checked', 'true');
     await upcomingSwitch.click();
     await expect(upcomingSwitch).toHaveAttribute('aria-checked', 'false');

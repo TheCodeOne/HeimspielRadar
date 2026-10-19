@@ -15,6 +15,9 @@ export interface MapContainerProps {
   center?: [number, number];
   zoom?: number;
   userLocation?: [number, number] | null;
+  searchLocation?: { lat: number; lng: number; name: string } | null;
+  radiusKm?: number;
+  showRadiusCircle?: boolean;
   onMarkerClick: (match: Match) => void;
   onLocateUser?: () => void;
   isLocating?: boolean;
@@ -74,6 +77,9 @@ export function MapContainer({
   center = [49.15, 9.85],
   zoom = 9,
   userLocation,
+  searchLocation,
+  radiusKm,
+  showRadiusCircle = true,
   onMarkerClick,
   onLocateUser,
   isLocating = false,
@@ -97,6 +103,9 @@ export function MapContainer({
     center,
     zoom,
     userLocation,
+    searchLocation,
+    radiusKm,
+    showRadiusCircle,
     onMarkerClick,
     className: mapHeightClassName ?? 'w-full h-full',
   };

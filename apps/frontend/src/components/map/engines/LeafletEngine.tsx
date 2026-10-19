@@ -1,51 +1,132 @@
 import * as React from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
+import type { Match } from '@sundayleague/shared-types';
 import type { MapEngineProps } from '../map-engine.types';
-import { groupMatchesByVenue, type VenueGroup } from '../map-utils';
+import {
+  clusterVenueGroups,
+  getBasketballPinHtml,
+  getClusterBadgeHtml,
+  getSearchCenterPinHtml,
+  getUserLocationPinHtml,
+  groupMatchesByVenue,
+  type VenueCluster,
+  type VenueGroup,
+} from '../map-utils';
 
-function createLeafletDivIcon(group: VenueGroup, isSelected: boolean): L.DivIcon {
-  const badgeHtml =
-    group.matches.length > 1
-      ? `<span style="position:absolute;top:-4px;right:-4px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;">${group.matches.length}</span>`
-      : '';
-
-  const pinColor = isSelected ? '#2563eb' : '#0f172a';
-  const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
-
+function createLeafletVenueDivIcon(isSelected: boolean, matchCount: number): L.DivIcon {
   return L.divIcon({
     className: 'custom-leaflet-marker',
-    html: `
-      <div style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;">
-        <svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}"/>
-          <circle cx="18" cy="18" r="10" fill="#ffffff"/>
-          <circle cx="18" cy="18" r="8" fill="${pinColor}"/>
-          <path d="M18 10V26M10 18H26" stroke="#ffffff" stroke-width="1.2"/>
-        </svg>
-        ${badgeHtml}
-      </div>
-    `,
+    html: getBasketballPinHtml(isSelected, matchCount),
     iconSize: [34, 40],
     iconAnchor: [17, 40],
     popupAnchor: [0, -36],
   });
 }
 
+function createLeafletClusterDivIcon(cluster: VenueCluster): L.DivIcon {
+  return L.divIcon({
+    className: 'custom-cluster-marker',
+    html: getClusterBadgeHtml(cluster.matchCount, cluster.isSelected),
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
+    popupAnchor: [0, -24],
+  });
+}
+
+function createLeafletSearchCenterDivIcon(cityName: string): L.DivIcon {
+  return L.divIcon({
+    className: 'custom-search-center-marker',
+    html: getSearchCenterPinHtml(cityName),
+    iconSize: [140, 64],
+    iconAnchor: [70, 60],
+  });
+}
+
 function createUserLocationDivIcon(): L.DivIcon {
   return L.divIcon({
     className: 'custom-user-location-marker',
-    html: `
-      <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
-        <span class="user-location-ping" style="position:absolute;width:24px;height:24px;border-radius:9999px;background-color:#3b82f6;"></span>
-        <span style="position:relative;width:14px;height:14px;border-radius:9999px;background-color:#2563eb;border:2.5px solid #ffffff;box-shadow:0 0 8px rgba(37,99,235,0.8);"></span>
-      </div>
-    `,
+    html: getUserLocationPinHtml(),
     iconSize: [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -12],
   });
+}
+
+function LeafletZoomWatcher({
+  onZoomChange,
+}: {
+  onZoomChange: (zoom: number) => void;
+}) {
+  const map = useMap();
+
+  React.useEffect(() => {
+    const handleZoom = () => {
+      onZoomChange(Math.round(map.getZoom()));
+    };
+
+    map.on('zoomend', handleZoom);
+
+    return () => {
+      map.off('zoomend', handleZoom);
+    };
+  }, [map, onZoomChange]);
+
+  return null;
+}
+
+function LeafletClusterMarker({
+  cluster,
+  currentZoom,
+  onMarkerClick,
+}: {
+  cluster: VenueCluster;
+  currentZoom: number;
+  onMarkerClick: (match: Match) => void;
+}) {
+  const map = useMap();
+
+  const handleClick = () => {
+    if (cluster.isCluster) {
+      const isSinglePoint =
+        Math.abs(cluster.bounds.maxLat - cluster.bounds.minLat) < 0.0001 &&
+        Math.abs(cluster.bounds.maxLng - cluster.bounds.minLng) < 0.0001;
+
+      if (currentZoom >= 15 || isSinglePoint) {
+        onMarkerClick(cluster.matches[0]);
+      } else {
+        map.flyToBounds(
+          [
+            [cluster.bounds.minLat, cluster.bounds.minLng],
+            [cluster.bounds.maxLat, cluster.bounds.maxLng],
+          ],
+          {
+            padding: [50, 50],
+            maxZoom: 15,
+            duration: 0.5,
+          },
+        );
+      }
+    } else {
+      onMarkerClick(cluster.matches[0]);
+    }
+  };
+
+  const icon = cluster.isCluster
+    ? createLeafletClusterDivIcon(cluster)
+    : createLeafletVenueDivIcon(cluster.isSelected, cluster.matchCount);
+
+  return (
+    <Marker
+      position={[cluster.latitude, cluster.longitude]}
+      icon={icon}
+      zIndexOffset={cluster.isSelected ? 1000 : cluster.isCluster ? 500 : 0}
+      eventHandlers={{
+        click: handleClick,
+      }}
+    />
+  );
 }
 
 function LeafletMapController({
@@ -65,7 +146,7 @@ function LeafletMapController({
     ) {
       map.flyTo(
         [selectedGroup.venue.latitude, selectedGroup.venue.longitude],
-        Math.max(map.getZoom(), 11),
+        Math.max(map.getZoom(), 12),
         {
           duration: 0.6,
         },
@@ -88,11 +169,31 @@ export function LeafletEngine({
   center,
   zoom,
   userLocation,
+  searchLocation,
+  radiusKm,
+  showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full',
 }: MapEngineProps) {
-  const groups = groupMatchesByVenue(matches, selectedMatchId);
+  const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
+
+  const groups = React.useMemo(
+    () => groupMatchesByVenue(matches, selectedMatchId),
+    [matches, selectedMatchId],
+  );
+
+  const clusters = React.useMemo(
+    () => clusterVenueGroups(groups, currentZoom),
+    [groups, currentZoom],
+  );
+
   const selectedGroup = groups.find((g) => g.isSelected);
+
+  const shouldRenderSearchCenter =
+    searchLocation != null && searchLocation.name !== 'Mein Standort';
+
+  const shouldRenderRadiusCircle =
+    showRadiusCircle && searchLocation != null && radiusKm != null && radiusKm > 0;
 
   return (
     <div className={className}>
@@ -107,40 +208,47 @@ export function LeafletEngine({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        <LeafletZoomWatcher onZoomChange={setCurrentZoom} />
         <LeafletMapController center={center} selectedGroup={selectedGroup} />
 
+        {/* User GPS location marker */}
         {userLocation && (
-          <Marker
-            position={userLocation}
-            icon={createUserLocationDivIcon()}
-          >
-            <Popup className="custom-leaflet-popup">
-              <div className="font-semibold text-xs py-1 text-slate-900">
-                📍 Mein Standort
-              </div>
-            </Popup>
-          </Marker>
+          <Marker position={userLocation} icon={createUserLocationDivIcon()} zIndexOffset={300} />
         )}
 
-        {groups.map((group) => {
-          if (group.venue.latitude == null || group.venue.longitude == null) {
-            return null;
-          }
+        {/* Search center marker */}
+        {shouldRenderSearchCenter && (
+          <Marker
+            position={[searchLocation.lat, searchLocation.lng]}
+            icon={createLeafletSearchCenterDivIcon(searchLocation.name)}
+            zIndexOffset={400}
+          />
+        )}
 
-          const icon = createLeafletDivIcon(group, group.isSelected);
+        {/* Radius circle */}
+        {shouldRenderRadiusCircle && (
+          <Circle
+            center={[searchLocation.lat, searchLocation.lng]}
+            radius={radiusKm * 1000}
+            pathOptions={{
+              color: '#ea580c',
+              fillColor: '#ea580c',
+              fillOpacity: 0.08,
+              weight: 1.5,
+              dashArray: '6 4',
+            }}
+          />
+        )}
 
-          return (
-            <Marker
-              key={group.venueId}
-              position={[group.venue.latitude, group.venue.longitude]}
-              icon={icon}
-              zIndexOffset={group.isSelected ? 1000 : 0}
-              eventHandlers={{
-                click: () => onMarkerClick(group.matches[0]),
-              }}
-            />
-          );
-        })}
+        {/* Venue markers and cluster badges */}
+        {clusters.map((cluster) => (
+          <LeafletClusterMarker
+            key={cluster.id}
+            cluster={cluster}
+            currentZoom={currentZoom}
+            onMarkerClick={onMarkerClick}
+          />
+        ))}
       </MapContainer>
     </div>
   );
