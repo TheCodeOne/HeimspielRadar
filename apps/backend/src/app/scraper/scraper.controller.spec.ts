@@ -33,6 +33,31 @@ class FakeScraperService {
     geocodedVenues: 100,
     durationMs: 4500,
   });
+
+  getFailures = jest.fn().mockResolvedValue([
+    {
+      id: 1,
+      entityType: 'league',
+      dbbLeagueId: 53941,
+      leagueName: 'Kreisliga A',
+      dbbMatchId: null,
+      verbandId: 1,
+      errorMessage: 'Network timeout',
+      retryCount: 0,
+      failedAt: new Date('2026-10-19T10:00:00Z'),
+      updatedAt: new Date('2026-10-19T10:00:00Z'),
+    },
+  ]);
+
+  retryFailed = jest.fn().mockResolvedValue({
+    retriedCount: 1,
+    resolvedCount: 1,
+    stillFailingCount: 0,
+    failures: [],
+    retriedLeagues: 1,
+    resolved: 1,
+    stillFailing: 0,
+  });
 }
 
 describe('ScraperController', () => {
@@ -68,6 +93,22 @@ describe('ScraperController', () => {
 
       expect(status.status).toBe('ok');
       expect(status.service).toBe('Sundayleague DBB Scraper');
+    });
+  });
+
+  describe('getFailures', () => {
+    it('should return current failed sync records without query params', async () => {
+      const failures = await controller.getFailures();
+
+      expect(fakeScraperService.getFailures).toHaveBeenCalledWith(undefined);
+      expect(failures).toHaveLength(1);
+      expect(failures[0].dbbLeagueId).toBe(53941);
+    });
+
+    it('should pass parsed verbandId query parameter to scraperService.getFailures', async () => {
+      await controller.getFailures('1');
+
+      expect(fakeScraperService.getFailures).toHaveBeenCalledWith({ verbandId: 1 });
     });
   });
 
@@ -108,6 +149,28 @@ describe('ScraperController', () => {
         quickSync: true,
         concurrency: 5,
       });
+    });
+  });
+
+  describe('retryFailed', () => {
+    it('should call scraperService.retryFailed without options when no query/body provided', async () => {
+      const result = await controller.retryFailed();
+
+      expect(fakeScraperService.retryFailed).toHaveBeenCalledWith(undefined);
+      expect(result.retriedCount).toBe(1);
+      expect(result.resolvedCount).toBe(1);
+    });
+
+    it('should pass parsed verbandId from query param', async () => {
+      await controller.retryFailed('1');
+
+      expect(fakeScraperService.retryFailed).toHaveBeenCalledWith({ verbandId: 1 });
+    });
+
+    it('should pass parsed verbandId from request body', async () => {
+      await controller.retryFailed(undefined, { verbandId: 2 });
+
+      expect(fakeScraperService.retryFailed).toHaveBeenCalledWith({ verbandId: 2 });
     });
   });
 });

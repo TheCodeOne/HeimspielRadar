@@ -1,8 +1,19 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { desc, eq, isNull, or, sql } from 'drizzle-orm';
-import { SyncResult, VerbandSyncResult } from '@sundayleague/shared-types';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import {
+  RetryFailedResult,
+  SyncResult,
+  VerbandSyncResult,
+} from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { leagues, matches, systemSettings, teams, venues } from '../database/schema';
+import {
+  leagues,
+  matches,
+  syncFailures,
+  systemSettings,
+  teams,
+  venues,
+} from '../database/schema';
 import { DbbClientService, DbbTeam, DbbVenue } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 
@@ -11,6 +22,8 @@ export interface SyncLeagueOptions {
   matchConcurrency?: number;
   venueCache?: Map<number, typeof venues.$inferSelect>;
   venueInFlight?: Map<number, Promise<typeof venues.$inferSelect | null>>;
+  verbandId?: number;
+  leagueName?: string;
 }
 
 export interface SyncVerbandOptions {
@@ -68,274 +81,313 @@ export class ScraperService {
 
     const db = this.db;
     const startTime = Date.now();
+    let leagueName = options?.leagueName ?? null;
+    let matchErrorsCount = 0;
+
     this.logger.log(`Starting sync for league ${ligaId}...`);
 
-    const spielplan = await this.dbbClient.fetchSpielplan(ligaId);
-    const { ligaData, matches: rawMatches } = spielplan.data;
+    try {
+      const spielplan = await this.dbbClient.fetchSpielplan(ligaId);
+      const { ligaData, matches: rawMatches } = spielplan.data;
 
-    if (!ligaData) {
-      throw new Error(`Invalid response from DBB: No league data found for ID ${ligaId}`);
-    }
+      if (!ligaData) {
+        throw new Error(`Invalid response from DBB: No league data found for ID ${ligaId}`);
+      }
 
-    // 1. Upsert League
-    const [dbLeague] = await db
-      .insert(leagues)
-      .values({
-        dbbId: ligaData.ligaId,
-        name: ligaData.liganame,
-        seasonId: ligaData.seasonId,
-        seasonName: ligaData.seasonName,
-        verbandName: ligaData.verbandName || 'Baden-Württemberg',
-        skName: ligaData.skName || null,
-        akName: ligaData.akName || null,
-        geschlecht: ligaData.geschlecht || null,
-        rawData: ligaData,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: leagues.dbbId,
-        set: {
+      leagueName = ligaData.liganame;
+
+      // 1. Upsert League
+      const [dbLeague] = await db
+        .insert(leagues)
+        .values({
+          dbbId: ligaData.ligaId,
           name: ligaData.liganame,
+          seasonId: ligaData.seasonId,
           seasonName: ligaData.seasonName,
+          verbandName: ligaData.verbandName || 'Baden-Württemberg',
           skName: ligaData.skName || null,
           akName: ligaData.akName || null,
           geschlecht: ligaData.geschlecht || null,
           rawData: ligaData,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-
-    // 2. Collect & Batch Upsert Teams
-    const teamMap = new Map<
-      number,
-      { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }
-    >();
-
-    for (const m of rawMatches) {
-      this.collectTeam(m.homeTeam, teamMap);
-      this.collectTeam(m.guestTeam, teamMap);
-    }
-
-    const teamDbIdMap = new Map<number, number>(); // dbbId -> internal team.id
-
-    const teamValues = Array.from(teamMap.values()).map((t) => ({
-      dbbId: t.dbbId,
-      name: t.name,
-      shortName: t.shortName,
-      clubId: t.clubId,
-      rawData: t.raw,
-    }));
-
-    if (teamValues.length > 0) {
-      const upsertedTeams = await db
-        .insert(teams)
-        .values(teamValues)
+        })
         .onConflictDoUpdate({
-          target: teams.dbbId,
+          target: leagues.dbbId,
           set: {
-            name: sql`excluded.name`,
-            shortName: sql`excluded.short_name`,
-            clubId: sql`excluded.club_id`,
-            rawData: sql`excluded.raw_data`,
+            name: ligaData.liganame,
+            seasonName: ligaData.seasonName,
+            skName: ligaData.skName || null,
+            akName: ligaData.akName || null,
+            geschlecht: ligaData.geschlecht || null,
+            rawData: ligaData,
+            updatedAt: new Date(),
           },
         })
         .returning();
 
-      for (let i = 0; i < teamValues.length; i++) {
-        const upserted = upsertedTeams[i] ?? upsertedTeams[0];
+      // 2. Collect & Batch Upsert Teams
+      const teamMap = new Map<
+        number,
+        { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }
+      >();
 
-        if (upserted) {
-          const dbbId = upserted.dbbId ?? teamValues[i].dbbId;
-          teamDbIdMap.set(dbbId, upserted.id);
-        }
+      for (const m of rawMatches) {
+        this.collectTeam(m.homeTeam, teamMap);
+        this.collectTeam(m.guestTeam, teamMap);
       }
-    }
 
-    // 3. Preload Existing Matches for this League to detect known venues and finished results
-    const existingLeagueMatches = await db
-      .select({
-        id: matches.id,
-        venueId: matches.venueId,
-        result: matches.result,
-      })
-      .from(matches)
-      .where(eq(matches.leagueId, dbLeague.id));
+      const teamDbIdMap = new Map<number, number>(); // dbbId -> internal team.id
 
-    const existingMatchMap = new Map<
-      number,
-      { venueId: number | null; result: string | null }
-    >();
+      const teamValues = Array.from(teamMap.values()).map((t) => ({
+        dbbId: t.dbbId,
+        name: t.name,
+        shortName: t.shortName,
+        clubId: t.clubId,
+        rawData: t.raw,
+      }));
 
-    for (const em of existingLeagueMatches) {
-      existingMatchMap.set(em.id, {
-        venueId: em.venueId,
-        result: em.result ?? null,
-      });
-    }
+      if (teamValues.length > 0) {
+        const upsertedTeams = await db
+          .insert(teams)
+          .values(teamValues)
+          .onConflictDoUpdate({
+            target: teams.dbbId,
+            set: {
+              name: sql`excluded.name`,
+              shortName: sql`excluded.short_name`,
+              clubId: sql`excluded.club_id`,
+              rawData: sql`excluded.raw_data`,
+            },
+          })
+          .returning();
 
-    // 4. Sync Matches and Venues (Gyms) with Bounded Intra-League Concurrency
-    let geocodedVenuesCount = 0;
-    let syncedVenuesCount = 0;
-    let syncedMatchesCount = 0;
+        for (let i = 0; i < teamValues.length; i++) {
+          const upserted = upsertedTeams[i] ?? upsertedTeams[0];
 
-    let venueCache = options?.venueCache;
-
-    if (!venueCache) {
-      const existingVenues = await db.select().from(venues);
-      venueCache = new Map<number, typeof venues.$inferSelect>();
-
-      for (const v of existingVenues) {
-        venueCache.set(v.id, v);
-      }
-    }
-
-    const resolvedVenueCache = venueCache;
-
-    const venueInFlight =
-      options?.venueInFlight ??
-      new Map<number, Promise<typeof venues.$inferSelect | null>>();
-
-    const matchConcurrency = options?.matchConcurrency ?? 6;
-    const matchRowsToUpsert: Array<typeof matches.$inferInsert> = [];
-    let nextMatchIndex = 0;
-
-    const matchWorker = async () => {
-      while (nextMatchIndex < rawMatches.length) {
-        const index = nextMatchIndex++;
-        const m = rawMatches[index];
-
-        const homeId = this.getTeamId(m.homeTeam, teamDbIdMap);
-        const guestId = this.getTeamId(m.guestTeam, teamDbIdMap);
-
-        if (!homeId || !guestId) {
-          continue;
-        }
-
-        const existingMatch = existingMatchMap.get(m.matchId);
-
-        if (
-          existingMatch &&
-          existingMatch.result !== null &&
-          existingMatch.result.trim() !== ''
-        ) {
-          continue;
-        }
-
-        let venueId: number | null = null;
-        const knownVenueId = existingMatch?.venueId;
-
-        if (knownVenueId !== undefined && knownVenueId !== null) {
-          venueId = knownVenueId;
-        } else if (!options?.quickSync) {
-          try {
-            const info = await this.dbbClient.fetchMatchInfo(m.matchId);
-            const spielfeld = info.data?.matchInfo?.spielfeld;
-
-            if (spielfeld && spielfeld.id) {
-              venueId = spielfeld.id;
-              const cachedVenue = resolvedVenueCache.get(spielfeld.id);
-
-              if (!cachedVenue || cachedVenue.latitude === null) {
-                let inFlightPromise = venueInFlight.get(spielfeld.id);
-
-                if (!inFlightPromise) {
-                  inFlightPromise = this.geocodeAndUpsertVenue(
-                    db,
-                    spielfeld,
-                    resolvedVenueCache
-                  )
-                    .then((res) => {
-                      if (res.synced) {
-                        syncedVenuesCount++;
-                      }
-
-                      if (res.geocoded) {
-                        geocodedVenuesCount++;
-                      }
-
-                      return res.venue;
-                    })
-                    .finally(() => {
-                      venueInFlight.delete(spielfeld.id);
-                    });
-
-                  venueInFlight.set(spielfeld.id, inFlightPromise);
-                }
-
-                await inFlightPromise;
-              }
-            }
-          } catch (err) {
-            this.logger.warn(`Could not fetch matchInfo for match ${m.matchId}:`, err);
+          if (upserted) {
+            const dbbId = upserted.dbbId ?? teamValues[i].dbbId;
+            teamDbIdMap.set(dbbId, upserted.id);
           }
         }
+      }
 
-        matchRowsToUpsert.push({
-          id: m.matchId,
-          leagueId: dbLeague.id,
-          matchDay: m.matchDay,
-          matchNo: m.matchNo || null,
-          kickoffDate: m.kickoffDate ?? null,
-          kickoffTime: m.kickoffTime || '00:00',
-          homeTeamId: homeId,
-          guestTeamId: guestId,
-          venueId,
-          result: m.result || null,
-          confirmed: Boolean(m.ergebnisbestaetigt),
-          rawData: m,
-          updatedAt: new Date(),
+      // 3. Preload Existing Matches for this League to detect known venues and finished results
+      const existingLeagueMatches = await db
+        .select({
+          id: matches.id,
+          venueId: matches.venueId,
+          result: matches.result,
+        })
+        .from(matches)
+        .where(eq(matches.leagueId, dbLeague.id));
+
+      const existingMatchMap = new Map<
+        number,
+        { venueId: number | null; result: string | null }
+      >();
+
+      for (const em of existingLeagueMatches) {
+        existingMatchMap.set(em.id, {
+          venueId: em.venueId,
+          result: em.result ?? null,
         });
       }
-    };
 
-    const matchWorkerCount = Math.min(matchConcurrency, rawMatches.length);
-    const matchWorkers = Array.from({ length: matchWorkerCount }, () => matchWorker());
+      // 4. Sync Matches and Venues (Gyms) with Bounded Intra-League Concurrency
+      let geocodedVenuesCount = 0;
+      let syncedVenuesCount = 0;
+      let syncedMatchesCount = 0;
 
-    await Promise.all(matchWorkers);
+      let venueCache = options?.venueCache;
 
-    // 5. Batch Upsert Matches
-    if (matchRowsToUpsert.length > 0) {
-      await db
-        .insert(matches)
-        .values(matchRowsToUpsert)
-        .onConflictDoUpdate({
-          target: matches.id,
-          set: {
-            kickoffDate: sql`excluded.kickoff_date`,
-            kickoffTime: sql`excluded.kickoff_time`,
-            venueId: sql`coalesce(excluded.venue_id, ${matches.venueId})`,
-            result: sql`excluded.result`,
-            confirmed: sql`excluded.confirmed`,
-            rawData: sql`excluded.raw_data`,
-            updatedAt: sql`excluded.updated_at`,
-          },
-        });
+      if (!venueCache) {
+        const existingVenues = await db.select().from(venues);
+        venueCache = new Map<number, typeof venues.$inferSelect>();
 
-      syncedMatchesCount = matchRowsToUpsert.length;
+        for (const v of existingVenues) {
+          venueCache.set(v.id, v);
+        }
+      }
+
+      const resolvedVenueCache = venueCache;
+
+      const venueInFlight =
+        options?.venueInFlight ??
+        new Map<number, Promise<typeof venues.$inferSelect | null>>();
+
+      const matchConcurrency = options?.matchConcurrency ?? 6;
+      const matchRowsToUpsert: Array<typeof matches.$inferInsert> = [];
+      let nextMatchIndex = 0;
+
+      const matchWorker = async () => {
+        while (nextMatchIndex < rawMatches.length) {
+          const index = nextMatchIndex++;
+          const m = rawMatches[index];
+
+          const homeId = this.getTeamId(m.homeTeam, teamDbIdMap);
+          const guestId = this.getTeamId(m.guestTeam, teamDbIdMap);
+
+          if (!homeId || !guestId) {
+            continue;
+          }
+
+          const existingMatch = existingMatchMap.get(m.matchId);
+
+          if (
+            existingMatch &&
+            existingMatch.result !== null &&
+            existingMatch.result.trim() !== ''
+          ) {
+            continue;
+          }
+
+          let venueId: number | null = null;
+          const knownVenueId = existingMatch?.venueId;
+
+          if (knownVenueId !== undefined && knownVenueId !== null) {
+            venueId = knownVenueId;
+          } else if (!options?.quickSync) {
+            try {
+              const info = await this.dbbClient.fetchMatchInfo(m.matchId);
+              const spielfeld = info.data?.matchInfo?.spielfeld;
+
+              if (spielfeld && spielfeld.id) {
+                venueId = spielfeld.id;
+                const cachedVenue = resolvedVenueCache.get(spielfeld.id);
+
+                if (!cachedVenue || cachedVenue.latitude === null) {
+                  let inFlightPromise = venueInFlight.get(spielfeld.id);
+
+                  if (!inFlightPromise) {
+                    inFlightPromise = this.geocodeAndUpsertVenue(
+                      db,
+                      spielfeld,
+                      resolvedVenueCache
+                    )
+                      .then((res) => {
+                        if (res.synced) {
+                          syncedVenuesCount++;
+                        }
+
+                        if (res.geocoded) {
+                          geocodedVenuesCount++;
+                        }
+
+                        return res.venue;
+                      })
+                      .finally(() => {
+                        venueInFlight.delete(spielfeld.id);
+                      });
+
+                    venueInFlight.set(spielfeld.id, inFlightPromise);
+                  }
+
+                  await inFlightPromise;
+                }
+              }
+
+              await this.clearMatchFailure(m.matchId);
+            } catch (err) {
+              this.logger.warn(`Could not fetch matchInfo for match ${m.matchId}:`, err);
+              matchErrorsCount++;
+              const errorMsg = err instanceof Error ? err.message : String(err);
+
+              await this.recordFailure({
+                entityType: 'match',
+                dbbLeagueId: ligaId,
+                leagueName,
+                dbbMatchId: m.matchId,
+                verbandId: options?.verbandId,
+                errorMessage: errorMsg,
+              });
+            }
+          }
+
+          matchRowsToUpsert.push({
+            id: m.matchId,
+            leagueId: dbLeague.id,
+            matchDay: m.matchDay,
+            matchNo: m.matchNo || null,
+            kickoffDate: m.kickoffDate ?? null,
+            kickoffTime: m.kickoffTime || '00:00',
+            homeTeamId: homeId,
+            guestTeamId: guestId,
+            venueId,
+            result: m.result || null,
+            confirmed: Boolean(m.ergebnisbestaetigt),
+            rawData: m,
+            updatedAt: new Date(),
+          });
+        }
+      };
+
+      const matchWorkerCount = Math.min(matchConcurrency, rawMatches.length);
+      const matchWorkers = Array.from({ length: matchWorkerCount }, () => matchWorker());
+
+      await Promise.all(matchWorkers);
+
+      // 5. Batch Upsert Matches
+      if (matchRowsToUpsert.length > 0) {
+        await db
+          .insert(matches)
+          .values(matchRowsToUpsert)
+          .onConflictDoUpdate({
+            target: matches.id,
+            set: {
+              kickoffDate: sql`excluded.kickoff_date`,
+              kickoffTime: sql`excluded.kickoff_time`,
+              venueId: sql`coalesce(excluded.venue_id, ${matches.venueId})`,
+              result: sql`excluded.result`,
+              confirmed: sql`excluded.confirmed`,
+              rawData: sql`excluded.raw_data`,
+              updatedAt: sql`excluded.updated_at`,
+            },
+          });
+
+        syncedMatchesCount = matchRowsToUpsert.length;
+      }
+
+      await this.clearLeagueFailure(ligaId);
+
+      if (matchErrorsCount === 0) {
+        await this.clearFailures(ligaId);
+      }
+
+      const durationMs = Date.now() - startTime;
+      const completionDate = new Date();
+
+      this.lastSyncedAt = completionDate;
+      await this.persistLastSyncedAt(completionDate);
+
+      this.logger.log(
+        `Finished sync for league ${ligaId} ("${ligaData.liganame}"): ` +
+          `${syncedMatchesCount}/${rawMatches.length} matches, ` +
+          `${syncedVenuesCount} new venues (${geocodedVenuesCount} geocoded) in ${durationMs}ms.`
+      );
+
+      return {
+        leagueId: ligaData.ligaId,
+        leagueName: ligaData.liganame,
+        totalMatches: rawMatches.length,
+        syncedMatches: syncedMatchesCount,
+        syncedVenues: syncedVenuesCount,
+        geocodedVenues: geocodedVenuesCount,
+        durationMs,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error during sync for league ${ligaId}: ${errorMsg}`);
+
+      await this.recordFailure({
+        entityType: 'league',
+        dbbLeagueId: ligaId,
+        leagueName,
+        verbandId: options?.verbandId,
+        errorMessage: errorMsg,
+      });
+
+      throw error;
     }
-
-    const durationMs = Date.now() - startTime;
-    const completionDate = new Date();
-
-    this.lastSyncedAt = completionDate;
-    await this.persistLastSyncedAt(completionDate);
-
-    this.logger.log(
-      `Finished sync for league ${ligaId} ("${ligaData.liganame}"): ` +
-        `${syncedMatchesCount}/${rawMatches.length} matches, ` +
-        `${syncedVenuesCount} new venues (${geocodedVenuesCount} geocoded) in ${durationMs}ms.`
-    );
-
-    return {
-      leagueId: ligaData.ligaId,
-      leagueName: ligaData.liganame,
-      totalMatches: rawMatches.length,
-      syncedMatches: syncedMatchesCount,
-      syncedVenues: syncedVenuesCount,
-      geocodedVenues: geocodedVenuesCount,
-      durationMs,
-    };
   }
 
   /**
@@ -397,6 +449,8 @@ export class ScraperService {
             quickSync: options?.quickSync,
             venueCache,
             venueInFlight,
+            verbandId,
+            leagueName: league.liganame,
           });
 
           totalMatches += result.totalMatches;
@@ -463,6 +517,101 @@ export class ScraperService {
    */
   async syncAllBawueLeagues(options?: SyncVerbandOptions): Promise<VerbandSyncResult> {
     return this.syncVerbandLeagues(1, options);
+  }
+
+  /**
+   * Retrieves all recorded sync failures ordered by failedAt descending.
+   */
+  async getFailures(options?: {
+    verbandId?: number;
+  }): Promise<Array<typeof syncFailures.$inferSelect>> {
+    if (!this.db) {
+      return [];
+    }
+
+    try {
+      if (options?.verbandId !== undefined) {
+        return await this.db
+          .select()
+          .from(syncFailures)
+          .where(eq(syncFailures.verbandId, options.verbandId))
+          .orderBy(desc(syncFailures.failedAt));
+      }
+
+      return await this.db
+        .select()
+        .from(syncFailures)
+        .orderBy(desc(syncFailures.failedAt));
+    } catch (err) {
+      this.logger.warn('Failed to query sync failures:', err);
+
+      return [];
+    }
+  }
+
+  /**
+   * Retries synchronization for all failed leagues.
+   * Loads distinct dbbLeagueIds from sync_failures, re-runs syncLeague for each,
+   * updates retryCount on failure or deletes the failure row on success.
+   */
+  async retryFailed(options?: {
+    verbandId?: number;
+  }): Promise<RetryFailedResult> {
+    if (!this.db) {
+      throw new Error(
+        'Database is not configured! Please set DATABASE_URL in .env to retry failed syncs.'
+      );
+    }
+
+    const currentFailures = await this.getFailures(options);
+
+    const distinctLeagueIds = Array.from(
+      new Set(currentFailures.map((f) => f.dbbLeagueId))
+    );
+
+    const leagueMetaMap = new Map<
+      number,
+      { leagueName?: string | null; verbandId?: number | null }
+    >();
+
+    for (const f of currentFailures) {
+      if (!leagueMetaMap.has(f.dbbLeagueId)) {
+        leagueMetaMap.set(f.dbbLeagueId, {
+          leagueName: f.leagueName,
+          verbandId: f.verbandId,
+        });
+      }
+    }
+
+    let resolvedCount = 0;
+    let stillFailingCount = 0;
+
+    for (const leagueId of distinctLeagueIds) {
+      const meta = leagueMetaMap.get(leagueId);
+
+      try {
+        await this.syncLeague(leagueId, {
+          verbandId: meta?.verbandId ?? undefined,
+          leagueName: meta?.leagueName ?? undefined,
+        });
+
+        resolvedCount++;
+      } catch {
+        stillFailingCount++;
+      }
+    }
+
+    const remainingFailures = await this.getFailures(options);
+
+    return {
+      retriedCount: distinctLeagueIds.length,
+      resolvedCount,
+      stillFailingCount,
+      failures: remainingFailures,
+      retriedLeagues: distinctLeagueIds.length,
+      resolved: resolvedCount,
+      stillFailing: stillFailingCount,
+    };
   }
 
   /**
@@ -717,6 +866,154 @@ export class ScraperService {
         });
     } catch (err) {
       this.logger.warn('Could not persist lastSyncedAt to system_settings table:', err);
+    }
+  }
+
+  private async recordFailure(data: {
+    entityType: 'league' | 'match';
+    dbbLeagueId: number;
+    leagueName?: string | null;
+    dbbMatchId?: number | null;
+    verbandId?: number | null;
+    errorMessage: string;
+  }): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      if (data.entityType === 'match' && data.dbbMatchId) {
+        const existing = await this.db
+          .select()
+          .from(syncFailures)
+          .where(
+            and(
+              eq(syncFailures.entityType, 'match'),
+              eq(syncFailures.dbbMatchId, data.dbbMatchId)
+            )
+          )
+          .limit(1);
+
+        if (existing.length > 0) {
+          await this.db
+            .update(syncFailures)
+            .set({
+              errorMessage: data.errorMessage,
+              retryCount: sql`${syncFailures.retryCount} + 1`,
+              updatedAt: new Date(),
+              leagueName: data.leagueName ?? existing[0].leagueName,
+              verbandId: data.verbandId ?? existing[0].verbandId,
+            })
+            .where(eq(syncFailures.id, existing[0].id));
+        } else {
+          await this.db.insert(syncFailures).values({
+            entityType: 'match',
+            dbbLeagueId: data.dbbLeagueId,
+            leagueName: data.leagueName ?? null,
+            dbbMatchId: data.dbbMatchId,
+            verbandId: data.verbandId ?? null,
+            errorMessage: data.errorMessage,
+            retryCount: 0,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        return;
+      }
+
+      const existing = await this.db
+        .select()
+        .from(syncFailures)
+        .where(
+          and(
+            eq(syncFailures.entityType, 'league'),
+            eq(syncFailures.dbbLeagueId, data.dbbLeagueId)
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        await this.db
+          .update(syncFailures)
+          .set({
+            errorMessage: data.errorMessage,
+            retryCount: sql`${syncFailures.retryCount} + 1`,
+            updatedAt: new Date(),
+            leagueName: data.leagueName ?? existing[0].leagueName,
+            verbandId: data.verbandId ?? existing[0].verbandId,
+          })
+          .where(eq(syncFailures.id, existing[0].id));
+      } else {
+        await this.db.insert(syncFailures).values({
+          entityType: 'league',
+          dbbLeagueId: data.dbbLeagueId,
+          leagueName: data.leagueName ?? null,
+          dbbMatchId: null,
+          verbandId: data.verbandId ?? null,
+          errorMessage: data.errorMessage,
+          retryCount: 0,
+          failedAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to record sync failure for ${data.entityType} ${data.dbbLeagueId}:`,
+        err
+      );
+    }
+  }
+
+  private async clearFailures(dbbLeagueId: number): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      await this.db
+        .delete(syncFailures)
+        .where(eq(syncFailures.dbbLeagueId, dbbLeagueId));
+    } catch (err) {
+      this.logger.warn(`Failed to clear sync failures for league ${dbbLeagueId}:`, err);
+    }
+  }
+
+  private async clearLeagueFailure(dbbLeagueId: number): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      await this.db
+        .delete(syncFailures)
+        .where(
+          and(
+            eq(syncFailures.dbbLeagueId, dbbLeagueId),
+            eq(syncFailures.entityType, 'league')
+          )
+        );
+    } catch (err) {
+      this.logger.warn(`Failed to clear league failure for league ${dbbLeagueId}:`, err);
+    }
+  }
+
+  private async clearMatchFailure(dbbMatchId: number): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      await this.db
+        .delete(syncFailures)
+        .where(
+          and(
+            eq(syncFailures.dbbMatchId, dbbMatchId),
+            eq(syncFailures.entityType, 'match')
+          )
+        );
+    } catch (err) {
+      this.logger.warn(`Failed to clear match failure for match ${dbbMatchId}:`, err);
     }
   }
 }

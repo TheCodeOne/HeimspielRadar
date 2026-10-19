@@ -29,6 +29,13 @@
       "when": 1792341991171,
       "tag": "0003_bored_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792414909956,
+      "tag": "0004_first_smiling_tiger",
+      "breakpoints": true
     }
   ]
 }

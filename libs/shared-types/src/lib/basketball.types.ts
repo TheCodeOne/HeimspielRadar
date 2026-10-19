@@ -83,6 +83,25 @@ export interface NearbyMatchesQuery {
   onlyUpcoming?: boolean;
 }
 
+export interface SyncFailure {
+  id: number;
+  entityType: 'league' | 'match' | string;
+  dbbLeagueId: number;
+  leagueName: string | null;
+  dbbMatchId: number | null;
+  verbandId: number | null;
+  errorMessage: string;
+  retryCount: number;
+  failedAt: Date | string;
+  updatedAt: Date | string;
+}
 
-
-
+export interface RetryFailedResult {
+  retriedCount: number;
+  resolvedCount: number;
+  stillFailingCount: number;
+  failures: SyncFailure[];
+  retriedLeagues?: number;
+  resolved?: number;
+  stillFailing?: number;
+}

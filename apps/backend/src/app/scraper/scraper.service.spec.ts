@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SQL } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
-import { venues } from '../database/schema';
-import { DbbClientService, DbbMatch, DbbMatchInfoResponse, DbbSpielplanResponse } from './dbb-client.service';
+import { syncFailures, venues } from '../database/schema';
+import {
+  DbbClientService,
+  DbbMatch,
+  DbbMatchInfoResponse,
+  DbbSpielplanResponse,
+} from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 import { ScraperService } from './scraper.service';
-
 
 class MockDbbClientService {
   fetchSpielplan = jest.fn<Promise<DbbSpielplanResponse>, [number]>();
@@ -27,9 +32,20 @@ interface ExistingMatchRow {
   result?: string | null;
 }
 
-type MockInsertEntity = {
+type SyncFailureSelect = typeof syncFailures.$inferSelect;
+
+interface MockInsertEntity {
   dbbId?: number;
-};
+  entityType?: string;
+  dbbLeagueId?: number;
+  leagueName?: string | null;
+  dbbMatchId?: number | null;
+  verbandId?: number | null;
+  errorMessage?: string;
+  retryCount?: number;
+  failedAt?: Date;
+  updatedAt?: Date;
+}
 
 type InsertPayload = MockInsertEntity | MockInsertEntity[];
 
@@ -39,21 +55,55 @@ interface InsertCallRecord {
   rowCount: number;
 }
 
-interface VenueCoordinatesUpdate {
+interface DbUpdateValues {
   latitude?: number | null;
   longitude?: number | null;
+  errorMessage?: string;
+  retryCount?: number | SQL;
+  updatedAt?: Date;
 }
 
 interface UpdateCallRecord {
   table: PgTable;
-  values: VenueCoordinatesUpdate;
+  values: DbUpdateValues;
+}
+
+interface DeleteCallRecord {
+  table: PgTable;
+}
+
+function hasSqlParam(clause: SQL | undefined, target: string): boolean {
+  if (!clause || !clause.queryChunks) {
+    return false;
+  }
+
+  for (const chunk of clause.queryChunks) {
+    if (!chunk) {
+      continue;
+    }
+
+    if ('value' in chunk && chunk.value === target) {
+      return true;
+    }
+
+    if ('queryChunks' in chunk && Array.isArray(chunk.queryChunks)) {
+      // SAFETY: Nested SQL object in queryChunks conforming to SQL interface
+      if (hasSqlParam(chunk as SQL, target)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 class FakeDatabase {
   existingVenues: Array<typeof venues.$inferSelect> = [];
   existingMatches: ExistingMatchRow[] = [];
+  existingFailures: SyncFailureSelect[] = [];
   insertCalls: InsertCallRecord[] = [];
   updateCalls: UpdateCallRecord[] = [];
+  deleteCalls: DeleteCallRecord[] = [];
 
   select() {
     return {
@@ -71,6 +121,20 @@ class FakeDatabase {
           });
         }
 
+        if (table === syncFailures) {
+          const makePromiseChain = () => {
+            const promise = Promise.resolve(this.existingFailures);
+
+            return Object.assign(promise, {
+              where: () => makePromiseChain(),
+              orderBy: () => makePromiseChain(),
+              limit: () => makePromiseChain(),
+            });
+          };
+
+          return makePromiseChain();
+        }
+
         return {
           where: () => Promise.resolve(this.existingMatches),
         };
@@ -86,32 +150,82 @@ class FakeDatabase {
 
         this.insertCalls.push({ table, isBatch, rowCount });
 
+        if (table === syncFailures) {
+          const items = Array.isArray(vals) ? vals : [vals];
+
+          for (const item of items) {
+            this.existingFailures.push({
+              id: this.existingFailures.length + 1,
+              entityType: item.entityType ?? 'league',
+              dbbLeagueId: item.dbbLeagueId ?? 0,
+              leagueName: item.leagueName ?? null,
+              dbbMatchId: item.dbbMatchId ?? null,
+              verbandId: item.verbandId ?? null,
+              errorMessage: item.errorMessage ?? '',
+              retryCount: item.retryCount ?? 0,
+              failedAt: item.failedAt ?? new Date(),
+              updatedAt: item.updatedAt ?? new Date(),
+            });
+          }
+        }
+
         const returningRows = isBatch
           ? vals.map((item, idx) => ({ id: idx + 1, dbbId: item.dbbId }))
           : [{ id: 1, dbbId: vals.dbbId }];
 
-        return {
-          onConflictDoUpdate: () => {
-            const promise = Promise.resolve(returningRows);
+        const promise = Promise.resolve(returningRows);
 
-            return Object.assign(promise, {
+        return Object.assign(promise, {
+          onConflictDoUpdate: () => {
+            return Object.assign(Promise.resolve(returningRows), {
               returning: () => Promise.resolve(returningRows),
             });
           },
-        };
+        });
       },
     };
   }
 
   update(table: PgTable) {
     return {
-      set: (vals: VenueCoordinatesUpdate) => ({
+      set: (vals: DbUpdateValues) => ({
         where: () => {
           this.updateCalls.push({ table, values: vals });
+
+          if (table === syncFailures) {
+            for (const item of this.existingFailures) {
+              item.retryCount = (item.retryCount ?? 0) + 1;
+              item.updatedAt = new Date();
+            }
+          }
 
           return Promise.resolve();
         },
       }),
+    };
+  }
+
+  delete(table: PgTable) {
+    return {
+      where: (clause?: SQL) => {
+        this.deleteCalls.push({ table });
+
+        if (table === syncFailures) {
+          if (hasSqlParam(clause, 'league')) {
+            this.existingFailures = this.existingFailures.filter(
+              (f) => f.entityType !== 'league'
+            );
+          } else if (hasSqlParam(clause, 'match')) {
+            this.existingFailures = this.existingFailures.filter(
+              (f) => f.entityType !== 'match'
+            );
+          } else {
+            this.existingFailures = [];
+          }
+        }
+
+        return Promise.resolve();
+      },
     };
   }
 }
@@ -568,6 +682,240 @@ describe('ScraperService', () => {
       expect(fakeDb.updateCalls).toHaveLength(1);
       expect(fakeDb.updateCalls[0].values.latitude).toBe(48.5);
       expect(fakeDb.updateCalls[0].values.longitude).toBe(9.05);
+    });
+  });
+
+  describe('failure persistence and retry', () => {
+    describe('syncLeague failures', () => {
+      it('should record failure in sync_failures and rethrow when syncLeague fails', async () => {
+        mockDbbClient.fetchSpielplan.mockRejectedValue(new Error('DBB API timeout'));
+
+        await expect(
+          service.syncLeague(53941, { verbandId: 1, leagueName: 'Kreisliga A' })
+        ).rejects.toThrow('DBB API timeout');
+
+        expect(fakeDb.existingFailures).toHaveLength(1);
+        expect(fakeDb.existingFailures[0]).toMatchObject({
+          entityType: 'league',
+          dbbLeagueId: 53941,
+          leagueName: 'Kreisliga A',
+          verbandId: 1,
+          errorMessage: 'DBB API timeout',
+          retryCount: 0,
+        });
+      });
+
+      it('should record match-level failure in sync_failures when matchInfo fails', async () => {
+        mockDbbClient.fetchSpielplan.mockResolvedValue(sampleSpielplan);
+        mockDbbClient.fetchMatchInfo.mockRejectedValue(
+          new Error('Match 1001 details unavailable')
+        );
+
+        const result = await service.syncLeague(53941, { verbandId: 1 });
+
+        expect(result.leagueId).toBe(53941);
+        expect(fakeDb.existingFailures).toHaveLength(1);
+        expect(fakeDb.existingFailures[0]).toMatchObject({
+          entityType: 'match',
+          dbbLeagueId: 53941,
+          dbbMatchId: 1001,
+          errorMessage: 'Match 1001 details unavailable',
+          retryCount: 0,
+        });
+      });
+
+      it('should clear failures from sync_failures when league completes with 0 match errors', async () => {
+        mockDbbClient.fetchSpielplan.mockResolvedValue(sampleSpielplan);
+        mockDbbClient.fetchMatchInfo.mockResolvedValue({
+          data: {
+            matchId: 1001,
+            matchInfo: {},
+          },
+        });
+
+        fakeDb.existingFailures = [
+          {
+            id: 1,
+            entityType: 'league',
+            dbbLeagueId: 53941,
+            leagueName: 'Kreisliga A',
+            dbbMatchId: null,
+            verbandId: 1,
+            errorMessage: 'Previous failure',
+            retryCount: 1,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ];
+
+        await service.syncLeague(53941);
+
+        const deleteFailureCalls = fakeDb.deleteCalls.filter(
+          (call) => call.table === syncFailures
+        );
+
+        expect(deleteFailureCalls.length).toBeGreaterThanOrEqual(1);
+        expect(fakeDb.existingFailures).toHaveLength(0);
+      });
+    });
+
+    describe('getFailures', () => {
+      it('should return all failures ordered by failedAt descending', async () => {
+        const failure1 = {
+          id: 1,
+          entityType: 'league',
+          dbbLeagueId: 53941,
+          leagueName: 'Kreisliga A',
+          dbbMatchId: null,
+          verbandId: 1,
+          errorMessage: 'Err 1',
+          retryCount: 0,
+          failedAt: new Date('2026-10-19T10:00:00Z'),
+          updatedAt: new Date('2026-10-19T10:00:00Z'),
+        };
+
+        const failure2 = {
+          id: 2,
+          entityType: 'match',
+          dbbLeagueId: 53942,
+          leagueName: 'Bezirksliga',
+          dbbMatchId: 2002,
+          verbandId: 1,
+          errorMessage: 'Err 2',
+          retryCount: 1,
+          failedAt: new Date('2026-10-19T11:00:00Z'),
+          updatedAt: new Date('2026-10-19T11:00:00Z'),
+        };
+
+        fakeDb.existingFailures = [failure1, failure2];
+
+        const failures = await service.getFailures();
+
+        expect(failures).toHaveLength(2);
+      });
+
+      it('should return empty array if db is not configured', async () => {
+        const nullDbModule = await Test.createTestingModule({
+          providers: [
+            ScraperService,
+            { provide: DRIZZLE_DB, useValue: null },
+            { provide: DbbClientService, useValue: mockDbbClient },
+            { provide: GeocoderService, useValue: mockGeocoder },
+          ],
+        }).compile();
+
+        const nullDbService = nullDbModule.get<ScraperService>(ScraperService);
+        const failures = await nullDbService.getFailures();
+
+        expect(failures).toEqual([]);
+      });
+    });
+
+    describe('retryFailed', () => {
+      it('should load distinct dbbLeagueIds, re-run syncLeague for each, and return summary', async () => {
+        fakeDb.existingFailures = [
+          {
+            id: 1,
+            entityType: 'league',
+            dbbLeagueId: 53941,
+            leagueName: 'Kreisliga A',
+            dbbMatchId: null,
+            verbandId: 1,
+            errorMessage: 'Timeout',
+            retryCount: 0,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 2,
+            entityType: 'match',
+            dbbLeagueId: 53941,
+            leagueName: 'Kreisliga A',
+            dbbMatchId: 1001,
+            verbandId: 1,
+            errorMessage: 'Match err',
+            retryCount: 0,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ];
+
+        const syncLeagueSpy = jest
+          .spyOn(service, 'syncLeague')
+          .mockImplementation(async (id: number) => {
+            fakeDb.existingFailures = [];
+
+            return {
+              leagueId: id,
+              leagueName: 'Kreisliga A',
+              totalMatches: 1,
+              syncedMatches: 1,
+              syncedVenues: 0,
+              geocodedVenues: 0,
+              durationMs: 10,
+            };
+          });
+
+        const result = await service.retryFailed();
+
+        expect(syncLeagueSpy).toHaveBeenCalledTimes(1);
+        expect(syncLeagueSpy).toHaveBeenCalledWith(53941, {
+          verbandId: 1,
+          leagueName: 'Kreisliga A',
+        });
+        expect(result.retriedCount).toBe(1);
+        expect(result.resolvedCount).toBe(1);
+        expect(result.stillFailingCount).toBe(0);
+        expect(result.failures).toEqual([]);
+        expect(result.retriedLeagues).toBe(1);
+        expect(result.resolved).toBe(1);
+        expect(result.stillFailing).toBe(0);
+      });
+
+      it('should increment stillFailingCount and keep failure when retried league fails again', async () => {
+        fakeDb.existingFailures = [
+          {
+            id: 1,
+            entityType: 'league',
+            dbbLeagueId: 99999,
+            leagueName: 'Failing Liga',
+            dbbMatchId: null,
+            verbandId: 1,
+            errorMessage: 'Persistent error',
+            retryCount: 0,
+            failedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ];
+
+        jest.spyOn(service, 'syncLeague').mockRejectedValue(new Error('Still down'));
+
+        const result = await service.retryFailed();
+
+        expect(result.retriedCount).toBe(1);
+        expect(result.resolvedCount).toBe(0);
+        expect(result.stillFailingCount).toBe(1);
+        expect(result.retriedLeagues).toBe(1);
+        expect(result.resolved).toBe(0);
+        expect(result.stillFailing).toBe(1);
+      });
+
+      it('should throw error if db is not configured', async () => {
+        const nullDbModule = await Test.createTestingModule({
+          providers: [
+            ScraperService,
+            { provide: DRIZZLE_DB, useValue: null },
+            { provide: DbbClientService, useValue: mockDbbClient },
+            { provide: GeocoderService, useValue: mockGeocoder },
+          ],
+        }).compile();
+
+        const nullDbService = nullDbModule.get<ScraperService>(ScraperService);
+
+        await expect(nullDbService.retryFailed()).rejects.toThrow(
+          'Database is not configured!'
+        );
+      });
     });
   });
 });

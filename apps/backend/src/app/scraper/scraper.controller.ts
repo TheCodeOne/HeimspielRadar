@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -21,6 +22,17 @@ export class ScraperController {
       service: 'Sundayleague DBB Scraper',
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get('failures')
+  async getFailures(@Query('verbandId') verbandId?: string) {
+    const parsedVerbandId = verbandId ? parseInt(verbandId, 10) : undefined;
+
+    return this.scraperService.getFailures(
+      parsedVerbandId !== undefined && !isNaN(parsedVerbandId)
+        ? { verbandId: parsedVerbandId }
+        : undefined
+    );
   }
 
   @Get('preview/:leagueId')
@@ -48,6 +60,24 @@ export class ScraperController {
       quickSync: isQuickSync,
       concurrency: parsedConcurrency,
     });
+  }
+
+  @Post('retry-failed')
+  @UseGuards(ScraperAuthGuard)
+  async retryFailed(
+    @Query('verbandId') queryVerbandId?: string,
+    @Body() body?: { verbandId?: number }
+  ) {
+    const rawVerband =
+      body?.verbandId ??
+      (queryVerbandId ? parseInt(queryVerbandId, 10) : undefined);
+
+    const parsedVerbandId =
+      rawVerband !== undefined && !isNaN(rawVerband) ? rawVerband : undefined;
+
+    return this.scraperService.retryFailed(
+      parsedVerbandId !== undefined ? { verbandId: parsedVerbandId } : undefined
+    );
   }
 
   @Post('geocode-missing')
