@@ -20,6 +20,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "docs:dbb": "node scripts/serve-docs.js",
+    "docker:deploy-pi": "bash scripts/deploy-pi.sh",
     "lockfile:check": "npm ci --dry-run --ignore-scripts"
   },
   "private": true,

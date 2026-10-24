@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ScraperService } from './scraper.service';
 
+const CRON_DEEP_SCHEDULE = process.env['CRON_DEEP_SCHEDULE'] || '0 2 * * 2';
+const CRON_DELTA_SCHEDULE = process.env['CRON_DELTA_SCHEDULE'] || '0 5,18 * * *';
+
 @Injectable()
 export class ScraperSchedulerService {
   private readonly logger = new Logger(ScraperSchedulerService.name);
@@ -9,14 +12,26 @@ export class ScraperSchedulerService {
 
   constructor(private readonly scraperService: ScraperService) {}
 
+  private isCronDisabled(): boolean {
+    if (process.env['DISABLE_CRON'] === 'true') {
+      return true;
+    }
+
+    if (process.env['ENABLE_CRON_SYNC'] === 'false') {
+      return true;
+    }
+
+    return false;
+  }
+
   /**
    * Weekly Full Sync: Discovers all leagues and updates full schedules across Baden-Württemberg.
-   * Runs every Tuesday at 03:00 AM (safe off-peak window when league schedules and gym allocations settle).
+   * Default: Runs every Tuesday at 02:00 AM (configurable via CRON_DEEP_SCHEDULE).
    */
-  @Cron('0 3 * * 2', { name: 'weekly-bawue-full-sync' })
+  @Cron(CRON_DEEP_SCHEDULE, { name: 'weekly-bawue-full-sync' })
   async handleWeeklyFullSync(): Promise<void> {
-    if (process.env['DISABLE_CRON'] === 'true') {
-      this.logger.log('Weekly full sync skipped (DISABLE_CRON is set).');
+    if (this.isCronDisabled()) {
+      this.logger.log('Weekly full sync skipped (cron is disabled).');
 
       return;
     }
@@ -46,13 +61,13 @@ export class ScraperSchedulerService {
   }
 
   /**
-   * Weekend Match Sync: Frequent sync on game days (Saturdays and Sundays) to update match scores and status.
-   * Runs every 2 hours between 12:00 and 22:00 on Saturdays and Sundays.
+   * Weekend / Delta Match Sync: Frequent sync to update match scores and status.
+   * Default: Runs at 05:00 and 18:00 daily (configurable via CRON_DELTA_SCHEDULE).
    */
-  @Cron('0 12-22/2 * * 0,6', { name: 'weekend-bawue-match-sync' })
+  @Cron(CRON_DELTA_SCHEDULE, { name: 'weekend-bawue-match-sync' })
   async handleWeekendMatchSync(): Promise<void> {
-    if (process.env['DISABLE_CRON'] === 'true') {
-      this.logger.log('Weekend match sync skipped (DISABLE_CRON is set).');
+    if (this.isCronDisabled()) {
+      this.logger.log('Weekend match sync skipped (cron is disabled).');
 
       return;
     }

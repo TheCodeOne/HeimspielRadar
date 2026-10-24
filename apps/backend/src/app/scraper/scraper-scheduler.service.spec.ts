@@ -73,6 +73,14 @@ describe('ScraperSchedulerService', () => {
       expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
     });
 
+    it('should skip sync when ENABLE_CRON_SYNC is false', async () => {
+      process.env['ENABLE_CRON_SYNC'] = 'false';
+
+      await scheduler.handleWeeklyFullSync();
+
+      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+    });
+
     it('should not allow overlapping syncs', async () => {
       delete process.env['DISABLE_CRON'];
 
@@ -118,6 +126,14 @@ describe('ScraperSchedulerService', () => {
 
     it('should skip quick sync when DISABLE_CRON is true', async () => {
       process.env['DISABLE_CRON'] = 'true';
+
+      await scheduler.handleWeekendMatchSync();
+
+      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+    });
+
+    it('should skip quick sync when ENABLE_CRON_SYNC is false', async () => {
+      process.env['ENABLE_CRON_SYNC'] = 'false';
 
       await scheduler.handleWeekendMatchSync();
 
