@@ -36,6 +36,13 @@
       "when": 1792414909956,
       "tag": "0004_first_smiling_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792875340727,
+      "tag": "0005_loose_lester",
+      "breakpoints": true
     }
   ]
 }

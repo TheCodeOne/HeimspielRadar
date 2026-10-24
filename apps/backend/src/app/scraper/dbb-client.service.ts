@@ -76,6 +76,72 @@ export interface DbbWamLigaResponse {
   };
 }
 
+export interface DbbActualMatch extends DbbMatch {
+  abgesagt?: boolean;
+  verzicht?: boolean;
+  matchInfo?: {
+    spielfeld?: DbbVenue;
+    topPerformances?: unknown[];
+    srList?: unknown[];
+  } | null;
+  matchResult?: {
+    heimEndstand?: number;
+    gastEndstand?: number;
+    heimHalbzeitstand?: number;
+    gastHalbzeitstand?: number;
+  } | null;
+}
+
+export interface DbbTabelleEntry {
+  rang: number;
+  team: DbbTeam;
+  anzspiele: number;
+  anzGewinnpunkte?: number;
+  anzVerlustpunkte?: number;
+  s: number;
+  n: number;
+  koerbe: number;
+  gegenKoerbe: number;
+  korbdiff: number;
+}
+
+export interface DbbKreuztabelleMatch {
+  matchId?: number;
+  result?: string | null;
+  ergebnisbestaetigt?: boolean;
+}
+
+export interface DbbKreuztabelle {
+  teams?: DbbTeam[];
+  results?: Record<string, DbbKreuztabelleMatch>;
+}
+
+export interface DbbTeamStatistik {
+  team?: DbbTeam;
+  stats?: Record<string, number | string | null>;
+}
+
+export interface DbbCompetitionActualResponse {
+  status?: string;
+  message?: string;
+  data: {
+    prevSpieltag?: number | null;
+    selSpieltag?: number | null;
+    selSpielDatum?: string | null;
+    nextSpieltag?: number | null;
+    ligaData: DbbLigaData;
+    spieltage?: unknown[] | null;
+    matches: DbbActualMatch[];
+    tabelle: {
+      ligaData?: DbbLigaData | null;
+      entries: DbbTabelleEntry[];
+      bbl?: boolean;
+    };
+    kreuztabelle?: DbbKreuztabelle | null;
+    teamStatistik?: DbbTeamStatistik | null;
+  };
+}
+
 @Injectable()
 export class DbbClientService {
   private readonly logger = new Logger(DbbClientService.name);
@@ -86,20 +152,48 @@ export class DbbClientService {
   };
 
   /**
+   * Helper method to fetch and parse JSON from the DBB REST API with default headers.
+   */
+  async fetchJson<T>(url: string, errorPrefix = 'Failed to fetch'): Promise<T> {
+    this.logger.debug(`Fetching from: ${url}`);
+
+    const res = await fetch(url, { headers: this.defaultHeaders });
+
+    if (!res.ok) {
+      throw new Error(`${errorPrefix}: ${res.status} ${res.statusText}`);
+    }
+
+    // SAFETY: DBB REST API guarantees payload conforms to requested type T
+    return (await res.json()) as T;
+  }
+
+  /**
+   * Fetches actual matchday fixtures, standings table, and cross-table for a competition.
+   */
+  async fetchCompetitionActual(
+    liganr: number,
+    rangeDays = 14
+  ): Promise<DbbCompetitionActualResponse> {
+    const url = `${this.baseUrl}/rest/competition/number/${liganr}/actual?rangeDays=${rangeDays}`;
+    this.logger.debug(`Fetching competition actual from: ${url}`);
+
+    return this.fetchJson<DbbCompetitionActualResponse>(
+      url,
+      `Failed to fetch competition actual for league ${liganr}`
+    );
+  }
+
+  /**
    * Fetches the full schedule (spielplan) for a given competition/league.
    */
   async fetchSpielplan(ligaId: number): Promise<DbbSpielplanResponse> {
     const url = `${this.baseUrl}/rest/competition/spielplan/id/${ligaId}`;
     this.logger.debug(`Fetching spielplan from: ${url}`);
 
-    const res = await fetch(url, { headers: this.defaultHeaders });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch spielplan for league ${ligaId}: ${res.status} ${res.statusText}`);
-    }
-
-    // SAFETY: DBB REST API guarantees DbbSpielplanResponse payload schema
-    return (await res.json()) as DbbSpielplanResponse;
+    return this.fetchJson<DbbSpielplanResponse>(
+      url,
+      `Failed to fetch spielplan for league ${ligaId}`
+    );
   }
 
   /**
@@ -109,14 +203,10 @@ export class DbbClientService {
     const url = `${this.baseUrl}/rest/match/id/${matchId}/matchInfo`;
     this.logger.debug(`Fetching matchInfo for match: ${matchId}`);
 
-    const res = await fetch(url, { headers: this.defaultHeaders });
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch matchInfo for match ${matchId}: ${res.status} ${res.statusText}`);
-    }
-
-    // SAFETY: DBB REST API guarantees DbbMatchInfoResponse payload schema
-    return (await res.json()) as DbbMatchInfoResponse;
+    return this.fetchJson<DbbMatchInfoResponse>(
+      url,
+      `Failed to fetch matchInfo for match ${matchId}`
+    );
   }
 
   /**
