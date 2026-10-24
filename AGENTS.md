@@ -4,13 +4,21 @@ Universal operating rules and context pointers for all agents working in this re
 
 ---
 
-## 1. Issue Lifecycle & Worktree Isolation
+## 1. Issue Lifecycle, Kanban Board & Worktree Isolation
 
-1. **Transition Issue Label First**:
-   ```bash
-   gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
-   ```
-   Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
+1. **Kanban Board & Issue Tracking**:
+   All active issues, dependencies, and PRs are centralized on the [**HeimspielRadar Kanban Board**](https://github.com/users/TheCodeOne/projects/2) (GitHub Project #2).
+   The board uses 4 canonical status columns: `Todo` ➔ `In Progress` ➔ `PR` ➔ `Done`.
+   - When picking up or transitioning an issue:
+     ```bash
+     gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
+     gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/issues/<issue-id>"
+     ```
+   - When opening a Pull Request, add the PR to the board and ensure the status is set to `PR`:
+     ```bash
+     gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/pull/<pr-number>"
+     ```
+   - Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
 2. **Execute Implementation Inside a Dedicated Git Worktree**:
    Keep the root repository (`/Users/dimi/Documents/git/sundayleague`) untouched so running local services never restart. Perform all issue branch creation, edits, builds, and tests inside `.worktrees/issue-<id>`:
    ```bash

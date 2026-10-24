@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
 import { PgDialect, PgTable } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
-import { LeagueRawData, leagues } from '../database/schema';
+import { LeagueRawData, leagues, teams } from '../database/schema';
 import { LeaguesController } from './leagues.controller';
 import { MatchesController } from './matches.controller';
 import { MatchesService, RelationalMatchRow } from './matches.service';
@@ -18,6 +18,13 @@ interface MockLeagueRow {
   akName?: string | null;
   geschlecht?: string | null;
   rawData?: LeagueRawData | null;
+}
+
+interface MockTeamRow {
+  id: number;
+  name: string;
+  shortName: string | null;
+  clubId: number | null;
 }
 
 interface MockRow {
@@ -62,6 +69,7 @@ interface MockRow {
 class InMemoryMatchesDatabase {
   mockRows: MockRow[] = [];
   mockLeagueRows: MockLeagueRow[] = [];
+  mockTeamRows: MockTeamRow[] = [];
   capturedWhereConditions: Array<SQL | undefined> = [];
   findFirstMatch: jest.Mock = jest.fn();
 
@@ -73,6 +81,22 @@ class InMemoryMatchesDatabase {
 
           const chain = {
             orderBy: () => Object.assign(promise, chain),
+          };
+
+          return Object.assign(promise, chain);
+        }
+
+        if (table === teams) {
+          const promise = Promise.resolve(this.mockTeamRows);
+
+          const chain = {
+            where: (cond?: SQL) => {
+              this.capturedWhereConditions.push(cond);
+
+              return Object.assign(promise, chain);
+            },
+            orderBy: () => Object.assign(promise, chain),
+            limit: () => Object.assign(promise, chain),
           };
 
           return Object.assign(promise, chain);
@@ -188,6 +212,20 @@ describe('MatchesService', () => {
           akName: 'Senioren',
           geschlecht: 'weiblich',
         },
+      },
+    ];
+    inMemoryDb.mockTeamRows = [
+      {
+        id: 1,
+        name: 'SV Pfrondorf 1',
+        shortName: 'SV Pfrondorf',
+        clubId: 101,
+      },
+      {
+        id: 2,
+        name: 'TSG Reutlingen 2',
+        shortName: 'TSG 2',
+        clubId: 102,
       },
     ];
 
@@ -526,6 +564,107 @@ describe('MatchesService', () => {
     });
   });
 
+  describe('findTeamSuggestions & MatchesController.getTeams', () => {
+    it('returns empty array when search query is empty or whitespace', async () => {
+      const resultsEmpty = await service.findTeamSuggestions('');
+      const resultsWhitespace = await service.findTeamSuggestions('   ');
+
+      expect(resultsEmpty).toEqual([]);
+      expect(resultsWhitespace).toEqual([]);
+    });
+
+    it('returns matching team suggestions ordered by name with max limit 15', async () => {
+      const results = await matchesController.getTeams('Pfrondorf');
+
+      expect(results).toHaveLength(2);
+      expect(results[0]).toEqual({
+        id: 1,
+        name: 'SV Pfrondorf 1',
+        shortName: 'SV Pfrondorf',
+        clubId: 101,
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%Pfrondorf%');
+    });
+  });
+
+  describe('findMatches with teamQuery filter', () => {
+    it('filters matches by home or guest team name with ILIKE', async () => {
+      await service.findMatches({
+        teamQuery: 'Pfrondorf',
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.sql).toContain('ilike');
+      expect(queryObj.params).toContain('%Pfrondorf%');
+    });
+
+    it('bypasses ST_DWithin radius filter when teamQuery is active even if coordinates are passed', async () => {
+      await service.findMatches({
+        teamQuery: 'TSG Reutlingen',
+        lat: 48.7758,
+        lng: 9.1829,
+        radiusKm: 30,
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      // ST_DWithin condition must NOT be pushed to conditions
+      expect(queryObj.sql).not.toContain('ST_DWithin');
+      expect(queryObj.params).toContain('%TSG Reutlingen%');
+    });
+
+    it('forwards teamQuery from MatchesController.getMatches', async () => {
+      const matches = await matchesController.getMatches(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Pfrondorf'
+      );
+
+      expect(matches).toBeDefined();
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%Pfrondorf%');
+    });
+  });
+
   describe('unconfigured database', () => {
     it('throws when database is null', async () => {
       const unconfiguredService = new MatchesService(null);
@@ -537,6 +676,10 @@ describe('MatchesService', () => {
       await expect(unconfiguredService.findAllLeagues()).rejects.toThrow(
         'Database is not configured'
       );
+
+      await expect(
+        unconfiguredService.findTeamSuggestions('Pfrondorf')
+      ).rejects.toThrow('Database is not configured');
     });
   });
 

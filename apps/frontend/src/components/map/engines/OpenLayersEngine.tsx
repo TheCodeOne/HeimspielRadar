@@ -32,6 +32,7 @@ export function OpenLayersEngine({
   showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
+  teamQuery,
 }: MapEngineProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<OlMap | null>(null);
@@ -41,6 +42,29 @@ export function OpenLayersEngine({
   const userLocationOverlayRef = React.useRef<Overlay | null>(null);
   const searchCenterOverlayRef = React.useRef<Overlay | null>(null);
   const radiusVectorLayerRef = React.useRef<VectorLayer<VectorSource> | null>(null);
+
+  const validVenues = React.useMemo(() => {
+    const venuesList: Array<{ lat: number; lng: number }> = [];
+    const seen = new Set<string>();
+
+    for (const m of matches) {
+      if (
+        m.venue?.latitude != null &&
+        m.venue?.longitude != null &&
+        !isNaN(m.venue.latitude) &&
+        !isNaN(m.venue.longitude)
+      ) {
+        const key = `${m.venue.latitude.toFixed(5)},${m.venue.longitude.toFixed(5)}`;
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          venuesList.push({ lat: m.venue.latitude, lng: m.venue.longitude });
+        }
+      }
+    }
+
+    return venuesList;
+  }, [matches]);
 
   const groups = React.useMemo(
     () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
@@ -131,11 +155,11 @@ export function OpenLayersEngine({
     };
   }, []);
 
-  // Update center smoothly when center coordinate changes
+  // Update center smoothly when center coordinate changes (only when no teamQuery active)
   React.useEffect(() => {
     const map = mapRef.current;
 
-    if (!map) {
+    if (!map || teamQuery) {
       return;
     }
 
@@ -143,7 +167,36 @@ export function OpenLayersEngine({
       center: fromLonLat([center[1], center[0]]),
       duration: 600,
     });
-  }, [center[0], center[1]]);
+  }, [center[0], center[1], teamQuery]);
+
+  // Fit map bounds when teamQuery is active and venues are loaded
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map || !teamQuery || validVenues.length === 0) {
+      return;
+    }
+
+    if (validVenues.length === 1) {
+      map.getView().animate({
+        center: fromLonLat([validVenues[0].lng, validVenues[0].lat]),
+        zoom: 12,
+        duration: 500,
+      });
+
+      return;
+    }
+
+    const extent = boundingExtent(
+      validVenues.map((v) => fromLonLat([v.lng, v.lat])),
+    );
+
+    map.getView().fit(extent, {
+      padding: [60, 60, 60, 60],
+      maxZoom: 14,
+      duration: 500,
+    });
+  }, [teamQuery, validVenues]);
 
   // Update User Location Overlay
   React.useEffect(() => {

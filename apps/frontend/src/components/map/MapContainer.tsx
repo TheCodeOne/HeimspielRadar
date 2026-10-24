@@ -28,6 +28,7 @@ export interface MapContainerProps {
   defaultEngine?: MapEngineType;
   engine?: MapEngineType;
   onEngineChange?: (engine: MapEngineType) => void;
+  teamQuery?: string;
 }
 
 export interface EngineOption {
@@ -91,6 +92,7 @@ export function MapContainer({
   defaultEngine = 'openlayers',
   engine: controlledEngine,
   onEngineChange,
+  teamQuery,
 }: MapContainerProps) {
   const [internalEngine, setInternalEngine] = React.useState<MapEngineType>(defaultEngine);
   const activeEngine = controlledEngine ?? internalEngine;
@@ -114,8 +116,9 @@ export function MapContainer({
     userLocation,
     searchLocation,
     radiusKm,
-    showRadiusCircle,
+    showRadiusCircle: showRadiusCircle && !teamQuery,
     onMarkerClick,
+    teamQuery,
     className: mapHeightClassName ?? 'w-full h-full',
   };
 
