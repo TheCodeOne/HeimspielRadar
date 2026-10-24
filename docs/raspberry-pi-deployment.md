@@ -116,13 +116,15 @@ Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
 From the root of the repository on your **Mac**, trigger the deployment:
 
-### Default Deployment (`pi@raspberrypi.local`)
+### Default Deployment
+If `PI_HOST` is defined in your `.env.local` (e.g. `PI_HOST="pi@rpi"`), simply run:
 ```bash
 npm run docker:deploy-pi
 ```
+Otherwise, it defaults to `pi@raspberrypi.local`.
 
 ### Custom Hostname / IP Address
-If your Pi uses a custom IP or username:
+If your Pi uses a custom IP or username, you can also override via environment variable or CLI argument:
 ```bash
 PI_HOST="pi@192.168.178.50" npm run docker:deploy-pi
 ```

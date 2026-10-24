@@ -9,6 +9,22 @@ set -euo pipefail
 # configuration, and restarts the backend container.
 # ==============================================================================
 
+# Ensure script runs from project root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# Optionally read PI_HOST and PI_DIR from local .env.local if not passed explicitly
+if [ -f .env.local ]; then
+  LOCAL_PI_HOST=$(grep '^PI_HOST=' .env.local | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
+  if [ -n "$LOCAL_PI_HOST" ] && [ -z "${PI_HOST:-}" ] && [ -z "${1:-}" ]; then
+    PI_HOST="$LOCAL_PI_HOST"
+  fi
+  LOCAL_PI_DIR=$(grep '^PI_DIR=' .env.local | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
+  if [ -n "$LOCAL_PI_DIR" ] && [ -z "${PI_DIR:-}" ]; then
+    PI_DIR="$LOCAL_PI_DIR"
+  fi
+fi
+
 PI_HOST="${PI_HOST:-${1:-pi@raspberrypi.local}}"
 PI_DIR="${PI_DIR:-~/heimspielradar}"
 IMAGE_TAG="heimspielradar-backend:latest"
@@ -20,14 +36,11 @@ echo "Host:      $PI_HOST"
 echo "Directory: $PI_DIR"
 echo "Image:     $IMAGE_TAG (platform: linux/arm64)"
 echo "------------------------------------------------------------"
-echo "Tip: Override via environment variables or first argument:"
+echo "Tip: Override via .env.local, environment variables, or argument:"
+echo "     npm run docker:deploy-pi"
 echo "     PI_HOST=pi@192.168.178.50 npm run docker:deploy-pi"
 echo "     ./scripts/deploy-pi.sh pi@192.168.178.50"
 echo "============================================================"
-
-# Ensure script runs from project root
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
 
 # Step 1: Build multi-arch Docker image locally
 echo ""
