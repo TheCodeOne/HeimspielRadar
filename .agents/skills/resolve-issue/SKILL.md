@@ -106,7 +106,7 @@ From within `.worktrees/issue-<issue-id>`:
 
    Closes #<id>"
    ```
-3. Add the newly created Pull Request to the Kanban Board:
+3. Add the newly created Pull Request to the Kanban Board in column `PR`:
    ```bash
    gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/pull/<pr-number>"
    ```
