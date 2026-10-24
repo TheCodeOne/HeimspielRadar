@@ -4,11 +4,18 @@ Universal operating rules and context pointers for all agents working in this re
 
 ---
 
-## 1. Issue Lifecycle & Worktree Isolation
+## 1. Issue Lifecycle, Kanban Board & Worktree Isolation
 
-1. **Transition Issue Label First**:
+1. **Kanban Board & Issue Tracking**:
+   All active issues, dependencies, and PRs are centralized on the [**HeimspielRadar Kanban Board**](https://github.com/users/TheCodeOne/projects/2) (GitHub Project #2).
+   When picking up or transitioning an issue:
    ```bash
    gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
+   gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/issues/<issue-id>"
+   ```
+   When opening a PR, ensure the PR is added to the board as well:
+   ```bash
+   gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/pull/<pr-number>"
    ```
    Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
 2. **Execute Implementation Inside a Dedicated Git Worktree**:
