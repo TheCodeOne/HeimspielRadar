@@ -105,6 +105,7 @@ export const teams = pgTable('teams', {
   name: text('name').notNull(),
   shortName: text('short_name'),
   clubId: integer('club_id'),
+  primaryVenueId: integer('primary_venue_id').references(() => venues.id, { onDelete: 'set null' }),
   rawData: jsonb('raw_data'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -145,6 +146,7 @@ export const matches = pgTable('matches', {
     .notNull()
     .references(() => teams.id),
   venueId: integer('venue_id').references(() => venues.id),
+  isVenueVerified: boolean('is_venue_verified').default(false).notNull(),
   result: text('result'),
   confirmed: boolean('confirmed').default(false).notNull(),
   rawData: jsonb('raw_data'),
@@ -174,9 +176,13 @@ export const leaguesRelations = relations(leagues, ({ many }) => ({
   matches: many(matches),
 }));
 
-export const teamsRelations = relations(teams, ({ many }) => ({
+export const teamsRelations = relations(teams, ({ one, many }) => ({
   homeMatches: many(matches, { relationName: 'homeTeam' }),
   guestMatches: many(matches, { relationName: 'guestTeam' }),
+  primaryVenue: one(venues, {
+    fields: [teams.primaryVenueId],
+    references: [venues.id],
+  }),
 }));
 
 export const venuesRelations = relations(venues, ({ many }) => ({
