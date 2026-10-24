@@ -23,6 +23,9 @@ export interface TeamSuggestion {
   name: string;
   shortName?: string | null;
   clubId?: number | null;
+  akName?: string | null;
+  geschlecht?: string | null;
+  matchCount?: number;
 }
 
 export interface Venue {
