@@ -31,11 +31,35 @@ export function PigeonEngine({
   showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full',
+  teamQuery,
 }: MapEngineProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = React.useState<{ width?: number; height?: number }>({});
   const [mapCenter, setMapCenter] = React.useState<[number, number]>(center);
   const [mapZoom, setMapZoom] = React.useState<number>(zoom);
+
+  const validVenues = React.useMemo(() => {
+    const venuesList: Array<{ lat: number; lng: number }> = [];
+    const seen = new Set<string>();
+
+    for (const m of matches) {
+      if (
+        m.venue?.latitude != null &&
+        m.venue?.longitude != null &&
+        !isNaN(m.venue.latitude) &&
+        !isNaN(m.venue.longitude)
+      ) {
+        const key = `${m.venue.latitude.toFixed(5)},${m.venue.longitude.toFixed(5)}`;
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          venuesList.push({ lat: m.venue.latitude, lng: m.venue.longitude });
+        }
+      }
+    }
+
+    return venuesList;
+  }, [matches]);
 
   const groups = React.useMemo(
     () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
@@ -76,10 +100,57 @@ export function PigeonEngine({
     };
   }, []);
 
-  // Sync center when center prop changes
+  // Sync center when center prop changes (only when no teamQuery active)
   React.useEffect(() => {
-    setMapCenter(center);
-  }, [center[0], center[1]]);
+    if (!teamQuery) {
+      setMapCenter(center);
+    }
+  }, [center[0], center[1], teamQuery]);
+
+  // Fit center and zoom when teamQuery is active and venues are loaded
+  React.useEffect(() => {
+    if (!teamQuery || validVenues.length === 0) {
+      return;
+    }
+
+    if (validVenues.length === 1) {
+      setMapCenter([validVenues[0].lat, validVenues[0].lng]);
+      setMapZoom(12);
+
+      return;
+    }
+
+    const minLng = Math.min(...validVenues.map((v) => v.lng));
+    const maxLng = Math.max(...validVenues.map((v) => v.lng));
+    const minLat = Math.min(...validVenues.map((v) => v.lat));
+    const maxLat = Math.max(...validVenues.map((v) => v.lat));
+
+    setMapCenter([(minLat + maxLat) / 2, (minLng + maxLng) / 2]);
+
+    const latDiff = maxLat - minLat;
+    const lngDiff = maxLng - minLng;
+    const maxDiff = Math.max(latDiff, lngDiff);
+
+    let z = 9;
+
+    if (maxDiff < 0.05) {
+      z = 13;
+    } else if (maxDiff < 0.1) {
+      z = 12;
+    } else if (maxDiff < 0.25) {
+      z = 11;
+    } else if (maxDiff < 0.5) {
+      z = 10;
+    } else if (maxDiff < 1.0) {
+      z = 9;
+    } else if (maxDiff < 2.0) {
+      z = 8;
+    } else {
+      z = 7;
+    }
+
+    setMapZoom(z);
+  }, [teamQuery, validVenues]);
 
   // Sync center when selection changes
   React.useEffect(() => {

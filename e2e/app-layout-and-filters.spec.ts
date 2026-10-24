@@ -65,7 +65,18 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
       });
     });
 
-    await page.route('**/api/matches*', async (route) => {
+    await page.route(/\/api\/matches\/teams/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 101, name: 'SV Pfrondorf 1', shortName: 'SV Pfrondorf', clubId: 50 },
+          { id: 102, name: 'TSG Reutlingen 2', shortName: 'TSG 2', clubId: 60 },
+        ]),
+      });
+    });
+
+    await page.route(/\/api\/matches(?!\/teams)/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -402,5 +413,96 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
 
     await drawer.getByRole('button', { name: 'Auf Stuttgart zurücksetzen' }).click();
     await expect(drawer.getByText('📍 Stuttgart')).toBeVisible();
+  });
+
+  test('club & team search filter with autocomplete, badge, summary chip, and persistence (#72)', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/');
+
+    const header = page.locator('header');
+
+    await expect(header).toBeVisible();
+
+    // 1. Open Filter Drawer
+    await header.getByRole('button', { name: /Filter/i }).click();
+    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+
+    await expect(drawer).toBeVisible();
+
+    // 2. Locate Verein / Team search input
+    const teamInput = drawer.getByLabel('Verein oder Team suchen');
+
+    await expect(teamInput).toBeVisible();
+
+    // 3. Type "Pfrondorf"
+    await teamInput.fill('Pfrondorf');
+
+    // Autocomplete dropdown appears
+    const teamDropdown = drawer.getByRole('listbox', { name: 'Vereinsvorschläge' });
+
+    await expect(teamDropdown).toBeVisible();
+
+    const pfrondorfOption = teamDropdown.getByRole('option', { name: /SV Pfrondorf 1/i });
+
+    await expect(pfrondorfOption).toBeVisible();
+
+    // Take screenshot with team dropdown open
+    await page.screenshot({
+      path: `test-results/verify-team-drawer-${testInfo.project.name}.png`,
+    });
+
+    // 4. Click suggestion
+    await pfrondorfOption.click();
+
+    // Verify active badge in drawer
+    const activeBadge = drawer.getByText('🏀 SV Pfrondorf 1');
+
+    await expect(activeBadge).toBeVisible();
+
+    // 5. Close drawer and verify floating map summary chip
+    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+    await expect(drawer).toBeHidden();
+
+    const summaryChip = page.getByRole('button', { name: 'Filter öffnen' });
+
+    await expect(summaryChip).toBeVisible();
+    await expect(summaryChip.getByText('🏀')).toBeVisible();
+    await expect(summaryChip.getByText('SV Pfrondorf 1')).toBeVisible();
+
+    // Take visual verification screenshot (desktop & mobile)
+    await page.screenshot({
+      path: `test-results/verify-team-selected-${testInfo.project.name}.png`,
+    });
+
+    // 6. Reload page to verify persistence in localStorage
+    await page.reload();
+
+    const rawStored = await page.evaluate(() =>
+      window.localStorage.getItem('heimspielradar:filters:v1'),
+    );
+
+    expect(rawStored).not.toBeNull();
+    expect(rawStored).toContain('SV Pfrondorf 1');
+
+    // Floating chip still has active team after reload
+    await expect(summaryChip.getByText('SV Pfrondorf 1')).toBeVisible();
+
+    // 7. Reopen drawer and clear team filter
+    await header.getByRole('button', { name: /Filter/i }).click();
+    await expect(drawer).toBeVisible();
+
+    const clearBadgeButton = drawer.getByLabel('Vereinsfilter entfernen');
+
+    await expect(clearBadgeButton).toBeVisible();
+    await clearBadgeButton.click();
+
+    // Active badge is removed
+    await expect(drawer.getByText('🏀 SV Pfrondorf 1')).toBeHidden();
+
+    // Close drawer and verify default summary chip restored
+    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(summaryChip.getByText('Stuttgart')).toBeVisible();
   });
 });

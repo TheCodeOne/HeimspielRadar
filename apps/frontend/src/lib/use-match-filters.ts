@@ -34,6 +34,7 @@ export interface PersistedFilterState {
   customDateFrom: string;
   customDateTo: string;
   onlyUpcoming: boolean;
+  teamQuery?: string;
   genders: string[];
   ageClasses: string[];
   skillLevels: string[];
@@ -51,6 +52,7 @@ export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   customDateFrom: '',
   customDateTo: '',
   onlyUpcoming: true,
+  teamQuery: undefined,
   genders: [],
   ageClasses: [],
   skillLevels: [],
@@ -69,6 +71,7 @@ export function cloneDefaultFilterState(): PersistedFilterState {
     customDateFrom: DEFAULT_FILTER_STATE.customDateFrom,
     customDateTo: DEFAULT_FILTER_STATE.customDateTo,
     onlyUpcoming: DEFAULT_FILTER_STATE.onlyUpcoming,
+    teamQuery: DEFAULT_FILTER_STATE.teamQuery,
     genders: [...DEFAULT_FILTER_STATE.genders],
     ageClasses: [...DEFAULT_FILTER_STATE.ageClasses],
     skillLevels: [...DEFAULT_FILTER_STATE.skillLevels],
@@ -95,6 +98,7 @@ export interface MatchFiltersActions {
   setDateMode: (mode: DateFilterMode) => void;
   setDateRange: (dateFrom: string, dateTo: string) => void;
   setOnlyUpcoming: (onlyUpcoming: boolean) => void;
+  setTeamQuery: (teamQuery?: string) => void;
   setGenders: (genders: string[]) => void;
   setAgeClasses: (ageClasses: string[]) => void;
   setSkillLevels: (skillLevels: string[]) => void;
@@ -262,6 +266,10 @@ export function countActiveFilters(state: PersistedFilterState): number {
     count += 1;
   }
 
+  if (state.teamQuery && state.teamQuery.trim().length > 0) {
+    count += 1;
+  }
+
   if (state.genders.length > 0) {
     count += 1;
   }
@@ -388,6 +396,11 @@ export function sanitizeFilters(
       ? parsed.showRadiusCircle
       : DEFAULT_FILTER_STATE.showRadiusCircle;
 
+  const teamQuery =
+    Boolean(parsed.teamQuery) && String(parsed.teamQuery).trim().length > 0
+      ? String(parsed.teamQuery).trim()
+      : undefined;
+
   const genders = Array.isArray(parsed.genders)
     ? parsed.genders.map((item) => String(item)).filter(Boolean)
     : [];
@@ -417,6 +430,7 @@ export function sanitizeFilters(
     customDateFrom,
     customDateTo,
     onlyUpcoming,
+    teamQuery,
     genders,
     ageClasses,
     skillLevels,
@@ -789,6 +803,13 @@ export class MatchFiltersController {
 
     setOnlyUpcoming: (onlyUpcoming: boolean) => {
       this.persisted.onlyUpcoming = onlyUpcoming;
+      this.saveAndNotify();
+    },
+
+    setTeamQuery: (teamQuery?: string) => {
+      const trimmed = teamQuery?.trim();
+
+      this.persisted.teamQuery = trimmed && trimmed.length > 0 ? trimmed : undefined;
       this.saveAndNotify();
     },
 

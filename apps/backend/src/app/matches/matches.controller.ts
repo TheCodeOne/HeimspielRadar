@@ -54,12 +54,14 @@ export class MatchesController {
     @Query('skillLevels') skillLevels?: string | string[],
     @Query('onlyUpcoming') onlyUpcoming?: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('teamQuery') teamQuery?: string
   ) {
     return this.matchesService.findMatches({
       date,
       dateFrom,
       dateTo,
+      teamQuery,
       lat: lat ? parseFloat(lat) : undefined,
       lng: lng ? parseFloat(lng) : undefined,
       radiusKm: radiusKm ? parseFloat(radiusKm) : undefined,
@@ -71,6 +73,11 @@ export class MatchesController {
       onlyUpcoming:
         onlyUpcoming === 'true' || onlyUpcoming === '1' ? true : undefined,
     });
+  }
+
+  @Get('teams')
+  async getTeams(@Query('q') query?: string) {
+    return this.matchesService.findTeamSuggestions(query ?? '');
   }
 
   @Get(':id')
