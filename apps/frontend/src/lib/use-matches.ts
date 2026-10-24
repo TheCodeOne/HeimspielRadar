@@ -248,19 +248,27 @@ export function useMatches({
             continue;
           }
 
-          // Apply teamQuery filter if selected
+          // Apply teamQuery filter if selected (supports multi-token queries like "MTV Stuttgart U12")
           if (teamQuery) {
-            const q = teamQuery.toLowerCase();
+            const tokens = teamQuery.toLowerCase().split(/\s+/).filter(Boolean);
 
-            const homeMatches =
-              sample.homeTeam.name.toLowerCase().includes(q) ||
-              Boolean(sample.homeTeam.shortName?.toLowerCase().includes(q));
+            const allTokensMatch = tokens.every((tok) => {
+              const homeMatches =
+                sample.homeTeam.name.toLowerCase().includes(tok) ||
+                Boolean(sample.homeTeam.shortName?.toLowerCase().includes(tok));
 
-            const guestMatches =
-              sample.guestTeam.name.toLowerCase().includes(q) ||
-              Boolean(sample.guestTeam.shortName?.toLowerCase().includes(q));
+              const guestMatches =
+                sample.guestTeam.name.toLowerCase().includes(tok) ||
+                Boolean(sample.guestTeam.shortName?.toLowerCase().includes(tok));
 
-            if (!homeMatches && !guestMatches) {
+              const leagueMatches =
+                Boolean(sample.league?.akName?.toLowerCase().includes(tok)) ||
+                Boolean(sample.league?.geschlecht?.toLowerCase().includes(tok));
+
+              return homeMatches || guestMatches || leagueMatches;
+            });
+
+            if (!allTokensMatch) {
               continue;
             }
           }
