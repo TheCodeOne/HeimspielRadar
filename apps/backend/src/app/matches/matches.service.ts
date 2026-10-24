@@ -4,6 +4,56 @@ import { League, Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { LeagueRawData, leagues, matches, teams, venues } from '../database/schema';
 
+export interface RelationalMatchRow {
+  match: {
+    id: number;
+    leagueId: number;
+    matchDay: number;
+    matchNo?: number | null;
+    kickoffDate?: string | null;
+    kickoffTime?: string | null;
+    result?: string | null;
+    confirmed: boolean;
+  };
+  league?: {
+    id: number;
+    dbbId?: number;
+    name: string;
+    seasonId?: number | null;
+    seasonName?: string | null;
+    verbandName?: string | null;
+    skName?: string | null;
+    akName?: string | null;
+    geschlecht?: string | null;
+    rawData?: LeagueRawData | null;
+  } | null;
+  homeTeam: {
+    id: number;
+    dbbId: number;
+    name: string;
+    shortName?: string | null;
+    clubId?: number | null;
+  };
+  guestTeam: {
+    id: number;
+    dbbId: number;
+    name: string;
+    shortName?: string | null;
+    clubId?: number | null;
+  };
+  venue?: {
+    id: number;
+    name: string;
+    street?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    geocodedAt?: Date | null;
+  } | null;
+  distanceKm?: number | string | null;
+}
+
 @Injectable()
 export class MatchesService {
   private readonly logger = new Logger(MatchesService.name);
@@ -193,52 +243,16 @@ export class MatchesService {
 
     const rows = await queryBuilder;
 
-    return rows.map((r) => {
-      let distanceKm: number | undefined;
-
-      if (r.distanceKm !== null && r.distanceKm !== undefined) {
-        distanceKm = Number(r.distanceKm);
-      }
-
-      return {
-        id: r.match.id,
-        leagueId: r.match.leagueId,
-        league: r.league ? this.mapLeague(r.league) : undefined,
-        matchDay: r.match.matchDay,
-        matchNo: r.match.matchNo ?? undefined,
-        kickoffDate: r.match.kickoffDate ?? null,
-        kickoffTime: r.match.kickoffTime ?? null,
-        homeTeam: {
-          id: r.homeTeam.id,
-          dbbId: r.homeTeam.dbbId,
-          name: r.homeTeam.name,
-          shortName: r.homeTeam.shortName ?? undefined,
-          clubId: r.homeTeam.clubId ?? undefined,
-        },
-        guestTeam: {
-          id: r.guestTeam.id,
-          dbbId: r.guestTeam.dbbId,
-          name: r.guestTeam.name,
-          shortName: r.guestTeam.shortName ?? undefined,
-          clubId: r.guestTeam.clubId ?? undefined,
-        },
-        venue: r.venue
-          ? {
-              id: r.venue.id,
-              name: r.venue.name,
-              street: r.venue.street ?? '',
-              postalCode: r.venue.postalCode ?? '',
-              city: r.venue.city ?? '',
-              latitude: r.venue.latitude,
-              longitude: r.venue.longitude,
-              geocodedAt: r.venue.geocodedAt ? r.venue.geocodedAt.toISOString() : null,
-            }
-          : null,
-        result: r.match.result,
-        confirmed: r.match.confirmed,
-        distanceKm,
-      };
-    });
+    return rows.map((r) =>
+      this.mapRelationalMatch({
+        match: r.match,
+        league: r.league,
+        homeTeam: r.homeTeam,
+        guestTeam: r.guestTeam,
+        venue: r.venue,
+        distanceKm: r.distanceKm,
+      })
+    );
   }
 
   /**
@@ -263,14 +277,33 @@ export class MatchesService {
       return null;
     }
 
+    return this.mapRelationalMatch({
+      match: row,
+      league: row.league,
+      homeTeam: row.homeTeam,
+      guestTeam: row.guestTeam,
+      venue: row.venue,
+    });
+  }
+
+  /**
+   * Maps a relational match row with homeTeam, guestTeam, venue, and optional league into domain Match DTO.
+   */
+  mapRelationalMatch(row: RelationalMatchRow): Match {
+    let distanceKm: number | undefined;
+
+    if (row.distanceKm !== null && row.distanceKm !== undefined) {
+      distanceKm = Number(row.distanceKm);
+    }
+
     return {
-      id: row.id,
-      leagueId: row.leagueId,
+      id: row.match.id,
+      leagueId: row.match.leagueId,
       league: row.league ? this.mapLeague(row.league) : undefined,
-      matchDay: row.matchDay,
-      matchNo: row.matchNo ?? undefined,
-      kickoffDate: row.kickoffDate ?? null,
-      kickoffTime: row.kickoffTime ?? null,
+      matchDay: row.match.matchDay,
+      matchNo: row.match.matchNo ?? undefined,
+      kickoffDate: row.match.kickoffDate ?? null,
+      kickoffTime: row.match.kickoffTime ?? null,
       homeTeam: {
         id: row.homeTeam.id,
         dbbId: row.homeTeam.dbbId,
@@ -292,17 +325,18 @@ export class MatchesService {
             street: row.venue.street ?? '',
             postalCode: row.venue.postalCode ?? '',
             city: row.venue.city ?? '',
-            latitude: row.venue.latitude,
-            longitude: row.venue.longitude,
+            latitude: row.venue.latitude ?? null,
+            longitude: row.venue.longitude ?? null,
             geocodedAt: row.venue.geocodedAt ? row.venue.geocodedAt.toISOString() : null,
           }
         : null,
-      result: row.result,
-      confirmed: row.confirmed,
+      result: row.match.result ?? null,
+      confirmed: row.match.confirmed,
+      distanceKm,
     };
   }
 
-  private mapLeague(league: {
+  mapLeague(league: {
     id: number;
     dbbId?: number;
     name: string;
