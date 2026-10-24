@@ -26,19 +26,47 @@ export interface VenueCluster {
   };
 }
 
+export function isSameVenue(
+  a?: Venue | Match | null,
+  b?: Venue | Match | null,
+): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  const venueA = 'venue' in a ? a.venue : a;
+  const venueB = 'venue' in b ? b.venue : b;
+
+  if (!venueA || !venueB) {
+    return false;
+  }
+
+  if (venueA.id != null && venueB.id != null && venueA.id === venueB.id) {
+    return true;
+  }
+
+  return (
+    venueA.latitude != null &&
+    venueB.latitude != null &&
+    venueA.longitude != null &&
+    venueB.longitude != null &&
+    venueA.latitude === venueB.latitude &&
+    venueA.longitude === venueB.longitude
+  );
+}
+
 export function groupMatchesByVenue(
   matches: Match[],
   selectedMatchId?: number | null,
 ): VenueGroup[] {
-  const venueMap = new Map<number, VenueGroup>();
+  const groups: VenueGroup[] = [];
 
   for (const match of matches) {
     if (!match.venue || match.venue.latitude == null || match.venue.longitude == null) {
       continue;
     }
 
-    const venueId = match.venue.id;
-    const existing = venueMap.get(venueId);
+    const existing = groups.find((g) => isSameVenue(g.venue, match.venue));
 
     if (existing) {
       existing.matches.push(match);
@@ -47,16 +75,14 @@ export function groupMatchesByVenue(
         existing.isSelected = true;
       }
     } else {
-      venueMap.set(venueId, {
-        venueId,
+      groups.push({
+        venueId: match.venue.id,
         venue: match.venue,
         matches: [match],
         isSelected: match.id === selectedMatchId,
       });
     }
   }
-
-  const groups = Array.from(venueMap.values());
 
   for (const group of groups) {
     group.matches.sort(compareMatchesChronologically);
@@ -279,27 +305,61 @@ export function createGeoJsonCircle(
   };
 }
 
-export function getBasketballPinHtml(isSelected: boolean, matchCount: number): string {
+export function getBasketballPinSvg(isSelected: boolean): string {
   const pinColor = isSelected ? '#2563eb' : '#0f172a';
+
+  return `<svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}"/><circle cx="18" cy="18" r="11" fill="#ffffff"/><circle cx="18" cy="18" r="9.5" fill="#f97316" stroke="#0f172a" stroke-width="0.8"/><line x1="18" y1="8.5" x2="18" y2="27.5" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/><line x1="8.5" y1="18" x2="27.5" y2="18" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/><path d="M 11.3 11.3 C 15.3 14.7 15.3 21.3 11.3 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/><path d="M 24.7 11.3 C 20.7 14.7 20.7 21.3 24.7 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/></svg>`;
+}
+
+export function BasketballPinSvg({ isSelected }: { isSelected: boolean }) {
+  const pinColor = isSelected ? '#2563eb' : '#0f172a';
+
+  return (
+    <svg
+      width="34"
+      height="40"
+      viewBox="0 0 36 42"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z"
+        fill={pinColor}
+      />
+      <circle cx="18" cy="18" r="11" fill="#ffffff" />
+      <circle cx="18" cy="18" r="9.5" fill="#f97316" stroke="#0f172a" strokeWidth="0.8" />
+      <line x1="18" y1="8.5" x2="18" y2="27.5" stroke="#0f172a" strokeWidth="0.9" strokeLinecap="round" />
+      <line x1="8.5" y1="18" x2="27.5" y2="18" stroke="#0f172a" strokeWidth="0.9" strokeLinecap="round" />
+      <path
+        d="M 11.3 11.3 C 15.3 14.7 15.3 21.3 11.3 24.7"
+        stroke="#0f172a"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M 24.7 11.3 C 20.7 14.7 20.7 21.3 24.7 24.7"
+        stroke="#0f172a"
+        strokeWidth="0.9"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+export function getBasketballPinHtml(isSelected: boolean, matchCount: number): string {
   const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
   const zIndex = isSelected ? '30' : '10';
 
   const badgeHtml =
     matchCount > 1
-      ? `<span style="position:absolute;top:-4px;right:-4px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${matchCount}</span>`
+      ? `<span class="pin-match-badge" style="position:absolute;top:-4px;right:-4px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${matchCount}</span>`
       : '';
 
   return `
     <div style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;z-index:${zIndex};">
-      <svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}"/>
-        <circle cx="18" cy="18" r="11" fill="#ffffff"/>
-        <circle cx="18" cy="18" r="9.5" fill="#f97316" stroke="#0f172a" stroke-width="0.8"/>
-        <line x1="18" y1="8.5" x2="18" y2="27.5" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/>
-        <line x1="8.5" y1="18" x2="27.5" y2="18" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/>
-        <path d="M 11.3 11.3 C 15.3 14.7 15.3 21.3 11.3 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-        <path d="M 24.7 11.3 C 20.7 14.7 20.7 21.3 24.7 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-      </svg>
+      ${getBasketballPinSvg(isSelected)}
       ${badgeHtml}
     </div>
   `;
@@ -361,6 +421,52 @@ export function getUserLocationPinHtml(): string {
   `;
 }
 
+export function createVenueMarkerElement(clusterOrGroup: {
+  isSelected: boolean;
+  matchCount?: number;
+  matches?: Match[];
+}): HTMLElement {
+  const matchCount =
+    clusterOrGroup.matchCount ?? clusterOrGroup.matches?.length ?? 1;
+
+  const isSelected = clusterOrGroup.isSelected;
+
+  const el = document.createElement('div');
+  el.className = 'cursor-pointer transition-transform duration-200';
+  el.style.zIndex = isSelected ? '30' : '10';
+  el.innerHTML = getBasketballPinHtml(isSelected, matchCount);
+
+  return el;
+}
+
+export function createClusterMarkerElement(cluster: {
+  matchCount: number;
+  isSelected: boolean;
+}): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'cursor-pointer transition-transform duration-200';
+  el.style.zIndex = cluster.isSelected ? '30' : '20';
+  el.innerHTML = getClusterBadgeHtml(cluster.matchCount, cluster.isSelected);
+
+  return el;
+}
+
+export function createSearchCenterMarkerElement(cityName: string): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'search-center-marker pointer-events-auto';
+  el.innerHTML = getSearchCenterPinHtml(cityName);
+
+  return el;
+}
+
+export function createUserLocationMarkerElement(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'user-location-marker pointer-events-none';
+  el.innerHTML = getUserLocationPinHtml();
+
+  return el;
+}
+
 export function BasketballPinMarker({
   isSelected,
   matchCount,
@@ -368,7 +474,6 @@ export function BasketballPinMarker({
   isSelected: boolean;
   matchCount: number;
 }) {
-  const pinColor = isSelected ? '#2563eb' : '#0f172a';
   const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
 
   return (
@@ -376,39 +481,10 @@ export function BasketballPinMarker({
       className="relative flex items-center justify-center transition-transform duration-200"
       style={{ transform: scale }}
     >
-      <svg
-        width="34"
-        height="40"
-        viewBox="0 0 36 42"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z"
-          fill={pinColor}
-        />
-        <circle cx="18" cy="18" r="11" fill="#ffffff" />
-        <circle cx="18" cy="18" r="9.5" fill="#f97316" stroke="#0f172a" strokeWidth="0.8" />
-        <line x1="18" y1="8.5" x2="18" y2="27.5" stroke="#0f172a" strokeWidth="0.9" strokeLinecap="round" />
-        <line x1="8.5" y1="18" x2="27.5" y2="18" stroke="#0f172a" strokeWidth="0.9" strokeLinecap="round" />
-        <path
-          d="M 11.3 11.3 C 15.3 14.7 15.3 21.3 11.3 24.7"
-          stroke="#0f172a"
-          strokeWidth="0.9"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <path
-          d="M 24.7 11.3 C 20.7 14.7 20.7 21.3 24.7 24.7"
-          stroke="#0f172a"
-          strokeWidth="0.9"
-          strokeLinecap="round"
-          fill="none"
-        />
-      </svg>
+      <BasketballPinSvg isSelected={isSelected} />
 
       {matchCount > 1 && (
-        <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-[10px] font-bold text-white shadow-xs">
+        <span className="pin-match-badge absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-[10px] font-bold text-white shadow-xs">
           {matchCount}
         </span>
       )}

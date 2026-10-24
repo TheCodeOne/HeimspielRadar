@@ -646,17 +646,7 @@ export class ScraperService {
       );
 
       if (coords) {
-        await this.db
-          .update(venues)
-          .set({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            location: { lng: coords.longitude, lat: coords.latitude },
-            geocodedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(venues.id, venue.id));
-
+        await this.persistVenueCoordinates(venue.id, coords, this.db);
         geocoded++;
       } else {
         failed++;
@@ -674,6 +664,33 @@ export class ScraperService {
     };
   }
 
+  /**
+   * Persists resolved Venue coordinates and PostGIS point geometry.
+   */
+  async persistVenueCoordinates(
+    venueId: number,
+    coords: { latitude: number; longitude: number },
+    db: DrizzleDb = this.db!
+  ): Promise<typeof venues.$inferSelect | null> {
+    const now = new Date();
+
+    const updateValues = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      location: { lng: coords.longitude, lat: coords.latitude },
+      geocodedAt: now,
+      updatedAt: now,
+    };
+
+    const [updated] = await db
+      .update(venues)
+      .set(updateValues)
+      .where(eq(venues.id, venueId))
+      .returning();
+
+    return updated ?? null;
+  }
+
   private async geocodeAndUpsertVenue(
     db: DrizzleDb,
     spielfeld: DbbVenue,
@@ -683,90 +700,87 @@ export class ScraperService {
     synced: boolean;
     geocoded: boolean;
   }> {
-    let lat: number | null = null;
-    let lng: number | null = null;
-    let geocoded = false;
+    let geo: { latitude: number; longitude: number } | null = null;
 
     if (spielfeld.strasse || spielfeld.ort) {
-      const geo = await this.geocoder.geocodeAddress(
+      geo = await this.geocoder.geocodeAddress(
         spielfeld.strasse,
         spielfeld.plz,
         spielfeld.ort
       );
-
-      if (geo) {
-        lat = geo.latitude;
-        lng = geo.longitude;
-        geocoded = true;
-      }
     }
 
-    const location = lat !== null && lng !== null ? { lng, lat } : null;
-
-    const venueValues = {
+    const baseVenueValues = {
       id: spielfeld.id,
       name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
       street: spielfeld.strasse || null,
       postalCode: spielfeld.plz || null,
       city: spielfeld.ort || null,
-      latitude: lat,
-      longitude: lng,
-      location,
-      geocodedAt: lat !== null ? new Date() : null,
       rawData: spielfeld,
       updatedAt: new Date(),
     };
-
-    const venueUpdateValues: Partial<typeof venues.$inferInsert> = {
-      name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
-      street: spielfeld.strasse || null,
-      postalCode: spielfeld.plz || null,
-      city: spielfeld.ort || null,
-      rawData: spielfeld,
-      updatedAt: new Date(),
-    };
-
-    if (lat !== null && lng !== null) {
-      venueUpdateValues.latitude = lat;
-      venueUpdateValues.longitude = lng;
-      venueUpdateValues.location = location;
-      venueUpdateValues.geocodedAt = new Date();
-    }
 
     const [insertedVenue] = await db
       .insert(venues)
-      .values(venueValues)
+      .values(baseVenueValues)
       .onConflictDoUpdate({
         target: venues.id,
-        set: venueUpdateValues,
+        set: {
+          name: spielfeld.bezeichnung || 'Unbekannte Sporthalle',
+          street: spielfeld.strasse || null,
+          postalCode: spielfeld.plz || null,
+          city: spielfeld.ort || null,
+          rawData: spielfeld,
+          updatedAt: new Date(),
+        },
       })
       .returning();
 
-    venueCache.set(spielfeld.id, insertedVenue);
+    let venueRecord = insertedVenue;
+
+    if (geo) {
+      const updated = await this.persistVenueCoordinates(spielfeld.id, geo, db);
+
+      if (updated) {
+        venueRecord = updated;
+      }
+    }
+
+    venueCache.set(spielfeld.id, venueRecord);
 
     return {
-      venue: insertedVenue,
+      venue: venueRecord,
       synced: true,
-      geocoded,
+      geocoded: Boolean(geo),
     };
+  }
+
+  /**
+   * Resolves canonical DBB Team ID across seasonTeamId, teamCompetitionId, and teamPermanentId.
+   */
+  resolveDbbTeamId(t: DbbTeam | null | undefined): number | null {
+    if (!t) {
+      return null;
+    }
+
+    return t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId || null;
   }
 
   private collectTeam(
     t: DbbTeam | null | undefined,
-    map: Map<number, { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }>
+    map: Map<
+      number,
+      { dbbId: number; name: string; shortName?: string; clubId?: number; raw: unknown }
+    >
   ) {
-    if (!t) {
-      return;
-    }
-
-    const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
+    const id = this.resolveDbbTeamId(t);
 
     if (id && !map.has(id)) {
       map.set(id, {
         dbbId: id,
-        name: t.teamname,
-        shortName: t.teamnameSmall,
-        clubId: t.clubId,
+        name: t!.teamname,
+        shortName: t!.teamnameSmall,
+        clubId: t!.clubId,
         raw: t,
       });
     }
@@ -776,11 +790,7 @@ export class ScraperService {
     t: DbbTeam | null | undefined,
     idMap: Map<number, number>
   ): number | null {
-    if (!t) {
-      return null;
-    }
-
-    const id = t.seasonTeamId || t.teamCompetitionId || t.teamPermanentId;
+    const id = this.resolveDbbTeamId(t);
 
     return id ? idMap.get(id) || null : null;
   }

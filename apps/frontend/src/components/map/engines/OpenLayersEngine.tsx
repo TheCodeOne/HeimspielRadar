@@ -13,50 +13,16 @@ import { Fill, Stroke, Style } from 'ol/style';
 import type { MapEngineProps } from '../map-engine.types';
 import {
   clusterVenueGroups,
-  getBasketballPinHtml,
-  getClusterBadgeHtml,
-  getSearchCenterPinHtml,
-  getUserLocationPinHtml,
+  createClusterMarkerElement,
+  createSearchCenterMarkerElement,
+  createUserLocationMarkerElement,
+  createVenueMarkerElement,
   groupMatchesByVenue,
-  type VenueCluster,
 } from '../map-utils';
-
-function createOlMarkerElement(cluster: VenueCluster): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = cluster.isSelected ? '30' : '10';
-  el.innerHTML = getBasketballPinHtml(cluster.isSelected, cluster.matchCount);
-
-  return el;
-}
-
-function createOlClusterElement(cluster: VenueCluster): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = cluster.isSelected ? '30' : '20';
-  el.innerHTML = getClusterBadgeHtml(cluster.matchCount, cluster.isSelected);
-
-  return el;
-}
-
-function createSearchCenterOlElement(cityName: string): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'search-center-overlay pointer-events-auto';
-  el.innerHTML = getSearchCenterPinHtml(cityName);
-
-  return el;
-}
-
-function createUserLocationOlElement(): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'user-location-overlay pointer-events-none';
-  el.innerHTML = getUserLocationPinHtml();
-
-  return el;
-}
 
 export function OpenLayersEngine({
   matches,
+  venueGroups,
   selectedMatchId,
   center,
   zoom,
@@ -77,8 +43,8 @@ export function OpenLayersEngine({
   const radiusVectorLayerRef = React.useRef<VectorLayer<VectorSource> | null>(null);
 
   const groups = React.useMemo(
-    () => groupMatchesByVenue(matches, selectedMatchId),
-    [matches, selectedMatchId],
+    () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
+    [venueGroups, matches, selectedMatchId],
   );
 
   const clusters = React.useMemo(
@@ -196,7 +162,7 @@ export function OpenLayersEngine({
       return;
     }
 
-    const userElement = createUserLocationOlElement();
+    const userElement = createUserLocationMarkerElement();
 
     const overlay = new Overlay({
       element: userElement,
@@ -226,7 +192,7 @@ export function OpenLayersEngine({
       return;
     }
 
-    const searchElement = createSearchCenterOlElement(searchLocation.name);
+    const searchElement = createSearchCenterMarkerElement(searchLocation.name);
 
     const overlay = new Overlay({
       element: searchElement,
@@ -296,7 +262,7 @@ export function OpenLayersEngine({
       const coordinates = fromLonLat([cluster.longitude, cluster.latitude]);
 
       if (cluster.isCluster) {
-        const clusterEl = createOlClusterElement(cluster);
+        const clusterEl = createClusterMarkerElement(cluster);
 
         const overlay = new Overlay({
           element: clusterEl,
@@ -331,7 +297,7 @@ export function OpenLayersEngine({
           }
         });
       } else {
-        const markerEl = createOlMarkerElement(cluster);
+        const markerEl = createVenueMarkerElement(cluster);
 
         const overlay = new Overlay({
           element: markerEl,

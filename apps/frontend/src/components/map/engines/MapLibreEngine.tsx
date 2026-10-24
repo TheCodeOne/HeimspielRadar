@@ -11,54 +11,20 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { MapEngineProps } from '../map-engine.types';
 import {
   clusterVenueGroups,
+  createClusterMarkerElement,
   createGeoJsonCircle,
-  getBasketballPinHtml,
-  getClusterBadgeHtml,
-  getSearchCenterPinHtml,
-  getUserLocationPinHtml,
+  createSearchCenterMarkerElement,
+  createUserLocationMarkerElement,
+  createVenueMarkerElement,
   groupMatchesByVenue,
-  type VenueCluster,
 } from '../map-utils';
 
 // Configure MapLibre Web Worker for Vite
 setWorkerUrl(workerUrl);
 
-function createVenueMarkerElement(cluster: VenueCluster): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = cluster.isSelected ? '30' : '10';
-  el.innerHTML = getBasketballPinHtml(cluster.isSelected, cluster.matchCount);
-
-  return el;
-}
-
-function createClusterMarkerElement(cluster: VenueCluster): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = cluster.isSelected ? '30' : '20';
-  el.innerHTML = getClusterBadgeHtml(cluster.matchCount, cluster.isSelected);
-
-  return el;
-}
-
-function createSearchCenterElement(cityName: string): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'search-center-marker pointer-events-auto';
-  el.innerHTML = getSearchCenterPinHtml(cityName);
-
-  return el;
-}
-
-function createUserLocationElement(): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'user-location-marker pointer-events-none';
-  el.innerHTML = getUserLocationPinHtml();
-
-  return el;
-}
-
 export function MapLibreEngine({
   matches,
+  venueGroups,
   selectedMatchId,
   center,
   zoom,
@@ -78,8 +44,8 @@ export function MapLibreEngine({
   const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
 
   const groups = React.useMemo(
-    () => groupMatchesByVenue(matches, selectedMatchId),
-    [matches, selectedMatchId],
+    () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
+    [venueGroups, matches, selectedMatchId],
   );
 
   const clusters = React.useMemo(
@@ -194,7 +160,7 @@ export function MapLibreEngine({
       return;
     }
 
-    const el = createUserLocationElement();
+    const el = createUserLocationMarkerElement();
 
     const marker = new MapLibreMarker({ element: el, anchor: 'center' })
       .setLngLat([userLocation[1], userLocation[0]])
@@ -220,7 +186,7 @@ export function MapLibreEngine({
       return;
     }
 
-    const el = createSearchCenterElement(searchLocation.name);
+    const el = createSearchCenterMarkerElement(searchLocation.name);
 
     const marker = new MapLibreMarker({ element: el, anchor: 'bottom' })
       .setLngLat([searchLocation.lng, searchLocation.lat])
