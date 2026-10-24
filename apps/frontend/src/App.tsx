@@ -14,7 +14,7 @@ import {
 import type { Match } from '@sundayleague/shared-types';
 import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
-import { formatLeagueName } from '@/components/map/map-utils';
+import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
 import { MatchList } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
@@ -30,23 +30,6 @@ import { formatDistance } from '@/lib/geo-utils';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
-
-function isSameVenue(a: Match, b: Match): boolean {
-  if (!a.venue || !b.venue) {
-    return false;
-  }
-
-  if (a.venue.id === b.venue.id) {
-    return true;
-  }
-
-  return (
-    a.venue.latitude != null &&
-    a.venue.longitude != null &&
-    a.venue.latitude === b.venue.latitude &&
-    a.venue.longitude === b.venue.longitude
-  );
-}
 
 function buildGoogleMapsRouteUrl(match: Match): string {
   const venue = match.venue;
@@ -138,16 +121,28 @@ export function App() {
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
 
+  // Group all matches by venue using canonical grouping logic
+  const venueGroups = React.useMemo(
+    () => groupMatchesByVenue(matches, selectedMatchId),
+    [matches, selectedMatchId],
+  );
+
   // Group all matches taking place at the selected match's venue, sorted chronologically
   const selectedVenueMatches = React.useMemo(() => {
     if (!selectedMatch?.venue) {
       return [];
     }
 
+    const selectedGroup = venueGroups.find((g) => g.isSelected);
+
+    if (selectedGroup) {
+      return selectedGroup.matches;
+    }
+
     return matches
       .filter((m) => isSameVenue(m, selectedMatch))
       .sort(compareMatchesChronologically);
-  }, [matches, selectedMatch]);
+  }, [matches, selectedMatch, venueGroups]);
 
   // Handle marker click on map
   const handleMarkerClick = (match: Match) => {
@@ -270,6 +265,7 @@ export function App() {
             {/* Full-Bleed MapContainer */}
             <MapContainer
               matches={matches}
+              venueGroups={venueGroups}
               selectedMatchId={selectedMatchId}
               center={mapCenter}
               zoom={9}

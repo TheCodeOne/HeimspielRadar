@@ -8,9 +8,11 @@ import {
   PigeonEngine,
 } from './engines';
 import type { MapEngineProps, MapEngineType } from './map-engine.types';
+import { groupMatchesByVenue, type VenueGroup } from './map-utils';
 
 export interface MapContainerProps {
   matches: Match[];
+  venueGroups?: VenueGroup[];
   selectedMatchId?: number | null;
   center?: [number, number];
   zoom?: number;
@@ -73,6 +75,7 @@ export function isMapEngineType(val?: string): val is MapEngineType {
 
 export function MapContainer({
   matches,
+  venueGroups: propVenueGroups,
   selectedMatchId,
   center = [49.15, 9.85],
   zoom = 9,
@@ -97,8 +100,14 @@ export function MapContainer({
     onEngineChange?.(nextEngine);
   };
 
+  const venueGroups = React.useMemo(
+    () => propVenueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
+    [propVenueGroups, matches, selectedMatchId],
+  );
+
   const engineProps: MapEngineProps = {
     matches,
+    venueGroups,
     selectedMatchId,
     center,
     zoom,
