@@ -531,4 +531,59 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       expect(controller.getState().radiusKm).toBe(25);
     });
   });
+
+  describe('7. Team & Club Search Filter (teamQuery)', () => {
+    it('sets and clears teamQuery filter', () => {
+      const storage = new MockStorage();
+
+      const controller = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      expect(controller.getState().teamQuery).toBeUndefined();
+      expect(controller.getState().activeFilterCount).toBe(0);
+
+      controller.actions.setTeamQuery('SV Pfrondorf');
+      expect(controller.getState().teamQuery).toBe('SV Pfrondorf');
+      expect(controller.getState().activeFilterCount).toBe(1);
+
+      controller.actions.setTeamQuery(undefined);
+      expect(controller.getState().teamQuery).toBeUndefined();
+      expect(controller.getState().activeFilterCount).toBe(0);
+    });
+
+    it('persists teamQuery to storage and restores correctly', () => {
+      const storage = new MockStorage();
+
+      const controller1 = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      controller1.actions.setTeamQuery('TSG Reutlingen');
+
+      const controller2 = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      expect(controller2.getState().teamQuery).toBe('TSG Reutlingen');
+    });
+
+    it('clears teamQuery on resetFilters', () => {
+      const storage = new MockStorage();
+
+      const controller = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      controller.actions.setTeamQuery('SV 03 Tübingen');
+      expect(controller.getState().teamQuery).toBe('SV 03 Tübingen');
+
+      controller.actions.resetFilters();
+      expect(controller.getState().teamQuery).toBeUndefined();
+    });
+  });
 });

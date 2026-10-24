@@ -34,6 +34,7 @@ export function MapLibreEngine({
   showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full min-h-[400px]',
+  teamQuery,
 }: MapEngineProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<MapLibreMap | null>(null);
@@ -42,6 +43,29 @@ export function MapLibreEngine({
   const searchMarkerRef = React.useRef<MapLibreMarker | null>(null);
   const isLoadedRef = React.useRef<boolean>(false);
   const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
+
+  const validVenues = React.useMemo(() => {
+    const venuesList: Array<{ lat: number; lng: number }> = [];
+    const seen = new Set<string>();
+
+    for (const m of matches) {
+      if (
+        m.venue?.latitude != null &&
+        m.venue?.longitude != null &&
+        !isNaN(m.venue.latitude) &&
+        !isNaN(m.venue.longitude)
+      ) {
+        const key = `${m.venue.latitude.toFixed(5)},${m.venue.longitude.toFixed(5)}`;
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          venuesList.push({ lat: m.venue.latitude, lng: m.venue.longitude });
+        }
+      }
+    }
+
+    return venuesList;
+  }, [matches]);
 
   const groups = React.useMemo(
     () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
@@ -129,11 +153,11 @@ export function MapLibreEngine({
     };
   }, []);
 
-  // Update center smoothly when center coordinate changes
+  // Update center smoothly when center coordinate changes (only when no teamQuery active)
   React.useEffect(() => {
     const map = mapRef.current;
 
-    if (!map) {
+    if (!map || teamQuery) {
       return;
     }
 
@@ -141,7 +165,43 @@ export function MapLibreEngine({
       center: [center[1], center[0]],
       duration: 600,
     });
-  }, [center[0], center[1]]);
+  }, [center[0], center[1], teamQuery]);
+
+  // Fit map bounds when teamQuery is active and venues are loaded
+  React.useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map || !teamQuery || validVenues.length === 0) {
+      return;
+    }
+
+    if (validVenues.length === 1) {
+      map.flyTo({
+        center: [validVenues[0].lng, validVenues[0].lat],
+        zoom: 12,
+        duration: 500,
+      });
+
+      return;
+    }
+
+    const minLng = Math.min(...validVenues.map((v) => v.lng));
+    const maxLng = Math.max(...validVenues.map((v) => v.lng));
+    const minLat = Math.min(...validVenues.map((v) => v.lat));
+    const maxLat = Math.max(...validVenues.map((v) => v.lat));
+
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      {
+        padding: 60,
+        maxZoom: 14,
+        duration: 500,
+      },
+    );
+  }, [teamQuery, validVenues]);
 
   // Update user location marker
   React.useEffect(() => {

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { aliasedTable, and, asc, eq, gte, inArray, lte, sql, SQL } from 'drizzle-orm';
-import { League, Match, NearbyMatchesQuery } from '@sundayleague/shared-types';
+import { aliasedTable, and, asc, eq, gte, ilike, inArray, lte, or, sql, SQL } from 'drizzle-orm';
+import { League, Match, NearbyMatchesQuery, TeamSuggestion } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { LeagueRawData, leagues, matches, teams, venues } from '../database/schema';
 
@@ -89,6 +89,37 @@ export class MatchesService {
   }
 
   /**
+   * Search teams matching a search query for autocomplete suggestions.
+   */
+  async findTeamSuggestions(query: string): Promise<TeamSuggestion[]> {
+    if (!this.db) {
+      throw new Error('Database is not configured! Please configure DATABASE_URL in .env.');
+    }
+
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    const pattern = `%${trimmed}%`;
+
+    const rows = await this.db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        shortName: teams.shortName,
+        clubId: teams.clubId,
+      })
+      .from(teams)
+      .where(or(ilike(teams.name, pattern), ilike(teams.shortName, pattern)))
+      .orderBy(asc(teams.name))
+      .limit(15);
+
+    return rows;
+  }
+
+  /**
    * Search matches for map display by date, coordinates (lat/lng), radius in km, or league dimensions.
    * Uses native PostGIS ST_DWithin and ST_Distance when spatial coordinates are provided,
    * with fallback to standard attribute filtering when coordinates are null or omitted.
@@ -102,6 +133,7 @@ export class MatchesService {
       date,
       dateFrom,
       dateTo,
+      teamQuery,
       lat,
       lng,
       radiusKm = 30,
@@ -112,6 +144,8 @@ export class MatchesService {
       skillLevels,
       onlyUpcoming,
     } = query;
+
+    const trimmedTeam = teamQuery?.trim();
 
     const hasSpatialCoords =
       lat !== undefined &&
@@ -196,17 +230,29 @@ export class MatchesService {
     const homeTeam = aliasedTable(teams, 'home_team');
     const guestTeam = aliasedTable(teams, 'guest_team');
 
+    if (trimmedTeam) {
+      conditions.push(
+        or(
+          ilike(homeTeam.name, `%${trimmedTeam}%`),
+          ilike(guestTeam.name, `%${trimmedTeam}%`)
+        )!
+      );
+    }
+
     let distanceKmSql: SQL<number | null> | undefined;
 
     if (hasSpatialCoords) {
-      const radiusMeters = radiusKm * 1000;
       const originPoint = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
 
       distanceKmSql = sql<number>`round((ST_Distance(${venues.location}, ${originPoint}) / 1000.0)::numeric, 1)`;
 
-      conditions.push(
-        sql`ST_DWithin(${venues.location}, ${originPoint}, ${radiusMeters})`
-      );
+      if (!trimmedTeam) {
+        const radiusMeters = radiusKm * 1000;
+
+        conditions.push(
+          sql`ST_DWithin(${venues.location}, ${originPoint}, ${radiusMeters})`
+        );
+      }
     }
 
     const queryBuilder = this.db
@@ -228,7 +274,7 @@ export class MatchesService {
       queryBuilder.where(and(...conditions));
     }
 
-    if (hasSpatialCoords && distanceKmSql) {
+    if (!trimmedTeam && hasSpatialCoords && distanceKmSql) {
       queryBuilder.orderBy(
         distanceKmSql,
         asc(matches.kickoffDate),

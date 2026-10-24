@@ -132,9 +132,11 @@ function LeafletClusterMarker({
 function LeafletMapController({
   center,
   selectedGroup,
+  teamQuery,
 }: {
   center: [number, number];
   selectedGroup?: VenueGroup;
+  teamQuery?: string;
 }) {
   const map = useMap();
 
@@ -155,10 +157,46 @@ function LeafletMapController({
       return;
     }
 
+    if (teamQuery) {
+      return;
+    }
+
     map.flyTo(center, map.getZoom(), {
       duration: 0.6,
     });
-  }, [map, center[0], center[1], selectedGroup]);
+  }, [map, center[0], center[1], selectedGroup, teamQuery]);
+
+  return null;
+}
+
+function LeafletTeamBoundsFitter({
+  teamQuery,
+  validVenues,
+}: {
+  teamQuery?: string;
+  validVenues: Array<{ lat: number; lng: number }>;
+}) {
+  const map = useMap();
+
+  React.useEffect(() => {
+    if (!teamQuery || validVenues.length === 0) {
+      return;
+    }
+
+    if (validVenues.length === 1) {
+      map.flyTo([validVenues[0].lat, validVenues[0].lng], 12, { duration: 0.5 });
+
+      return;
+    }
+
+    const bounds = L.latLngBounds(validVenues.map((v) => [v.lat, v.lng]));
+
+    map.flyToBounds(bounds, {
+      padding: [60, 60],
+      maxZoom: 14,
+      duration: 0.5,
+    });
+  }, [map, teamQuery, validVenues]);
 
   return null;
 }
@@ -175,8 +213,32 @@ export function LeafletEngine({
   showRadiusCircle = true,
   onMarkerClick,
   className = 'w-full h-full',
+  teamQuery,
 }: MapEngineProps) {
   const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
+
+  const validVenues = React.useMemo(() => {
+    const venuesList: Array<{ lat: number; lng: number }> = [];
+    const seen = new Set<string>();
+
+    for (const m of matches) {
+      if (
+        m.venue?.latitude != null &&
+        m.venue?.longitude != null &&
+        !isNaN(m.venue.latitude) &&
+        !isNaN(m.venue.longitude)
+      ) {
+        const key = `${m.venue.latitude.toFixed(5)},${m.venue.longitude.toFixed(5)}`;
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          venuesList.push({ lat: m.venue.latitude, lng: m.venue.longitude });
+        }
+      }
+    }
+
+    return venuesList;
+  }, [matches]);
 
   const groups = React.useMemo(
     () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
@@ -210,7 +272,8 @@ export function LeafletEngine({
         />
 
         <LeafletZoomWatcher onZoomChange={setCurrentZoom} />
-        <LeafletMapController center={center} selectedGroup={selectedGroup} />
+        <LeafletMapController center={center} selectedGroup={selectedGroup} teamQuery={teamQuery} />
+        <LeafletTeamBoundsFitter teamQuery={teamQuery} validVenues={validVenues} />
 
         {/* User GPS location marker */}
         {userLocation && (

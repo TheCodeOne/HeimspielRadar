@@ -244,6 +244,37 @@ export function getSampleMatches(): Match[] {
         longitude: 10.0681,
       },
     },
+    {
+      id: 107,
+      leagueId: 2,
+      league: SAMPLE_LEAGUES[1],
+      matchDay: 4,
+      kickoffDate: today,
+      kickoffTime: '17:00',
+      confirmed: true,
+      result: null,
+      homeTeam: {
+        id: 23,
+        dbbId: 4023,
+        name: 'SV Pfrondorf 1',
+        shortName: 'SV Pfrondorf',
+      },
+      guestTeam: {
+        id: 24,
+        dbbId: 4024,
+        name: 'TSG Reutlingen 2',
+        shortName: 'TSG 2',
+      },
+      venue: {
+        id: 207,
+        name: 'Schönbuchhalle Pfrondorf',
+        street: 'Kohlplattenstraße 1',
+        postalCode: '72074',
+        city: 'Tübingen',
+        latitude: 48.5558,
+        longitude: 9.0982,
+      },
+    },
   ];
 }
 

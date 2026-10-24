@@ -15,7 +15,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { League } from '@sundayleague/shared-types';
+import type { League, TeamSuggestion } from '@sundayleague/shared-types';
 import { MAP_ENGINE_OPTIONS } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import {
 } from '@/lib/cities';
 import { formatLastSyncedAt } from '@/lib/date-utils';
 import { STUTTGART_FALLBACK } from '@/lib/geo-utils';
+import { getSampleMatches } from '@/lib/sample-matches';
 import {
   filterLeaguesByHierarchy,
   type MatchFiltersActions,
@@ -122,6 +123,7 @@ export function FilterBar({
     setDateMode,
     setDateRange,
     setOnlyUpcoming,
+    setTeamQuery,
     setGenders,
     setAgeClasses,
     setSkillLevels,
@@ -134,6 +136,13 @@ export function FilterBar({
   const [cityQuery, setCityQuery] = React.useState('');
   const [isCityDropdownOpen, setIsCityDropdownOpen] = React.useState(false);
 
+  const [teamInput, setTeamInput] = React.useState(filters.teamQuery ?? '');
+  const [teamSuggestions, setTeamSuggestions] = React.useState<TeamSuggestion[]>([]);
+  const [isSearchingTeams, setIsSearchingTeams] = React.useState(false);
+  const [isTeamDropdownOpen, setIsTeamDropdownOpen] = React.useState(false);
+  const [highlightedTeamIndex, setHighlightedTeamIndex] = React.useState(-1);
+  const teamSearchContainerRef = React.useRef<HTMLDivElement>(null);
+
   const [localSuggestions, setLocalSuggestions] =
     React.useState<CitySuggestion[]>([]);
 
@@ -144,6 +153,11 @@ export function FilterBar({
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
   const citySearchContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Sync teamInput when filters.teamQuery changes
+  React.useEffect(() => {
+    setTeamInput(filters.teamQuery ?? '');
+  }, [filters.teamQuery]);
+
   // Reset cityQuery and close suggestions when location reference changes
   React.useEffect(() => {
     setCityQuery('');
@@ -152,7 +166,7 @@ export function FilterBar({
     setOnlineSuggestions([]);
   }, [location.name, location.lat, location.lng]);
 
-  // Close city suggestions dropdown on click outside
+  // Close city & team suggestions dropdown on click outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -161,6 +175,14 @@ export function FilterBar({
         !citySearchContainerRef.current.contains(event.target)
       ) {
         setIsCityDropdownOpen(false);
+      }
+
+      if (
+        event.target instanceof Node &&
+        teamSearchContainerRef.current &&
+        !teamSearchContainerRef.current.contains(event.target)
+      ) {
+        setIsTeamDropdownOpen(false);
       }
     };
 
@@ -220,6 +242,125 @@ export function FilterBar({
       controller.abort();
     };
   }, [cityQuery, location.lat, location.lng]);
+
+  // Debounced search for team suggestions
+  React.useEffect(() => {
+    const q = teamInput.trim();
+
+    if (!q) {
+      setTeamSuggestions([]);
+      setIsSearchingTeams(false);
+      setHighlightedTeamIndex(-1);
+
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setIsSearchingTeams(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/matches/teams?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch team suggestions: ${res.status}`);
+        }
+
+        // SAFETY: /api/matches/teams returns TeamSuggestion[]
+        const data = (await res.json()) as TeamSuggestion[];
+
+        setTeamSuggestions(data);
+      } catch {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        // Fallback: search teams from sample matches
+        const pool = getSampleMatches();
+        const seen = new Set<string>();
+        const localMatches: TeamSuggestion[] = [];
+
+        for (const m of pool) {
+          for (const t of [m.homeTeam, m.guestTeam]) {
+            if (
+              !seen.has(t.name) &&
+              (t.name.toLowerCase().includes(q.toLowerCase()) ||
+                Boolean(t.shortName?.toLowerCase().includes(q.toLowerCase())))
+            ) {
+              seen.add(t.name);
+              localMatches.push({
+                id: t.id,
+                name: t.name,
+                shortName: t.shortName,
+                clubId: t.clubId,
+              });
+            }
+          }
+        }
+
+        setTeamSuggestions(localMatches.slice(0, 15));
+      } finally {
+        setIsSearchingTeams(false);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [teamInput]);
+
+  const handleSelectTeam = React.useCallback(
+    (teamName: string) => {
+      setTeamQuery(teamName);
+      setTeamInput(teamName);
+      setIsTeamDropdownOpen(false);
+    },
+    [setTeamQuery],
+  );
+
+  const handleClearTeam = React.useCallback(() => {
+    setTeamQuery(undefined);
+    setTeamInput('');
+    setTeamSuggestions([]);
+    setIsTeamDropdownOpen(false);
+  }, [setTeamQuery]);
+
+  const handleTeamInputKeyDown = React.useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (!isTeamDropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        setIsTeamDropdownOpen(true);
+
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedTeamIndex((prev) =>
+          prev < teamSuggestions.length - 1 ? prev + 1 : 0,
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedTeamIndex((prev) =>
+          prev > 0 ? prev - 1 : teamSuggestions.length - 1,
+        );
+      } else if (e.key === 'Enter') {
+        if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
+          e.preventDefault();
+          handleSelectTeam(teamSuggestions[highlightedTeamIndex].name);
+        } else if (teamInput.trim()) {
+          e.preventDefault();
+          handleSelectTeam(teamInput.trim());
+        }
+      } else if (e.key === 'Escape') {
+        setIsTeamDropdownOpen(false);
+      }
+    },
+    [handleSelectTeam, highlightedTeamIndex, isTeamDropdownOpen, teamInput, teamSuggestions],
+  );
 
   const allSuggestions = React.useMemo(() => {
     const uniqueOnline = onlineSuggestions.filter((online) => {
@@ -675,6 +816,172 @@ export function FilterBar({
             />
           </span>
         </button>
+      </div>
+
+      <hr className="border-border/60" />
+
+      {/* 1.5. Verein / Team Search Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Verein / Team
+            </span>
+          </div>
+
+          {filters.teamQuery && (
+            <button
+              type="button"
+              onClick={handleClearTeam}
+              className="text-[11px] text-primary hover:underline"
+            >
+              Zurücksetzen
+            </button>
+          )}
+        </div>
+
+        {/* Team Autocomplete Search Input */}
+        <div ref={teamSearchContainerRef} className="relative">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+
+              if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
+                handleSelectTeam(teamSuggestions[highlightedTeamIndex].name);
+              } else if (teamInput.trim()) {
+                handleSelectTeam(teamInput.trim());
+              }
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={teamInput}
+                onChange={(e) => {
+                  setTeamInput(e.target.value);
+                  setIsTeamDropdownOpen(true);
+                }}
+                onFocus={() => {
+                  if (teamInput.trim().length > 0 || teamSuggestions.length > 0) {
+                    setIsTeamDropdownOpen(true);
+                  }
+                }}
+                onKeyDown={handleTeamInputKeyDown}
+                placeholder="Verein oder Team suchen, z.B. SV Pfrondorf..."
+                aria-label="Verein oder Team suchen"
+                className="w-full rounded-md border border-input bg-background/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {teamInput && (
+                <button
+                  type="button"
+                  onClick={handleClearTeam}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Vereinssuche zurücksetzen"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              disabled={isSearchingTeams || !teamInput.trim()}
+              className="h-8 px-2.5 text-xs font-medium shrink-0"
+            >
+              {isSearchingTeams ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                'Filtern'
+              )}
+            </Button>
+          </form>
+
+          {/* Autocomplete Dropdown */}
+          {isTeamDropdownOpen &&
+            (teamSuggestions.length > 0 ||
+              isSearchingTeams ||
+              (teamInput.trim().length >= 2 &&
+                !isSearchingTeams &&
+                teamSuggestions.length === 0)) && (
+              <div
+                role="listbox"
+                aria-label="Vereinsvorschläge"
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
+              >
+                {teamSuggestions.map((suggestion, idx) => {
+                  const isSelected = idx === highlightedTeamIndex;
+
+                  return (
+                    <button
+                      key={`${suggestion.id}-${suggestion.name}`}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => handleSelectTeam(suggestion.name)}
+                      onMouseEnter={() => setHighlightedTeamIndex(idx)}
+                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                        isSelected
+                          ? 'bg-primary/15 font-medium text-primary'
+                          : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-sm shrink-0">🏀</span>
+                        <span className="truncate">{suggestion.name}</span>
+                        {suggestion.shortName && suggestion.shortName !== suggestion.name && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            ({suggestion.shortName})
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {isSearchingTeams && (
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
+                    <span>Suche Teams...</span>
+                  </div>
+                )}
+
+                {!isSearchingTeams &&
+                  teamSuggestions.length === 0 &&
+                  teamInput.trim().length >= 2 && (
+                    <div className="px-2.5 py-2 text-center text-xs text-muted-foreground">
+                      Kein Team gefunden für &ldquo;{teamInput}&rdquo;. Drücke Enter zum
+                      Filtern.
+                    </div>
+                  )}
+              </div>
+            )}
+        </div>
+
+        {/* Active Selected Team Badge */}
+        {filters.teamQuery && (
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-[11px] text-muted-foreground">Aktives Team:</span>
+            <Badge
+              variant="default"
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs py-0.5 px-2.5 shadow-xs"
+            >
+              <span>🏀 {filters.teamQuery}</span>
+              <button
+                type="button"
+                onClick={handleClearTeam}
+                className="ml-1 rounded hover:bg-primary-foreground/20 p-0.5 text-primary-foreground transition-colors"
+                aria-label="Vereinsfilter entfernen"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          </div>
+        )}
       </div>
 
       <hr className="border-border/60" />
