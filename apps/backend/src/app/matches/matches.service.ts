@@ -90,6 +90,8 @@ export class MatchesService {
 
   /**
    * Search teams matching a search query for autocomplete suggestions.
+   * Disambiguates multiple teams of the same club by aggregating across age classes
+   * and gender dimensions to eliminate duplicate entries (e.g. MTV Stuttgart U12 vs U14).
    */
   async findTeamSuggestions(query: string): Promise<TeamSuggestion[]> {
     if (!this.db) {
@@ -102,19 +104,48 @@ export class MatchesService {
       return [];
     }
 
-    const pattern = `%${trimmed}%`;
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+
+    // Each token can match against team name, short name, age group (akName) or gender (geschlecht)
+    const tokenConditions = tokens.map((token) => {
+      const pattern = `%${token}%`;
+
+      return or(
+        ilike(teams.name, pattern),
+        ilike(teams.shortName, pattern),
+        ilike(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`, pattern),
+        ilike(sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`, pattern)
+      )!;
+    });
 
     const rows = await this.db
       .select({
-        id: teams.id,
+        id: sql<number>`min(${teams.id})`,
         name: teams.name,
-        shortName: teams.shortName,
-        clubId: teams.clubId,
+        shortName: sql<string | null>`min(${teams.shortName})`,
+        clubId: sql<number | null>`min(${teams.clubId})`,
+        akName: sql<string | null>`min(coalesce(${leagues.akName}, ${leagues.rawData}->>'akName'))`,
+        geschlecht: sql<string | null>`min(coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht'))`,
+        matchCount: sql<number>`count(${matches.id})::int`,
       })
       .from(teams)
-      .where(or(ilike(teams.name, pattern), ilike(teams.shortName, pattern)))
-      .orderBy(asc(teams.name))
-      .limit(15);
+      .leftJoin(
+        matches,
+        or(eq(matches.homeTeamId, teams.id), eq(matches.guestTeamId, teams.id))
+      )
+      .leftJoin(leagues, eq(matches.leagueId, leagues.id))
+      .where(and(...tokenConditions))
+      .groupBy(
+        teams.name,
+        sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`,
+        sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`
+      )
+      .orderBy(
+        asc(teams.name),
+        asc(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`),
+        asc(sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`)
+      )
+      .limit(20);
 
     return rows;
   }
@@ -231,12 +262,33 @@ export class MatchesService {
     const guestTeam = aliasedTable(teams, 'guest_team');
 
     if (trimmedTeam) {
-      conditions.push(
-        or(
-          ilike(homeTeam.name, `%${trimmedTeam}%`),
-          ilike(guestTeam.name, `%${trimmedTeam}%`)
-        )!
-      );
+      const fullPhraseCondition = or(
+        ilike(homeTeam.name, `%${trimmedTeam}%`),
+        ilike(guestTeam.name, `%${trimmedTeam}%`),
+        ilike(homeTeam.shortName, `%${trimmedTeam}%`),
+        ilike(guestTeam.shortName, `%${trimmedTeam}%`)
+      )!;
+
+      const tokens = trimmedTeam.split(/\s+/).filter(Boolean);
+
+      if (tokens.length <= 1) {
+        conditions.push(fullPhraseCondition);
+      } else {
+        const tokenConditions = tokens.map((tok) => {
+          const pat = `%${tok}%`;
+
+          return or(
+            ilike(homeTeam.name, pat),
+            ilike(guestTeam.name, pat),
+            ilike(homeTeam.shortName, pat),
+            ilike(guestTeam.shortName, pat),
+            ilike(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`, pat),
+            ilike(sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`, pat)
+          )!;
+        });
+
+        conditions.push(or(fullPhraseCondition, and(...tokenConditions)!)!);
+      }
     }
 
     let distanceKmSql: SQL<number | null> | undefined;

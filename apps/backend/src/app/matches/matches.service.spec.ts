@@ -25,6 +25,9 @@ interface MockTeamRow {
   name: string;
   shortName: string | null;
   clubId: number | null;
+  akName?: string | null;
+  geschlecht?: string | null;
+  matchCount?: number;
 }
 
 interface MockRow {
@@ -90,11 +93,14 @@ class InMemoryMatchesDatabase {
           const promise = Promise.resolve(this.mockTeamRows);
 
           const chain = {
+            leftJoin: () => Object.assign(promise, chain),
+            innerJoin: () => Object.assign(promise, chain),
             where: (cond?: SQL) => {
               this.capturedWhereConditions.push(cond);
 
               return Object.assign(promise, chain);
             },
+            groupBy: () => Object.assign(promise, chain),
             orderBy: () => Object.assign(promise, chain),
             limit: () => Object.assign(promise, chain),
           };
@@ -220,12 +226,16 @@ describe('MatchesService', () => {
         name: 'SV Pfrondorf 1',
         shortName: 'SV Pfrondorf',
         clubId: 101,
+        akName: 'Senioren',
+        geschlecht: 'männlich',
       },
       {
         id: 2,
         name: 'TSG Reutlingen 2',
         shortName: 'TSG 2',
         clubId: 102,
+        akName: 'Senioren',
+        geschlecht: 'männlich',
       },
     ];
 
@@ -573,7 +583,7 @@ describe('MatchesService', () => {
       expect(resultsWhitespace).toEqual([]);
     });
 
-    it('returns matching team suggestions ordered by name with max limit 15', async () => {
+    it('returns matching team suggestions ordered by name with max limit 20', async () => {
       const results = await matchesController.getTeams('Pfrondorf');
 
       expect(results).toHaveLength(2);
@@ -582,6 +592,8 @@ describe('MatchesService', () => {
         name: 'SV Pfrondorf 1',
         shortName: 'SV Pfrondorf',
         clubId: 101,
+        akName: 'Senioren',
+        geschlecht: 'männlich',
       });
 
       expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
@@ -593,6 +605,22 @@ describe('MatchesService', () => {
         : { sql: '', params: [] };
 
       expect(queryObj.params).toContain('%Pfrondorf%');
+    });
+
+    it('supports composite queries matching across team name, age class, and gender', async () => {
+      await matchesController.getTeams('MTV Stuttgart U12');
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%MTV%');
+      expect(queryObj.params).toContain('%Stuttgart%');
+      expect(queryObj.params).toContain('%U12%');
     });
   });
 
@@ -612,6 +640,24 @@ describe('MatchesService', () => {
 
       expect(queryObj.sql).toContain('ilike');
       expect(queryObj.params).toContain('%Pfrondorf%');
+    });
+
+    it('supports multi-token teamQuery matching across teams and league age class', async () => {
+      await service.findMatches({
+        teamQuery: 'MTV Stuttgart U12',
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%MTV%');
+      expect(queryObj.params).toContain('%Stuttgart%');
+      expect(queryObj.params).toContain('%U12%');
     });
 
     it('bypasses ST_DWithin radius filter when teamQuery is active even if coordinates are passed', async () => {

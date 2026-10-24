@@ -272,7 +272,20 @@ export function FilterBar({
         // SAFETY: /api/matches/teams returns TeamSuggestion[]
         const data = (await res.json()) as TeamSuggestion[];
 
-        setTeamSuggestions(data);
+        // Defensive deduplication across (name + akName + geschlecht)
+        const seen = new Set<string>();
+        const deduped: TeamSuggestion[] = [];
+
+        for (const item of data) {
+          const key = `${item.name}|${item.akName ?? ''}|${item.geschlecht ?? ''}`;
+
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduped.push(item);
+          }
+        }
+
+        setTeamSuggestions(deduped);
       } catch {
         if (controller.signal.aborted) {
           return;
@@ -282,26 +295,40 @@ export function FilterBar({
         const pool = getSampleMatches();
         const seen = new Set<string>();
         const localMatches: TeamSuggestion[] = [];
+        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
 
         for (const m of pool) {
           for (const t of [m.homeTeam, m.guestTeam]) {
-            if (
-              !seen.has(t.name) &&
-              (t.name.toLowerCase().includes(q.toLowerCase()) ||
-                Boolean(t.shortName?.toLowerCase().includes(q.toLowerCase())))
-            ) {
-              seen.add(t.name);
+            const key = `${t.name}|${m.league?.akName ?? ''}|${m.league?.geschlecht ?? ''}`;
+
+            if (seen.has(key)) {
+              continue;
+            }
+
+            const allTokensMatch = tokens.every((tok) => {
+              const nameMatch = t.name.toLowerCase().includes(tok);
+              const shortNameMatch = Boolean(t.shortName?.toLowerCase().includes(tok));
+              const akMatch = Boolean(m.league?.akName?.toLowerCase().includes(tok));
+              const genderMatch = Boolean(m.league?.geschlecht?.toLowerCase().includes(tok));
+
+              return nameMatch || shortNameMatch || akMatch || genderMatch;
+            });
+
+            if (allTokensMatch) {
+              seen.add(key);
               localMatches.push({
                 id: t.id,
                 name: t.name,
                 shortName: t.shortName,
                 clubId: t.clubId,
+                akName: m.league?.akName,
+                geschlecht: m.league?.geschlecht,
               });
             }
           }
         }
 
-        setTeamSuggestions(localMatches.slice(0, 15));
+        setTeamSuggestions(localMatches.slice(0, 20));
       } finally {
         setIsSearchingTeams(false);
       }
@@ -313,10 +340,28 @@ export function FilterBar({
     };
   }, [teamInput]);
 
-  const handleSelectTeam = React.useCallback(
-    (teamName: string) => {
-      setTeamQuery(teamName);
-      setTeamInput(teamName);
+  const handleSelectSuggestion = React.useCallback(
+    (suggestion: TeamSuggestion) => {
+      setTeamQuery(suggestion.name);
+      setTeamInput(suggestion.name);
+
+      if (suggestion.akName) {
+        setAgeClasses([suggestion.akName]);
+      }
+
+      if (suggestion.geschlecht) {
+        setGenders([suggestion.geschlecht]);
+      }
+
+      setIsTeamDropdownOpen(false);
+    },
+    [setAgeClasses, setGenders, setTeamQuery],
+  );
+
+  const handleSelectQuery = React.useCallback(
+    (rawQuery: string) => {
+      setTeamQuery(rawQuery);
+      setTeamInput(rawQuery);
       setIsTeamDropdownOpen(false);
     },
     [setTeamQuery],
@@ -350,16 +395,16 @@ export function FilterBar({
       } else if (e.key === 'Enter') {
         if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
           e.preventDefault();
-          handleSelectTeam(teamSuggestions[highlightedTeamIndex].name);
+          handleSelectSuggestion(teamSuggestions[highlightedTeamIndex]);
         } else if (teamInput.trim()) {
           e.preventDefault();
-          handleSelectTeam(teamInput.trim());
+          handleSelectQuery(teamInput.trim());
         }
       } else if (e.key === 'Escape') {
         setIsTeamDropdownOpen(false);
       }
     },
-    [handleSelectTeam, highlightedTeamIndex, isTeamDropdownOpen, teamInput, teamSuggestions],
+    [handleSelectQuery, handleSelectSuggestion, highlightedTeamIndex, isTeamDropdownOpen, teamInput, teamSuggestions],
   );
 
   const allSuggestions = React.useMemo(() => {
@@ -848,9 +893,9 @@ export function FilterBar({
               e.preventDefault();
 
               if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
-                handleSelectTeam(teamSuggestions[highlightedTeamIndex].name);
+                handleSelectSuggestion(teamSuggestions[highlightedTeamIndex]);
               } else if (teamInput.trim()) {
-                handleSelectTeam(teamInput.trim());
+                handleSelectQuery(teamInput.trim());
               }
             }}
             className="flex items-center gap-1.5"
@@ -918,11 +963,11 @@ export function FilterBar({
 
                   return (
                     <button
-                      key={`${suggestion.id}-${suggestion.name}`}
+                      key={`${suggestion.id}-${suggestion.name}-${suggestion.akName ?? ''}-${suggestion.geschlecht ?? ''}`}
                       type="button"
                       role="option"
                       aria-selected={isSelected}
-                      onClick={() => handleSelectTeam(suggestion.name)}
+                      onClick={() => handleSelectSuggestion(suggestion)}
                       onMouseEnter={() => setHighlightedTeamIndex(idx)}
                       className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
                         isSelected
@@ -932,13 +977,18 @@ export function FilterBar({
                     >
                       <div className="flex items-center gap-2 truncate">
                         <span className="text-sm shrink-0">🏀</span>
-                        <span className="truncate">{suggestion.name}</span>
+                        <span className="truncate font-medium">{suggestion.name}</span>
                         {suggestion.shortName && suggestion.shortName !== suggestion.name && (
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             ({suggestion.shortName})
                           </span>
                         )}
                       </div>
+                      {(suggestion.akName || suggestion.geschlecht) && (
+                        <span className="rounded bg-muted/80 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground shrink-0">
+                          {[suggestion.akName, suggestion.geschlecht].filter(Boolean).join(' ')}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
