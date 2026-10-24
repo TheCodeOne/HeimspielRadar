@@ -1,0 +1,24 @@
+services:
+  backend:
+    image: heimspielradar-backend:latest
+    container_name: heimspielradar-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL}
+      - ENABLE_CRON_SYNC=${ENABLE_CRON_SYNC:-true}
+      - CRON_DELTA_SCHEDULE=${CRON_DELTA_SCHEDULE:-0 5,18 * * *}
+      - CRON_DEEP_SCHEDULE=${CRON_DEEP_SCHEDULE:-0 2 * * 2}
+      - SCRAPER_SECRET=${SCRAPER_SECRET:-}
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
