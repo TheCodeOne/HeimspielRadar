@@ -143,6 +143,7 @@ export class ScraperService {
         name: t.name,
         shortName: t.shortName,
         clubId: t.clubId,
+        leagueId: dbLeague.id,
         rawData: t.raw,
       }));
 
@@ -156,6 +157,7 @@ export class ScraperService {
               name: sql`excluded.name`,
               shortName: sql`excluded.short_name`,
               clubId: sql`excluded.club_id`,
+              leagueId: sql`coalesce(excluded.league_id, ${teams.leagueId})`,
               rawData: sql`excluded.raw_data`,
             },
           })

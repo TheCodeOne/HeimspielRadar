@@ -126,14 +126,9 @@ export class MatchesService {
         clubId: sql<number | null>`min(${teams.clubId})`,
         akName: sql<string | null>`min(coalesce(${leagues.akName}, ${leagues.rawData}->>'akName'))`,
         geschlecht: sql<string | null>`min(coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht'))`,
-        matchCount: sql<number>`count(${matches.id})::int`,
       })
       .from(teams)
-      .leftJoin(
-        matches,
-        or(eq(matches.homeTeamId, teams.id), eq(matches.guestTeamId, teams.id))
-      )
-      .leftJoin(leagues, eq(matches.leagueId, leagues.id))
+      .leftJoin(leagues, eq(teams.leagueId, leagues.id))
       .where(and(...tokenConditions))
       .groupBy(
         teams.name,

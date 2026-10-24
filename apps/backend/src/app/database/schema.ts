@@ -99,16 +99,26 @@ export const leagues = pgTable('leagues', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const teams = pgTable('teams', {
-  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-  dbbId: integer('dbb_id').unique().notNull(),
-  name: text('name').notNull(),
-  shortName: text('short_name'),
-  clubId: integer('club_id'),
-  primaryVenueId: integer('primary_venue_id').references(() => venues.id, { onDelete: 'set null' }),
-  rawData: jsonb('raw_data'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const teams = pgTable(
+  'teams',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    dbbId: integer('dbb_id').unique().notNull(),
+    name: text('name').notNull(),
+    shortName: text('short_name'),
+    clubId: integer('club_id'),
+    leagueId: integer('league_id').references(() => leagues.id, { onDelete: 'set null' }),
+    primaryVenueId: integer('primary_venue_id').references(() => venues.id, { onDelete: 'set null' }),
+    rawData: jsonb('raw_data'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('teams_name_idx').on(table.name),
+    index('teams_short_name_idx').on(table.shortName),
+    index('teams_club_id_idx').on(table.clubId),
+    index('teams_league_id_idx').on(table.leagueId),
+  ]
+);
 
 export const venues = pgTable(
   'venues',
@@ -130,28 +140,37 @@ export const venues = pgTable(
   ]
 );
 
-export const matches = pgTable('matches', {
-  id: integer('id').primaryKey(), // Using DBB matchId directly
-  leagueId: integer('league_id')
-    .notNull()
-    .references(() => leagues.id, { onDelete: 'cascade' }),
-  matchDay: integer('match_day').notNull(),
-  matchNo: integer('match_no'),
-  kickoffDate: text('kickoff_date'), // 'YYYY-MM-DD'
-  kickoffTime: text('kickoff_time'), // 'HH:mm'
-  homeTeamId: integer('home_team_id')
-    .notNull()
-    .references(() => teams.id),
-  guestTeamId: integer('guest_team_id')
-    .notNull()
-    .references(() => teams.id),
-  venueId: integer('venue_id').references(() => venues.id),
-  isVenueVerified: boolean('is_venue_verified').default(false).notNull(),
-  result: text('result'),
-  confirmed: boolean('confirmed').default(false).notNull(),
-  rawData: jsonb('raw_data'),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+export const matches = pgTable(
+  'matches',
+  {
+    id: integer('id').primaryKey(), // Using DBB matchId directly
+    leagueId: integer('league_id')
+      .notNull()
+      .references(() => leagues.id, { onDelete: 'cascade' }),
+    matchDay: integer('match_day').notNull(),
+    matchNo: integer('match_no'),
+    kickoffDate: text('kickoff_date'), // 'YYYY-MM-DD'
+    kickoffTime: text('kickoff_time'), // 'HH:mm'
+    homeTeamId: integer('home_team_id')
+      .notNull()
+      .references(() => teams.id),
+    guestTeamId: integer('guest_team_id')
+      .notNull()
+      .references(() => teams.id),
+    venueId: integer('venue_id').references(() => venues.id),
+    isVenueVerified: boolean('is_venue_verified').default(false).notNull(),
+    result: text('result'),
+    confirmed: boolean('confirmed').default(false).notNull(),
+    rawData: jsonb('raw_data'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('matches_home_team_id_idx').on(table.homeTeamId),
+    index('matches_guest_team_id_idx').on(table.guestTeamId),
+    index('matches_league_id_idx').on(table.leagueId),
+    index('matches_kickoff_date_idx').on(table.kickoffDate),
+  ]
+);
 
 export const systemSettings = pgTable('system_settings', {
   key: text('key').primaryKey(),
@@ -177,6 +196,10 @@ export const leaguesRelations = relations(leagues, ({ many }) => ({
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
+  league: one(leagues, {
+    fields: [teams.leagueId],
+    references: [leagues.id],
+  }),
   homeMatches: many(matches, { relationName: 'homeTeam' }),
   guestMatches: many(matches, { relationName: 'guestTeam' }),
   primaryVenue: one(venues, {
