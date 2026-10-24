@@ -15,4 +15,5 @@ export interface MapEngineProps {
   showRadiusCircle?: boolean;
   onMarkerClick: (match: Match) => void;
   className?: string;
+  teamQuery?: string;
 }

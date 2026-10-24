@@ -19,6 +19,7 @@ export interface UseMatchesOptions {
   ageClasses?: string[];
   skillLevels?: string[];
   onlyUpcoming?: boolean;
+  teamQuery?: string;
   debounceMs?: number;
 }
 
@@ -42,6 +43,7 @@ export function useMatches({
   ageClasses,
   skillLevels,
   onlyUpcoming,
+  teamQuery,
   debounceMs = 300,
 }: UseMatchesOptions): UseMatchesResult {
   const [matches, setMatches] = React.useState<Match[]>([]);
@@ -107,6 +109,10 @@ export function useMatches({
           queryParams.set('onlyUpcoming', 'true');
         }
 
+        if (teamQuery) {
+          queryParams.set('teamQuery', teamQuery);
+        }
+
         const res = await fetch(`/api/matches?${queryParams.toString()}`, {
           signal: abortController.signal,
         });
@@ -144,6 +150,10 @@ export function useMatches({
         }
 
         processed.sort((a, b) => {
+          if (teamQuery) {
+            return compareMatchesChronologically(a, b);
+          }
+
           const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
 
           if (distDiff !== 0) {
@@ -238,8 +248,25 @@ export function useMatches({
             continue;
           }
 
-          // Apply radius filter
-          if (dist != null && dist > radiusKm) {
+          // Apply teamQuery filter if selected
+          if (teamQuery) {
+            const q = teamQuery.toLowerCase();
+
+            const homeMatches =
+              sample.homeTeam.name.toLowerCase().includes(q) ||
+              Boolean(sample.homeTeam.shortName?.toLowerCase().includes(q));
+
+            const guestMatches =
+              sample.guestTeam.name.toLowerCase().includes(q) ||
+              Boolean(sample.guestTeam.shortName?.toLowerCase().includes(q));
+
+            if (!homeMatches && !guestMatches) {
+              continue;
+            }
+          }
+
+          // Apply radius filter (bypassed when searching globally by team)
+          if (!teamQuery && dist != null && dist > radiusKm) {
             continue;
           }
 
@@ -250,6 +277,10 @@ export function useMatches({
         }
 
         fallbackResults.sort((a, b) => {
+          if (teamQuery) {
+            return compareMatchesChronologically(a, b);
+          }
+
           const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
 
           if (distDiff !== 0) {
@@ -285,6 +316,7 @@ export function useMatches({
     ageClassesKey,
     skillLevelsKey,
     onlyUpcoming,
+    teamQuery,
     debounceMs,
     triggerCount,
   ]);

@@ -18,6 +18,13 @@ export interface Team {
   clubId?: number;
 }
 
+export interface TeamSuggestion {
+  id: number;
+  name: string;
+  shortName?: string | null;
+  clubId?: number | null;
+}
+
 export interface Venue {
   id: number; // spielfeld.id from DBB
   name: string;
@@ -72,6 +79,7 @@ export interface NearbyMatchesQuery {
   date?: string; // YYYY-MM-DD
   dateFrom?: string; // YYYY-MM-DD (inclusive start of range)
   dateTo?: string; // YYYY-MM-DD (inclusive end of range)
+  teamQuery?: string;
   lat?: number;
   lng?: number;
   radiusKm?: number;

@@ -109,6 +109,7 @@ export function App() {
     ageClasses: filters.ageClasses.length > 0 ? filters.ageClasses : undefined,
     skillLevels: filters.skillLevels.length > 0 ? filters.skillLevels : undefined,
     onlyUpcoming: filters.onlyUpcoming,
+    teamQuery: filters.teamQuery,
     debounceMs: 300,
   });
 
@@ -244,22 +245,36 @@ export function App() {
               title="Filter und Standort anpassen"
               className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             >
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-              <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                {filters.location.name}
-              </span>
-              <span className="font-mono text-slate-400 shrink-0">
-                • {filters.radiusKm} km
-              </span>
-              <span className="hidden text-slate-400 sm:inline shrink-0">
-                • {filters.dateRangeDisplay}
-              </span>
-              <Badge
-                variant="outline"
-                className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
-              >
-                {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-              </Badge>
+              {filters.teamQuery ? (
+                <>
+                  <span className="shrink-0 text-sm leading-none">🏀</span>
+                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                    {filters.teamQuery}
+                  </span>
+                  <span className="font-mono text-slate-400 shrink-0">
+                    • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                    {filters.location.name}
+                  </span>
+                  <span className="font-mono text-slate-400 shrink-0">
+                    • {filters.radiusKm} km
+                  </span>
+                  <span className="hidden text-slate-400 sm:inline shrink-0">
+                    • {filters.dateRangeDisplay}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
+                  >
+                    {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                  </Badge>
+                </>
+              )}
             </button>
 
             {/* Full-Bleed MapContainer */}
@@ -278,6 +293,7 @@ export function App() {
               isLocating={filters.isLocating}
               engine={filters.mapEngine}
               onEngineChange={actions.setMapEngine}
+              teamQuery={filters.teamQuery}
               className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none"
               mapHeightClassName="w-full h-full"
             />
