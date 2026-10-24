@@ -1,0 +1,230 @@
+{
+  "timestamp": "2026-10-24T22:07:28+0200",
+  "status": "0",
+  "message": "",
+  "data": {
+    "filter": {
+      "plz": "70176",
+      "umkreis": 20000,
+      "akjIdList": [
+        1
+      ],
+      "gIdList": [
+        1,
+        2
+      ],
+      "eIdList": [
+        1,
+        2,
+        3
+      ],
+      "startAtIndex": 0
+    },
+    "clubOfferList": [
+      {
+        "plz": "70567",
+        "club": {
+          "vereinId": 738,
+          "vereinsname": "SpVgg Möhringen 1887 e. V.",
+          "vereinsnummer": "0133047",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 1,
+          "label": "m"
+        },
+        "experience": {
+          "id": 1,
+          "label": "Anfänger"
+        },
+        "contact": {
+          "name": "Oliver Sachs",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "oliver.sachs@svm-basketball.de",
+          "web": null
+        }
+      },
+      {
+        "plz": "70567",
+        "club": {
+          "vereinId": 738,
+          "vereinsname": "SpVgg Möhringen 1887 e. V.",
+          "vereinsnummer": "0133047",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 1,
+          "label": "m"
+        },
+        "experience": {
+          "id": 2,
+          "label": "Fortgeschrittene"
+        },
+        "contact": {
+          "name": "Romain Cantarellas",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "romain.cantarellas@svm-basketball.de",
+          "web": null
+        }
+      },
+      {
+        "plz": "70567",
+        "club": {
+          "vereinId": 738,
+          "vereinsname": "SpVgg Möhringen 1887 e. V.",
+          "vereinsnummer": "0133047",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 1,
+          "label": "m"
+        },
+        "experience": {
+          "id": 3,
+          "label": "Leistungssportler"
+        },
+        "contact": {
+          "name": "Sascha Klatt",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "sascha.klatt@svm-basketball.de",
+          "web": null
+        }
+      },
+      {
+        "plz": "70567",
+        "club": {
+          "vereinId": 738,
+          "vereinsname": "SpVgg Möhringen 1887 e. V.",
+          "vereinsnummer": "0133047",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 2,
+          "label": "w"
+        },
+        "experience": {
+          "id": 2,
+          "label": "Fortgeschrittene"
+        },
+        "contact": {
+          "name": "Anja Balleer",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "anja.balleer@svm-basketball.de",
+          "web": null
+        }
+      },
+      {
+        "plz": "70567",
+        "club": {
+          "vereinId": 738,
+          "vereinsname": "SpVgg Möhringen 1887 e. V.",
+          "vereinsnummer": "0133047",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 2,
+          "label": "w"
+        },
+        "experience": {
+          "id": 3,
+          "label": "Leistungssportler"
+        },
+        "contact": {
+          "name": "Marcus Dippel",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "marcus.dippel@svm-basketball.de",
+          "web": null
+        }
+      },
+      {
+        "plz": "70378",
+        "club": {
+          "vereinId": 2233,
+          "vereinsname": "TSV Mühlhausen",
+          "vereinsnummer": "0133096",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 1,
+          "label": "m"
+        },
+        "experience": {
+          "id": 2,
+          "label": "Fortgeschrittene"
+        },
+        "contact": {
+          "name": "Karel Adamec",
+          "telefonnr": null,
+          "mobilnr": "0177/2784858",
+          "email": "Basketball.Abteilungsleiter@tsv-muehlhausen.de",
+          "web": "http://www.tsv-muehlhausen.de"
+        }
+      },
+      {
+        "plz": "71691",
+        "club": {
+          "vereinId": 376,
+          "vereinsname": "Mamo Baskets Freiberg e.V.",
+          "vereinsnummer": "0133031",
+          "kontaktData": null
+        },
+        "akj": {
+          "id": 1,
+          "label": "2006 und älter"
+        },
+        "gender": {
+          "id": 1,
+          "label": "m"
+        },
+        "experience": {
+          "id": 2,
+          "label": "Fortgeschrittene"
+        },
+        "contact": {
+          "name": "Jeuk",
+          "telefonnr": null,
+          "mobilnr": null,
+          "email": "a.jeuk@mamo-baskets.de",
+          "web": "http://www.mamo-baskets.de"
+        }
+      }
+    ],
+    "hasMoreData": false
+  },
+  "version": "12.01.1-f733da5",
+  "dateFormat": "yyyy-MM-dd",
+  "timeFormat": "yyyy-MM-dd'T'HH:mm:ssZ",
+  "timeFormatShort": "HH:mm",
+  "serverInstance": "www",
+  "username": null,
+  "appContext": "https://www.basketball-bund.net"
+}
