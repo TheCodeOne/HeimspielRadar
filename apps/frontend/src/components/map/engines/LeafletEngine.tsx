@@ -165,6 +165,7 @@ function LeafletMapController({
 
 export function LeafletEngine({
   matches,
+  venueGroups,
   selectedMatchId,
   center,
   zoom,
@@ -178,8 +179,8 @@ export function LeafletEngine({
   const [currentZoom, setCurrentZoom] = React.useState<number>(zoom);
 
   const groups = React.useMemo(
-    () => groupMatchesByVenue(matches, selectedMatchId),
-    [matches, selectedMatchId],
+    () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
+    [venueGroups, matches, selectedMatchId],
   );
 
   const clusters = React.useMemo(

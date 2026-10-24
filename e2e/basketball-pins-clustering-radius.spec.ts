@@ -183,8 +183,9 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
     await expect(seamLine).toBeAttached();
 
     // Verify multi-match badge on Sporthalle West (2 matches)
-    const venueBadge = page.locator('span:has-text("2")').first();
+    const venueBadge = page.locator('.pin-match-badge').first();
     await expect(venueBadge).toBeVisible();
+    await expect(venueBadge).toHaveText('2');
   });
 
   test('2. Multiple nearby venues cluster into a badge and expand on click', async ({ page }) => {
@@ -285,5 +286,25 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
 
     // Verify screenshot was written
     expect(screenshotPath).toBeTruthy();
+  });
+
+  test('6. Clicking multi-match pin opens bottom Venue Overlay card with all matches sorted chronologically', async ({ page }) => {
+    await page.goto('/');
+
+    // Click the basketball pin with 2 matches (Sporthalle West)
+    const pin = page.locator('.pin-match-badge').first();
+    await expect(pin).toBeVisible({ timeout: 10000 });
+    await pin.click();
+
+    // Verify Venue Overlay card is visible at bottom
+    const venueHeading = page.getByRole('heading', { name: 'Sporthalle West' });
+    await expect(venueHeading).toBeVisible({ timeout: 5000 });
+
+    // Verify match count indicator in overlay
+    await expect(page.getByText('2 Heimspiele in dieser Halle')).toBeVisible();
+
+    // Verify both chronological matches are present: 18:00 and 20:00
+    await expect(page.getByText('18:00').first()).toBeVisible();
+    await expect(page.getByText('20:00').first()).toBeVisible();
   });
 });

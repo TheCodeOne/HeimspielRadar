@@ -21,6 +21,7 @@ function osmSubdomainProvider(x: number, y: number, z: number): string {
 
 export function PigeonEngine({
   matches,
+  venueGroups,
   selectedMatchId,
   center,
   zoom,
@@ -37,8 +38,8 @@ export function PigeonEngine({
   const [mapZoom, setMapZoom] = React.useState<number>(zoom);
 
   const groups = React.useMemo(
-    () => groupMatchesByVenue(matches, selectedMatchId),
-    [matches, selectedMatchId],
+    () => venueGroups ?? groupMatchesByVenue(matches, selectedMatchId),
+    [venueGroups, matches, selectedMatchId],
   );
 
   const clusters = React.useMemo(
