@@ -1,0 +1,156 @@
+[
+  {
+    "verbandId": 100,
+    "name": "DBB Bundesligen",
+    "abbreviation": "DBB",
+    "type": "national"
+  },
+  {
+    "verbandId": 29,
+    "name": "Deutsche Meisterschaften",
+    "abbreviation": "DBB-DM",
+    "type": "national"
+  },
+  {
+    "verbandId": 30,
+    "name": "Regionalliga Nord",
+    "abbreviation": "RLN",
+    "type": "regional"
+  },
+  {
+    "verbandId": 31,
+    "name": "Regionalliga Südwest",
+    "abbreviation": "RLSW",
+    "type": "regional"
+  },
+  {
+    "verbandId": 32,
+    "name": "Regionalliga Südost",
+    "abbreviation": "RLSO",
+    "type": "regional"
+  },
+  {
+    "verbandId": 33,
+    "name": "Regionalliga West",
+    "abbreviation": "RLW",
+    "type": "regional"
+  },
+  {
+    "verbandId": 1,
+    "name": "Basketballverband Baden-Württemberg e.V.",
+    "abbreviation": "BBW",
+    "state": "Baden-Württemberg",
+    "type": "state"
+  },
+  {
+    "verbandId": 2,
+    "name": "Bayerischer Basketball-Verband e.V.",
+    "abbreviation": "BBV",
+    "state": "Bayern",
+    "type": "state"
+  },
+  {
+    "verbandId": 3,
+    "name": "Berliner Basketball-Verband e.V.",
+    "abbreviation": "BBV",
+    "state": "Berlin",
+    "type": "state"
+  },
+  {
+    "verbandId": 4,
+    "name": "Bremer Basketball-Verband e.V.",
+    "abbreviation": "BBV",
+    "state": "Bremen",
+    "type": "state"
+  },
+  {
+    "verbandId": 5,
+    "name": "Hamburger Basketball-Verband e.V.",
+    "abbreviation": "HBV",
+    "state": "Hamburg",
+    "type": "state"
+  },
+  {
+    "verbandId": 6,
+    "name": "Hessischer Basketball-Verband e.V.",
+    "abbreviation": "HBV",
+    "state": "Hessen",
+    "type": "state"
+  },
+  {
+    "verbandId": 7,
+    "name": "Niedersächsischer Basketballverband e.V.",
+    "abbreviation": "NBV",
+    "state": "Niedersachsen",
+    "type": "state"
+  },
+  {
+    "verbandId": 8,
+    "name": "Basketballverband Rheinland-Pfalz e.V.",
+    "abbreviation": "BVRP",
+    "state": "Rheinland-Pfalz",
+    "type": "state"
+  },
+  {
+    "verbandId": 9,
+    "name": "Basketballverband Saar e.V.",
+    "abbreviation": "BVS",
+    "state": "Saarland",
+    "type": "state"
+  },
+  {
+    "verbandId": 10,
+    "name": "Basketball-Verband Schleswig-Holstein e.V.",
+    "abbreviation": "BVSH",
+    "state": "Schleswig-Holstein",
+    "type": "state"
+  },
+  {
+    "verbandId": 11,
+    "name": "Westdeutscher Basketball-Verband e.V.",
+    "abbreviation": "WBV",
+    "state": "Nordrhein-Westfalen",
+    "type": "state"
+  },
+  {
+    "verbandId": 12,
+    "name": "Basketball-Verband Mecklenburg-Vorpommern e.V.",
+    "abbreviation": "BVMV",
+    "state": "Mecklenburg-Vorpommern",
+    "type": "state"
+  },
+  {
+    "verbandId": 13,
+    "name": "Basketball-Verband Sachsen-Anhalt e.V.",
+    "abbreviation": "BVSA",
+    "state": "Sachsen-Anhalt",
+    "type": "state"
+  },
+  {
+    "verbandId": 14,
+    "name": "Brandenburger Basketball-Verband e.V.",
+    "abbreviation": "BBV",
+    "state": "Brandenburg",
+    "type": "state"
+  },
+  {
+    "verbandId": 15,
+    "name": "Basketball-Verband Sachsen e.V.",
+    "abbreviation": "BVS",
+    "state": "Sachsen",
+    "type": "state"
+  },
+  {
+    "verbandId": 16,
+    "name": "Thüringer Basketball-Verband e.V.",
+    "abbreviation": "TBV",
+    "state": "Thüringen",
+    "type": "state"
+  },
+  {
+    "verbandId": 40,
+    "name": "Deutscher Rollstuhlbasketball",
+    "abbreviation": "DRS",
+    "type": "special"
+  }
+]

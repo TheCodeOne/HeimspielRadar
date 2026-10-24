@@ -1,0 +1,1402 @@
+openapi: 3.1.0
+info:
+  title: Deutscher Basketball Bund (DBB) REST API
+  description: |
+    # Reverse-Engineered DBB REST API Specification
+
+    This OpenAPI 3.1 document provides the formal specification for the public REST API powering
+    **`https://www.basketball-bund.net/rest/*`** (TeamSL / Web-App Mobil / DBB Widgets).
+
+    The German Basketball Federation (*Deutscher Basketball Bund* — DBB) and its 16 regional associations (*Landesverbände*)
+    use this REST interface to deliver real-time competition schedules, match results, standings tables,
+    gym/hall venues, team rosters, and club registries.
+
+    ### Architectural Structure:
+    - **Base URL**: `https://www.basketball-bund.net`
+    - **Content Delivery & Caching**: Reverse-proxy cached via Varnish 6.2 with `Cache-Control: public, max-age=120`.
+    - **Standard Response Envelope**: Every REST response is wrapped in a standard JSON envelope with `status`, `message`, `data`, and execution metadata.
+    - **Regional Hierarchy**: 22 top-level Verband IDs spanning national leagues (BBL, ProA/ProB, DBBL), regional leagues (Regionalliga Nord, Südwest, Südost, West), and 16 state associations.
+
+    ### Core Use Cases for Scrapers & Third-Party Clients:
+    1. **League Discovery**: `POST /rest/wam/liga/list` with pagination to discover all active competitions per Verband.
+    2. **Full Schedule Sync**: `GET /rest/competition/spielplan/id/{ligaId}` to fetch the entire season schedule.
+    3. **Delta Sync & Standings**: `GET /rest/competition/number/{liganr}/actual?rangeDays=14` for fast windowed syncs and tables.
+    4. **Venue & Referee Details**: `GET /rest/match/id/{matchId}/matchInfo` to resolve gym locations (`spielfeld`) and officials.
+    5. **Club Home Fixtures**: `GET /rest/club/id/{clubId}/actualmatches?justHome=true` to fetch home fixtures (*Heimspiele*).
+  version: 1.0.0
+  contact:
+    name: HeimspielRadar Engineering
+    url: https://github.com/TheCodeOne/HeimspielRadar
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://www.basketball-bund.net
+    description: Official DBB Public REST Gateway (HTTPS / Varnish)
+
+tags:
+  - name: Competitions
+    description: League discovery, schedules, and competition metadata
+  - name: Matches
+    description: Match details, gym venues, scores, boxscores, and play-by-play
+  - name: Standings
+    description: League tables, rankings, and cross-tables
+  - name: Clubs & Teams
+    description: Club schedules, home match filters, team rosters, and radius search
+  - name: Regional Structure
+    description: German regional associations (Verband) and district hierarchy
+
+paths:
+  /rest/wam/liga/list:
+    post:
+      tags:
+        - Competitions
+        - Regional Structure
+      summary: List leagues by Verband with pagination
+      description: |
+        Discovers active competitions for one or more German basketball associations (`verbandIds`).
+        Supports cursor-based pagination via the `startAtIndex` query parameter and returns a page of up to 10 leagues.
+      operationId: listWamLeagues
+      parameters:
+        - name: startAtIndex
+          in: query
+          description: Zero-based starting index for pagination (increments by page size, e.g. 0, 10, 20...)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            example: 0
+      requestBody:
+        required: true
+        description: Verband filter criteria
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DbbWamLigaRequest'
+            examples:
+              badenWuerttemberg:
+                summary: Baden-Württemberg (Verband ID 1)
+                value:
+                  token: 0
+                  verbandIds: [1]
+              multiVerband:
+                summary: Bavaria & Hessen
+                value:
+                  token: 0
+                  verbandIds: [2, 6]
+      responses:
+        '200':
+          description: Paginated list of competitions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbWamLigaPage'
+              examples:
+                samplePage:
+                  summary: First page of Baden-Württemberg leagues
+                  externalValue: ./fixtures/wam-leagues.json
+
+  /rest/competition/spielplan/id/{ligaId}:
+    get:
+      tags:
+        - Competitions
+        - Matches
+      summary: Full season schedule for a competition
+      description: |
+        Fetches the complete schedule (Spielplan) of all matches across an entire season for a given competition ID.
+        Note: The returned match objects contain basic team and kickoff data, while `matchInfo` (venue) is null
+        and must be fetched via `/rest/match/id/{matchId}/matchInfo` or resolved via known team venues.
+      operationId: getCompetitionSpielplan
+      parameters:
+        - name: ligaId
+          in: path
+          description: Internal database ID of the league / competition (e.g. 52539)
+          required: true
+          schema:
+            type: integer
+            example: 52539
+      responses:
+        '200':
+          description: Full competition schedule and match list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbSpielplanData'
+              examples:
+                sampleSpielplan:
+                  summary: Regionalliga Baden-Württemberg schedule
+                  externalValue: ./fixtures/spielplan.json
+        '404':
+          description: Competition not found
+
+  /rest/competition/number/{liganr}/actual:
+    get:
+      tags:
+        - Competitions
+        - Standings
+        - Matches
+      summary: Actual matchday fixtures, standings table, and cross-table
+      description: |
+        Primary high-efficiency endpoint used by DBB widgets. Returns:
+        - Current matchday fixtures (filterable by `rangeDays`)
+        - Full current standings table (`tabelle`) with ranks, wins, losses, basket points, and differences
+        - Cross-table matrix (`kreuztabelle`)
+        - Team statistics
+
+        **Scraper Advantage**: Provides both fixtures and up-to-date standings in a single HTTP request
+        without needing to iterate all past season games.
+      operationId: getCompetitionActual
+      parameters:
+        - name: liganr
+          in: path
+          description: Official competition number (`liganr`, e.g. 7010 for 1. Regionalliga Damen)
+          required: true
+          schema:
+            type: integer
+            example: 7010
+        - name: rangeDays
+          in: query
+          description: |
+            Number of days forward/backward from the current date to include matches for.
+            - `0`: Only matches scheduled for today / current matchday
+            - `7`: Current week (±7 days)
+            - `14`: Bi-weekly window (upcoming + recently completed)
+          required: false
+          schema:
+            type: integer
+            example: 14
+        - name: spieltag
+          in: query
+          description: Optional matchday index (Spieltag)
+          required: false
+          schema:
+            type: integer
+            example: 6
+      responses:
+        '200':
+          description: Actual competition state with fixtures and standings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbCompetitionActualData'
+              examples:
+                sampleActual:
+                  summary: Actual state of league 7010 with standings
+                  externalValue: ./fixtures/tabelle.json
+
+  /rest/match/id/{matchId}/matchInfo:
+    get:
+      tags:
+        - Matches
+      summary: Detailed match info including gym venue address, quarter scores, and referees
+      description: |
+        Fetches detailed match information. **Critical for HeimspielRadar**: This is the primary REST endpoint
+        where the physical venue / sports hall (`spielfeld`) address (street, zip, city) is provided.
+        Also provides quarter breakdown (`matchResult`), referee assignments (`srList`), and top player performances.
+      operationId: getMatchInfo
+      parameters:
+        - name: matchId
+          in: path
+          description: Unique DBB match identifier
+          required: true
+          schema:
+            type: integer
+            example: 2915152
+      responses:
+        '200':
+          description: Detailed match information with gym venue and referees
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbMatchInfoData'
+              examples:
+                sampleMatchInfo:
+                  summary: Match details with Friedrich-Eugen-Gymnasium venue
+                  externalValue: ./fixtures/matchInfo.json
+        '404':
+          description: Match not found
+
+  /rest/match/id/{matchId}:
+    get:
+      tags:
+        - Matches
+      summary: Basic match metadata and final score
+      description: Fetches base match data without venue details.
+      operationId: getMatchById
+      parameters:
+        - name: matchId
+          in: path
+          description: Unique DBB match identifier
+          required: true
+          schema:
+            type: integer
+            example: 2915152
+      responses:
+        '200':
+          description: Match metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbMatch'
+
+  /rest/match/id/{matchId}/boxscore:
+    get:
+      tags:
+        - Matches
+      summary: Match boxscore and individual player statistics
+      description: |
+        Returns complete player boxscore statistics for both teams (points, 2PT, 3PT, FT, rebounds,
+        assists, steals, turnovers, blocks, personal fouls, and EFF efficiency rating).
+      operationId: getMatchBoxscore
+      parameters:
+        - name: matchId
+          in: path
+          description: Unique DBB match identifier
+          required: true
+          schema:
+            type: integer
+            example: 2915152
+      responses:
+        '200':
+          description: Detailed boxscore statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbBoxscoreData'
+              examples:
+                sampleBoxscore:
+                  summary: Boxscore for match 2915152
+                  externalValue: ./fixtures/boxscore.json
+
+  /rest/match/id/{matchId}/playbyplay:
+    get:
+      tags:
+        - Matches
+      summary: Live play-by-play event stream
+      description: Returns the chronological event log (shots made/missed, substitutions, fouls, timeouts) for games recorded via the DBB Digital Game Sheet (InGame-App / DBB.Scores).
+      operationId: getMatchPlayByPlay
+      parameters:
+        - name: matchId
+          in: path
+          description: Unique DBB match identifier
+          required: true
+          schema:
+            type: integer
+            example: 2915152
+      responses:
+        '200':
+          description: Play-by-play events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbPlayByPlayData'
+
+  /rest/club/id/{clubId}/actualmatches:
+    get:
+      tags:
+        - Clubs & Teams
+        - Matches
+      summary: Club matches across all teams with home-match filter
+      description: |
+        Fetches upcoming and recent fixtures for all teams belonging to a specific club.
+        Supports `justHome=true` to exclusively query home games (*Heimspiele*) and `rangeDays` to limit the time window.
+      operationId: getClubActualMatches
+      parameters:
+        - name: clubId
+          in: path
+          description: DBB club ID (e.g. 1024 for MTV Stuttgart)
+          required: true
+          schema:
+            type: integer
+            example: 1024
+        - name: justHome
+          in: query
+          description: Set to `true` to filter strictly for home matches (Heimspiele)
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+        - name: rangeDays
+          in: query
+          description: Lookahead/lookbehind window in days
+          required: false
+          schema:
+            type: integer
+            default: 14
+            example: 14
+      responses:
+        '200':
+          description: Club profile and scheduled matches
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbClubActualMatchesData'
+              examples:
+                sampleClubMatches:
+                  summary: MTV Stuttgart home matches for the next 14 days
+                  externalValue: ./fixtures/club-actualmatches.json
+
+  /rest/team/id/{teamPermanentId}/matches:
+    get:
+      tags:
+        - Clubs & Teams
+        - Matches
+      summary: Team roster profile and all season fixtures
+      description: |
+        Returns the official team metadata (age group, gender, team number, parent club) and all scheduled
+        fixtures for that specific team across the season.
+      operationId: getTeamMatches
+      parameters:
+        - name: teamPermanentId
+          in: path
+          description: Permanent team identifier (e.g. 151200)
+          required: true
+          schema:
+            type: integer
+            example: 151200
+      responses:
+        '200':
+          description: Team details and scheduled matches
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbTeamMatchesData'
+              examples:
+                sampleTeamMatches:
+                  summary: MTV Stuttgart 2 matches and roster metadata
+                  externalValue: ./fixtures/team-matches.json
+
+  /rest/club/searchMetadata:
+    get:
+      tags:
+        - Clubs & Teams
+      summary: Club directory search metadata and filter options
+      description: Returns filter facets (age categories, genders, player experience tiers) for the club search API.
+      operationId: getClubSearchMetadata
+      responses:
+        '200':
+          description: Available search facets
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbClubSearchMetadata'
+              examples:
+                sampleMetadata:
+                  summary: Club search filter metadata
+                  externalValue: ./fixtures/club-search-metadata.json
+
+  /rest/club/search:
+    post:
+      tags:
+        - Clubs & Teams
+      summary: Proximity search for basketball clubs by postal code and radius
+      description: |
+        Searches for clubs near a German postal code (`plz`) within a given radius (`umkreis` in meters).
+        Returns club contact information, official association club numbers (`vereinsnummer`), and offered teams.
+      operationId: searchClubs
+      requestBody:
+        required: true
+        description: Location and demographic search parameters
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DbbClubSearchRequest'
+            examples:
+              stuttgartRadius:
+                summary: Search 20km around Stuttgart 70176
+                value:
+                  plz: "70176"
+                  umkreis: 20000
+                  gIdList: [1, 2]
+                  akjIdList: [1]
+                  eIdList: [1, 2, 3]
+                  startAtIndex: 0
+      responses:
+        '200':
+          description: Matching clubs and team offerings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/DbbApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DbbClubSearchResult'
+              examples:
+                sampleResult:
+                  summary: Clubs near 70176
+                  externalValue: ./fixtures/club-search.json
+
+components:
+  schemas:
+    DbbApiResponse:
+      type: object
+      required:
+        - status
+        - message
+        - data
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          description: API execution code ('0' = success, '1' = not found, '-1' = error)
+          example: "0"
+        message:
+          type: string
+          description: Status message or error description
+          example: ""
+        timestamp:
+          type: string
+          description: Timestamp with timezone offset
+          example: "2026-10-24T22:00:47+0200"
+        version:
+          type: string
+          description: TeamSL backend service version
+          example: "12.01.1-f733da5"
+        dateFormat:
+          type: string
+          example: "yyyy-MM-dd"
+        timeFormat:
+          type: string
+          example: "yyyy-MM-dd'T'HH:mm:ssZ"
+        timeFormatShort:
+          type: string
+          example: "HH:mm"
+        serverInstance:
+          type: string
+          example: "www"
+        appContext:
+          type: string
+          example: "https://www.basketball-bund.net"
+        data:
+          type: object
+          description: Payload specific to each endpoint
+
+    DbbWamLigaRequest:
+      type: object
+      required:
+        - token
+        - verbandIds
+      properties:
+        token:
+          type: integer
+          description: Security / session token (always 0 for public queries)
+          default: 0
+          example: 0
+        verbandIds:
+          type: array
+          description: List of Verband IDs to query
+          items:
+            $ref: '#/components/schemas/VerbandId'
+          example: [1]
+
+    VerbandId:
+      type: integer
+      description: |
+        Official German Basketball Regional Association (Verband) identifier:
+        - `100`: DBB Bundesligen (BBL, ProA, ProB, DBBL)
+        - `29`: Deutsche Meisterschaften
+        - `30`: Regionalliga Nord (Bremen, Hamburg, Niedersachsen, Schleswig-Holstein, Berlin)
+        - `31`: Regionalliga Südwest (Baden-Württemberg, Hessen, Rheinland-Pfalz, Saarland)
+        - `32`: Regionalliga Südost (Bayern, Sachsen, Thüringen)
+        - `33`: Regionalliga West (Nordrhein-Westfalen)
+        - `1`: Basketballverband Baden-Württemberg e.V. (BBW)
+        - `2`: Bayerischer Basketball-Verband e.V. (BBV)
+        - `3`: Berliner Basketball-Verband e.V. (BBV)
+        - `4`: Bremer Basketball-Verband e.V.
+        - `5`: Hamburger Basketball-Verband e.V. (HBV)
+        - `6`: Hessischer Basketball-Verband e.V. (HBV)
+        - `7`: Niedersächsischer Basketballverband e.V. (NBV)
+        - `8`: Basketballverband Rheinland-Pfalz e.V. (BVRP)
+        - `9`: Basketballverband Saar e.V. (BVS)
+        - `10`: Basketball-Verband Schleswig-Holstein e.V. (BVSH)
+        - `11`: Westdeutscher Basketball-Verband e.V. (WBV / NRW)
+        - `12`: Basketball-Verband Mecklenburg-Vorpommern e.V. (BVMV)
+        - `13`: Basketball-Verband Sachsen-Anhalt e.V. (BVSA)
+        - `14`: Brandenburger Basketball-Verband e.V. (BBV)
+        - `15`: Basketball-Verband Sachsen e.V. (BVS)
+        - `16`: Thüringer Basketball-Verband e.V. (TBV)
+        - `40`: Deutscher Rollstuhlbasketball (DRS)
+      enum: [100, 29, 30, 31, 32, 33, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 40]
+      example: 1
+
+    DbbWamLigaPage:
+      type: object
+      required:
+        - startAtIndex
+        - hasMoreData
+        - size
+        - ligen
+      properties:
+        startAtIndex:
+          type: integer
+          example: 0
+        hasMoreData:
+          type: boolean
+          example: true
+        size:
+          type: integer
+          example: 10
+        ligen:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbLigaData'
+
+    DbbLigaData:
+      type: object
+      required:
+        - ligaId
+        - liganame
+      properties:
+        seasonId:
+          type: integer
+          nullable: true
+          example: 2026
+        seasonName:
+          type: string
+          nullable: true
+          example: "2026/2027"
+        actualMatchDay:
+          type: object
+          nullable: true
+          properties:
+            spieltag:
+              type: integer
+              example: 6
+            bezeichnung:
+              type: string
+              example: "6. Spieltag"
+        ligaId:
+          type: integer
+          description: Internal database competition ID
+          example: 52539
+        liganame:
+          type: string
+          example: "Regionalliga Baden-Württemberg Frauen"
+        liganr:
+          type: integer
+          nullable: true
+          description: Official competition number used for public widget lookups
+          example: 7010
+        skName:
+          type: string
+          nullable: true
+          description: League tier name (Spielklasse)
+          example: "1. Regionalliga"
+        skNameSmall:
+          type: string
+          nullable: true
+          example: "1. RL"
+        skEbeneId:
+          type: integer
+          nullable: true
+          example: 0
+        skEbeneName:
+          type: string
+          nullable: true
+          example: "Verband"
+        akName:
+          type: string
+          nullable: true
+          description: Age category (Altersklasse, e.g. Senioren, U18, U16)
+          example: "Senioren"
+        geschlechtId:
+          type: integer
+          nullable: true
+          description: "1 = male, 2 = female, 3 = mixed"
+          example: 2
+        geschlecht:
+          type: string
+          nullable: true
+          example: "weiblich"
+        verbandId:
+          type: integer
+          nullable: true
+          example: 1
+        verbandName:
+          type: string
+          nullable: true
+          example: "Baden-Württemberg"
+        bezirknr:
+          type: integer
+          nullable: true
+          example: 3
+        bezirkName:
+          type: string
+          nullable: true
+          example: "Nordwürttemberg"
+        kreisnr:
+          type: integer
+          nullable: true
+        kreisname:
+          type: string
+          nullable: true
+        statisticType:
+          type: integer
+          nullable: true
+          example: 1
+        vorabliga:
+          type: boolean
+          example: false
+        tableExists:
+          type: boolean
+          nullable: true
+          example: true
+        crossTableExists:
+          type: boolean
+          nullable: true
+          example: true
+
+    DbbTeam:
+      type: object
+      required:
+        - teamname
+      properties:
+        seasonTeamId:
+          type: integer
+          nullable: true
+          example: 437290
+        teamCompetitionId:
+          type: integer
+          nullable: true
+          example: 437290
+        teamPermanentId:
+          type: integer
+          nullable: true
+          description: Persistent cross-season team ID
+          example: 151200
+        teamname:
+          type: string
+          example: "MTV Stuttgart 2"
+        teamnameSmall:
+          type: string
+          nullable: true
+          example: "MTVS2"
+        clubId:
+          type: integer
+          nullable: true
+          description: Parent club ID
+          example: 1024
+        verzicht:
+          type: boolean
+          nullable: true
+          example: false
+
+    DbbMatch:
+      type: object
+      required:
+        - matchId
+        - matchDay
+        - homeTeam
+        - guestTeam
+      properties:
+        ligaData:
+          $ref: '#/components/schemas/DbbLigaData'
+        matchId:
+          type: integer
+          description: Unique DBB match identifier
+          example: 2915152
+        matchDay:
+          type: integer
+          description: Matchday number (Spieltag)
+          example: 2
+        matchNo:
+          type: integer
+          nullable: true
+          description: Match number in schedule
+          example: 10
+        kickoffDate:
+          type: string
+          format: date
+          nullable: true
+          description: Date in YYYY-MM-DD
+          example: "2026-09-19"
+        kickoffTime:
+          type: string
+          nullable: true
+          description: Kickoff time in HH:mm
+          example: "15:00"
+        homeTeam:
+          $ref: '#/components/schemas/DbbTeam'
+        guestTeam:
+          $ref: '#/components/schemas/DbbTeam'
+        result:
+          type: string
+          nullable: true
+          description: Final score as Home:Guest (e.g. 56:55)
+          example: "56:55"
+        ergebnisbestaetigt:
+          type: boolean
+          nullable: true
+          description: Whether the match score has been officially confirmed by the league manager
+          example: true
+        statisticType:
+          type: integer
+          nullable: true
+          example: 1
+        verzicht:
+          type: boolean
+          nullable: true
+          example: false
+        abgesagt:
+          type: boolean
+          nullable: true
+          description: Whether the match has been cancelled or forfeited
+          example: false
+        matchResult:
+          $ref: '#/components/schemas/DbbMatchResult'
+        matchInfo:
+          $ref: '#/components/schemas/DbbMatchInfo'
+        matchBoxscore:
+          $ref: '#/components/schemas/DbbBoxscore'
+        playByPlay:
+          type: object
+          nullable: true
+        hasPlayByPlay:
+          type: boolean
+          nullable: true
+          example: false
+
+    DbbVenue:
+      type: object
+      required:
+        - id
+        - bezeichnung
+        - strasse
+        - plz
+        - ort
+      properties:
+        id:
+          type: integer
+          description: DBB gym / sports hall venue ID
+          example: 106872
+        bezeichnung:
+          type: string
+          description: Name or facility designation of the gym
+          example: "Sporthalle des Friedrich-Eugen-Gymnasiums"
+        strasse:
+          type: string
+          description: Street and house number
+          example: "Johannesstr. 48"
+        plz:
+          type: string
+          description: German 5-digit postal code
+          example: "70176"
+        ort:
+          type: string
+          description: City or municipality
+          example: "Stuttgart"
+
+    DbbMatchResult:
+      type: object
+      nullable: true
+      properties:
+        heimEndstand:
+          type: integer
+          example: 56
+        gastEndstand:
+          type: integer
+          example: 55
+        heimHalbzeitstand:
+          type: integer
+          example: 9
+        gastHalbzeitstand:
+          type: integer
+          example: 11
+        heimV1stand:
+          type: integer
+          description: Quarter 1 points (Home)
+          example: 14
+        gastV1stand:
+          type: integer
+          description: Quarter 1 points (Guest)
+          example: 19
+        heimV3stand:
+          type: integer
+          description: Quarter 3 points (Home)
+          example: 18
+        gastV3stand:
+          type: integer
+          description: Quarter 3 points (Guest)
+          example: 8
+        heimV4stand:
+          type: integer
+          description: Quarter 4 points (Home)
+          example: 15
+        gastV4stand:
+          type: integer
+          description: Quarter 4 points (Guest)
+          example: 17
+        heimOt1stand:
+          type: integer
+          nullable: true
+        gastOt1stand:
+          type: integer
+          nullable: true
+
+    DbbMatchInfo:
+      type: object
+      nullable: true
+      properties:
+        spielfeld:
+          $ref: '#/components/schemas/DbbVenue'
+        srList:
+          type: array
+          description: Assigned referees and table officials
+          items:
+            type: object
+            properties:
+              rolle:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: "1. Schiedsrichter"
+                  kurzname:
+                    type: string
+                    example: "SR1"
+              personData:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 42876
+                  vorname:
+                    type: string
+                    example: "Fabian"
+                  nachname:
+                    type: string
+                    example: "Dörflinger"
+                  anonym:
+                    type: boolean
+                    example: false
+        topPerformances:
+          type: array
+          description: Top performances in points, rebounds, assists, steals, blocks
+          items:
+            type: object
+            properties:
+              performance:
+                type: string
+                example: "Punkte"
+              performanceA:
+                type: number
+                example: 21
+              performanceB:
+                type: number
+                example: 16
+
+    DbbSpielplanData:
+      type: object
+      required:
+        - ligaData
+        - matches
+      properties:
+        ligaData:
+          $ref: '#/components/schemas/DbbLigaData'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbMatch'
+
+    DbbCompetitionActualData:
+      type: object
+      required:
+        - ligaData
+        - matches
+        - tabelle
+      properties:
+        ligaData:
+          $ref: '#/components/schemas/DbbLigaData'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbMatch'
+        tabelle:
+          $ref: '#/components/schemas/DbbTable'
+        kreuztabelle:
+          type: object
+          description: Cross-table matrix for head-to-head match outcomes
+        teamStatistik:
+          type: object
+          description: Aggregated statistical averages per team
+
+    DbbTable:
+      type: object
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbTableEntry'
+
+    DbbTableEntry:
+      type: object
+      required:
+        - rang
+        - team
+        - anzspiele
+        - s
+        - n
+        - koerbe
+        - gegenKoerbe
+        - korbdiff
+      properties:
+        rang:
+          type: integer
+          description: League rank position (1 = first place)
+          example: 1
+        team:
+          $ref: '#/components/schemas/DbbTeam'
+        anzspiele:
+          type: integer
+          description: Games played
+          example: 4
+        anzGewinnpunkte:
+          type: integer
+          description: Championship points won (2 points per win in German basketball)
+          example: 8
+        anzVerlustpunkte:
+          type: integer
+          description: Championship points lost
+          example: 0
+        s:
+          type: integer
+          description: Total wins (Siege)
+          example: 4
+        n:
+          type: integer
+          description: Total losses (Niederlagen)
+          example: 0
+        koerbe:
+          type: integer
+          description: Total points scored
+          example: 349
+        gegenKoerbe:
+          type: integer
+          description: Total points conceded
+          example: 164
+        korbdiff:
+          type: integer
+          description: Point difference (koerbe - gegenKoerbe)
+          example: 185
+
+    DbbMatchInfoData:
+      allOf:
+        - $ref: '#/components/schemas/DbbMatch'
+
+    DbbBoxscoreData:
+      allOf:
+        - $ref: '#/components/schemas/DbbMatch'
+        - type: object
+          properties:
+            matchBoxscore:
+              $ref: '#/components/schemas/DbbBoxscore'
+
+    DbbBoxscore:
+      type: object
+      properties:
+        homePlayerStats:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbPlayerStat'
+        guestPlayerStats:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbPlayerStat'
+        homeTotalStats:
+          $ref: '#/components/schemas/DbbTeamTotalStats'
+        guestTotalStats:
+          $ref: '#/components/schemas/DbbTeamTotalStats'
+
+    DbbPlayerStat:
+      type: object
+      properties:
+        pts:
+          type: integer
+          description: Points scored
+          example: 21
+        twoPoints:
+          $ref: '#/components/schemas/DbbShotStat'
+        threePoints:
+          $ref: '#/components/schemas/DbbShotStat'
+        onePoints:
+          $ref: '#/components/schemas/DbbShotStat'
+        ro:
+          type: integer
+          description: Offensive rebounds
+          example: 2
+        rd:
+          type: integer
+          description: Defensive rebounds
+          example: 5
+        rt:
+          type: integer
+          description: Total rebounds
+          example: 7
+        as:
+          type: integer
+          description: Assists
+          example: 4
+        st:
+          type: integer
+          description: Steals
+          example: 3
+        to:
+          type: integer
+          description: Turnovers
+          example: 1
+        bs:
+          type: integer
+          description: Blocked shots
+          example: 0
+        fouls:
+          type: integer
+          description: Personal fouls
+          example: 2
+        eff:
+          type: integer
+          description: Individual efficiency rating
+          example: 28
+
+    DbbShotStat:
+      type: object
+      properties:
+        made:
+          type: integer
+          example: 8
+        attempted:
+          type: integer
+          example: 14
+        quota:
+          type: number
+          nullable: true
+          example: 0.571
+
+    DbbTeamTotalStats:
+      type: object
+      properties:
+        pts:
+          type: integer
+          example: 56
+        fouls:
+          type: integer
+          example: 15
+        eff:
+          type: integer
+          example: 73
+
+    DbbPlayByPlayData:
+      allOf:
+        - $ref: '#/components/schemas/DbbMatch'
+        - type: object
+          properties:
+            playByPlay:
+              type: array
+              items:
+                type: object
+                properties:
+                  actionId:
+                    type: integer
+                  minute:
+                    type: integer
+                  period:
+                    type: integer
+                  teamId:
+                    type: integer
+                  actionText:
+                    type: string
+
+    DbbClub:
+      type: object
+      required:
+        - vereinId
+        - vereinsname
+      properties:
+        vereinId:
+          type: integer
+          description: Unique DBB club identifier
+          example: 1024
+        vereinsname:
+          type: string
+          example: "MTV Stuttgart"
+        vereinsnummer:
+          type: string
+          nullable: true
+          description: Official 7-digit club registration code
+          example: "0133025"
+        kontaktData:
+          type: object
+          nullable: true
+
+    DbbClubActualMatchesData:
+      type: object
+      required:
+        - club
+        - matches
+      properties:
+        club:
+          $ref: '#/components/schemas/DbbClub'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbMatch'
+
+    DbbTeamMatchesData:
+      type: object
+      required:
+        - team
+        - matches
+      properties:
+        team:
+          $ref: '#/components/schemas/DbbTeamDetail'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbMatch'
+
+    DbbTeamDetail:
+      type: object
+      required:
+        - teamId
+        - teamName
+        - club
+      properties:
+        teamId:
+          type: integer
+          description: Permanent team identifier
+          example: 151200
+        teamName:
+          type: string
+          example: "MTV Stuttgart 2"
+        teamAkjId:
+          type: integer
+          example: 1
+        teamAkj:
+          type: string
+          example: "Senioren I"
+        teamGenderId:
+          type: integer
+          example: 2
+        teamGender:
+          type: string
+          example: "w"
+        teamNumber:
+          type: integer
+          example: 2
+        club:
+          $ref: '#/components/schemas/DbbClub'
+
+    DbbClubSearchMetadata:
+      type: object
+      required:
+        - akjList
+        - gList
+        - eList
+      properties:
+        akjList:
+          type: array
+          description: Available birth year / age group tiers
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              label:
+                type: string
+                example: "2006 und älter"
+        gList:
+          type: array
+          description: Gender categories
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              label:
+                type: string
+                example: "Herren"
+        eList:
+          type: array
+          description: Skill tiers
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              label:
+                type: string
+                example: "Anfänger"
+
+    DbbClubSearchRequest:
+      type: object
+      required:
+        - plz
+        - umkreis
+        - gIdList
+        - akjIdList
+        - eIdList
+      properties:
+        plz:
+          type: string
+          description: German postal code
+          example: "70176"
+        umkreis:
+          type: integer
+          description: Search radius in meters (e.g. 10000 = 10km, 20000 = 20km)
+          example: 20000
+        gIdList:
+          type: array
+          description: Gender IDs (1 = male, 2 = female)
+          items:
+            type: integer
+          example: [1, 2]
+        akjIdList:
+          type: array
+          description: Age category IDs from metadata
+          items:
+            type: integer
+          example: [1]
+        eIdList:
+          type: array
+          description: Experience level IDs (1 = Anfänger, 2 = Fortgeschrittene, 3 = Leistungssportler)
+          items:
+            type: integer
+          example: [1, 2, 3]
+        startAtIndex:
+          type: integer
+          default: 0
+          example: 0
+
+    DbbClubSearchResult:
+      type: object
+      required:
+        - hasMoreData
+        - clubOfferList
+      properties:
+        hasMoreData:
+          type: boolean
+          example: false
+        clubOfferList:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbbClubOffer'
+
+    DbbClubOffer:
+      type: object
+      required:
+        - plz
+        - club
+      properties:
+        plz:
+          type: string
+          example: "70567"
+        club:
+          $ref: '#/components/schemas/DbbClub'
+        akj:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            label:
+              type: string
+              example: "2006 und älter"
+        gender:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            label:
+              type: string
+              example: "m"
+        experience:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            label:
+              type: string
+              example: "Anfänger"
+        contact:
+          type: object
+          properties:
+            name:
+              type: string
+              example: "Oliver Sachs"
+            email:
+              type: string
+              nullable: true
+              example: "oliver.sachs@svm-basketball.de"
+            telefonnr:
+              type: string
+              nullable: true
+            mobilnr:
+              type: string
+              nullable: true
+            web:
+              type: string
+              nullable: true

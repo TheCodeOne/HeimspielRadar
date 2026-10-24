@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-10-24T22:07:28+0200",
+  "status": "0",
+  "message": "",
+  "data": {
+    "akjList": [
+      {
+        "id": 8,
+        "label": "2019"
+      },
+      {
+        "id": 9,
+        "label": "2018"
+      },
+      {
+        "id": 10,
+        "label": "2017"
+      },
+      {
+        "id": 11,
+        "label": "2016"
+      },
+      {
+        "id": 12,
+        "label": "2015"
+      },
+      {
+        "id": 13,
+        "label": "2014"
+      },
+      {
+        "id": 14,
+        "label": "2013"
+      },
+      {
+        "id": 15,
+        "label": "2012"
+      },
+      {
+        "id": 16,
+        "label": "2011"
+      },
+      {
+        "id": 17,
+        "label": "2010"
+      },
+      {
+        "id": 18,
+        "label": "2009"
+      },
+      {
+        "id": 19,
+        "label": "2008"
+      },
+      {
+        "id": 20,
+        "label": "2007"
+      },
+      {
+        "id": 1,
+        "label": "2006 und älter"
+      },
+      {
+        "id": 30,
+        "label": "1997 und älter"
+      },
+      {
+        "id": 32,
+        "label": "1992 und älter"
+      },
+      {
+        "id": 40,
+        "label": "1987 und älter"
+      },
+      {
+        "id": 45,
+        "label": "1982 und älter"
+      },
+      {
+        "id": 50,
+        "label": "1977 und älter"
+      },
+      {
+        "id": 55,
+        "label": "1972 und älter"
+      },
+      {
+        "id": 60,
+        "label": "1967 und älter"
+      },
+      {
+        "id": 65,
+        "label": "1962 und älter"
+      },
+      {
+        "id": 70,
+        "label": "1956 und älter"
+      }
+    ],
+    "gList": [
+      {
+        "id": 2,
+        "label": "Damen"
+      },
+      {
+        "id": 1,
+        "label": "Herren"
+      }
+    ],
+    "eList": [
+      {
+        "id": 1,
+        "label": "Anfänger"
+      },
+      {
+        "id": 2,
+        "label": "Fortgeschrittene"
+      },
+      {
+        "id": 3,
+        "label": "Leistungssportler"
+      }
+    ]
+  },
+  "version": "12.01.1-f733da5",
+  "dateFormat": "yyyy-MM-dd",
+  "timeFormat": "yyyy-MM-dd'T'HH:mm:ssZ",
+  "timeFormatShort": "HH:mm",
+  "serverInstance": "www",
+  "username": null,
+  "appContext": "https://www.basketball-bund.net"
+}

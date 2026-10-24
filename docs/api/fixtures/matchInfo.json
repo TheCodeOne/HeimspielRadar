@@ -1,0 +1,290 @@
+{
+  "timestamp": "2026-10-24T22:02:33+0200",
+  "status": "0",
+  "message": "",
+  "data": {
+    "ligaData": {
+      "seasonId": 2026,
+      "seasonName": "2026/2027",
+      "actualMatchDay": {
+        "spieltag": 6,
+        "bezeichnung": "6. Spieltag"
+      },
+      "ligaId": 52539,
+      "liganame": "Regionalliga Baden-Württemberg Frauen",
+      "liganr": 7010,
+      "skName": "1. Regionalliga",
+      "skNameSmall": "1. RL",
+      "skEbeneId": 0,
+      "skEbeneName": "Verband",
+      "akName": "Senioren",
+      "geschlechtId": 2,
+      "geschlecht": "weiblich",
+      "verbandId": 1,
+      "verbandName": "Baden-Württemberg",
+      "bezirknr": null,
+      "bezirkName": null,
+      "kreisnr": null,
+      "kreisname": null,
+      "statisticType": 1,
+      "vorabliga": false,
+      "tableExists": true,
+      "crossTableExists": true
+    },
+    "matchId": 2915152,
+    "matchDay": 2,
+    "matchNo": 10,
+    "kickoffDate": "2026-09-19",
+    "kickoffTime": "15:00",
+    "homeTeam": {
+      "seasonTeamId": 437290,
+      "teamCompetitionId": 437290,
+      "teamPermanentId": 151200,
+      "teamname": "MTV Stuttgart 2",
+      "teamnameSmall": "MTVS2",
+      "clubId": 1024,
+      "verzicht": false
+    },
+    "guestTeam": {
+      "seasonTeamId": 437297,
+      "teamCompetitionId": 437297,
+      "teamPermanentId": 151226,
+      "teamname": "TS Durlach",
+      "teamnameSmall": "Dur",
+      "clubId": 537,
+      "verzicht": false
+    },
+    "result": "56:55",
+    "ergebnisbestaetigt": true,
+    "statisticType": 1,
+    "verzicht": false,
+    "abgesagt": false,
+    "matchResult": {
+      "heimEndstand": 56,
+      "gastEndstand": 55,
+      "heimHalbzeitstand": 9,
+      "gastHalbzeitstand": 11,
+      "heimV1stand": 14,
+      "gastV1stand": 19,
+      "heimV3stand": 18,
+      "gastV3stand": 8,
+      "heimV4stand": 15,
+      "gastV4stand": 17,
+      "heimOt1stand": null,
+      "gastOt1stand": null,
+      "heimOt2stand": null,
+      "gastOt2stand": null
+    },
+    "matchInfo": {
+      "topPerformances": [
+        {
+          "performance": "Punkte",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 21,
+          "performanceB": 16
+        },
+        {
+          "performance": "Rebounds",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 0,
+          "performanceB": 0
+        },
+        {
+          "performance": "Assists",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 0,
+          "performanceB": 0
+        },
+        {
+          "performance": "Steals",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 0,
+          "performanceB": 0
+        },
+        {
+          "performance": "Blocked_Shots",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 0,
+          "performanceB": 0
+        },
+        {
+          "performance": "Effektivitaet",
+          "playerA": {
+            "playerId": 4419710,
+            "no": "0",
+            "person": {
+              "id": 830578,
+              "vorname": "Katara",
+              "nachname": "Lischka",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "playerB": {
+            "playerId": 4468076,
+            "no": "0",
+            "person": {
+              "id": 762671,
+              "vorname": "Fritzi Flora",
+              "nachname": "Raubach",
+              "anonym": false
+            },
+            "anonym": false
+          },
+          "performanceA": 28,
+          "performanceB": 22
+        }
+      ],
+      "spielfeld": {
+        "id": 106872,
+        "bezeichnung": "Sporthalle des Friedrich-Eugen-Gymnasiums",
+        "strasse": "Johannesstr. 48",
+        "plz": "70176",
+        "ort": "Stuttgart"
+      },
+      "srList": [
+        {
+          "rolle": {
+            "id": 1,
+            "name": "1. Schiedsrichter",
+            "kurzname": "SR1"
+          },
+          "personData": {
+            "id": 42876,
+            "vorname": "Fabian",
+            "nachname": "Dörflinger",
+            "anonym": false
+          }
+        },
+        {
+          "rolle": {
+            "id": 2,
+            "name": "2. Schiedsrichter",
+            "kurzname": "SR2"
+          },
+          "personData": {
+            "id": 770973,
+            "vorname": "Quirin",
+            "nachname": "Heinlein",
+            "anonym": false
+          }
+        }
+      ]
+    },
+    "matchBoxscore": null,
+    "playByPlay": null,
+    "hasPlayByPlay": false
+  },
+  "version": "12.01.1-f733da5",
+  "dateFormat": "yyyy-MM-dd",
+  "timeFormat": "yyyy-MM-dd'T'HH:mm:ssZ",
+  "timeFormatShort": "HH:mm",
+  "serverInstance": "www",
+  "username": null,
+  "appContext": "https://www.basketball-bund.net"
+}
