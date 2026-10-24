@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
+import { PgDialect, PgTable } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
-import { LeagueRawData } from '../database/schema';
+import { LeagueRawData, leagues } from '../database/schema';
 import { LeaguesController } from './leagues.controller';
 import { MatchesController } from './matches.controller';
-import { MatchesService } from './matches.service';
+import { MatchesService, RelationalMatchRow } from './matches.service';
 
 interface MockLeagueRow {
   id: number;
@@ -18,11 +18,6 @@ interface MockLeagueRow {
   akName?: string | null;
   geschlecht?: string | null;
   rawData?: LeagueRawData | null;
-}
-
-interface MockSelection {
-  dbbId?: object;
-  match?: object;
 }
 
 interface MockRow {
@@ -64,34 +59,55 @@ interface MockRow {
   distanceKm: string | number | null;
 }
 
-function createMockQuery<T>(results: T[], onWhere?: (condition?: SQL) => void) {
-  const promise = Promise.resolve(results);
+class InMemoryMatchesDatabase {
+  mockRows: MockRow[] = [];
+  mockLeagueRows: MockLeagueRow[] = [];
+  capturedWhereConditions: Array<SQL | undefined> = [];
+  findFirstMatch: jest.Mock = jest.fn();
 
-  const queryMethods = {
-    from: () => Object.assign(promise, queryMethods),
-    innerJoin: () => Object.assign(promise, queryMethods),
-    leftJoin: () => Object.assign(promise, queryMethods),
-    where: (cond?: SQL) => {
-      if (onWhere) {
-        onWhere(cond);
-      }
+  select() {
+    return {
+      from: (table: PgTable) => {
+        if (table === leagues) {
+          const promise = Promise.resolve(this.mockLeagueRows);
 
-      return Object.assign(promise, queryMethods);
+          const chain = {
+            orderBy: () => Object.assign(promise, chain),
+          };
+
+          return Object.assign(promise, chain);
+        }
+
+        const promise = Promise.resolve(this.mockRows);
+
+        const chain = {
+          innerJoin: () => Object.assign(promise, chain),
+          leftJoin: () => Object.assign(promise, chain),
+          where: (cond?: SQL) => {
+            this.capturedWhereConditions.push(cond);
+
+            return Object.assign(promise, chain);
+          },
+          orderBy: () => Object.assign(promise, chain),
+        };
+
+        return Object.assign(promise, chain);
+      },
+    };
+  }
+
+  query = {
+    matches: {
+      findFirst: this.findFirstMatch,
     },
-    orderBy: () => Object.assign(promise, queryMethods),
   };
-
-  return Object.assign(promise, queryMethods);
 }
 
 describe('MatchesService', () => {
   let service: MatchesService;
   let matchesController: MatchesController;
   let leaguesController: LeaguesController;
-  let mockRows: MockRow[];
-  let mockLeagueRows: MockLeagueRow[];
-  let mockFindFirst: jest.Mock;
-  let capturedWhereConditions: Array<SQL | undefined>;
+  let inMemoryDb: InMemoryMatchesDatabase;
 
   const sampleRow: MockRow = {
     match: {
@@ -143,8 +159,9 @@ describe('MatchesService', () => {
   };
 
   beforeEach(async () => {
-    mockRows = [sampleRow];
-    mockLeagueRows = [
+    inMemoryDb = new InMemoryMatchesDatabase();
+    inMemoryDb.mockRows = [sampleRow];
+    inMemoryDb.mockLeagueRows = [
       {
         id: 1,
         dbbId: 53941,
@@ -173,25 +190,6 @@ describe('MatchesService', () => {
         },
       },
     ];
-    mockFindFirst = jest.fn();
-    capturedWhereConditions = [];
-
-    const fakeDb = {
-      select: jest.fn((selection?: MockSelection) => {
-        if (selection && selection.dbbId && !selection.match) {
-          return createMockQuery(mockLeagueRows);
-        }
-
-        return createMockQuery(mockRows, (cond) => {
-          capturedWhereConditions.push(cond);
-        });
-      }),
-      query: {
-        matches: {
-          findFirst: mockFindFirst,
-        },
-      },
-    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MatchesController, LeaguesController],
@@ -199,7 +197,7 @@ describe('MatchesService', () => {
         MatchesService,
         {
           provide: DRIZZLE_DB,
-          useValue: fakeDb,
+          useValue: inMemoryDb,
         },
       ],
     }).compile();
@@ -272,7 +270,7 @@ describe('MatchesService', () => {
         distanceKm: null,
       };
 
-      mockRows = [nonSpatialRow];
+      inMemoryDb.mockRows = [nonSpatialRow];
 
       const results = await service.findMatches({
         date: '2026-10-25',
@@ -290,7 +288,7 @@ describe('MatchesService', () => {
         distanceKm: null,
       };
 
-      mockRows = [nonSpatialRow];
+      inMemoryDb.mockRows = [nonSpatialRow];
 
       const results = await service.findMatches({
         lat: Number.NaN,
@@ -331,7 +329,7 @@ describe('MatchesService', () => {
         skillLevels: ['Oberliga', 'Bezirksliga'],
         onlyUpcoming: undefined,
       });
-      expect(capturedWhereConditions).toHaveLength(1);
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
       expect(results).toHaveLength(1);
     });
 
@@ -367,7 +365,7 @@ describe('MatchesService', () => {
         skillLevels: undefined,
         onlyUpcoming: true,
       });
-      expect(capturedWhereConditions).toHaveLength(1);
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
       expect(results).toHaveLength(1);
     });
 
@@ -382,13 +380,13 @@ describe('MatchesService', () => {
         onlyUpcoming: true,
       });
 
-      expect(capturedWhereConditions).toHaveLength(1);
-      expect(capturedWhereConditions[0]).toBeDefined();
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+      expect(inMemoryDb.capturedWhereConditions[0]).toBeDefined();
 
       const dialect = new PgDialect();
 
-      const queryObj = capturedWhereConditions[0]
-        ? dialect.sqlToQuery(capturedWhereConditions[0])
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
         : { sql: '', params: [] };
 
       expect(queryObj.params).toContain('2026-10-18');
@@ -398,7 +396,7 @@ describe('MatchesService', () => {
     });
 
     it('cleanly maps matches with null kickoffDate and kickoffTime', async () => {
-      mockRows = [
+      inMemoryDb.mockRows = [
         {
           ...sampleRow,
           match: {
@@ -421,7 +419,7 @@ describe('MatchesService', () => {
 
   describe('findById', () => {
     it('returns match with league metadata when found by ID', async () => {
-      mockFindFirst.mockResolvedValueOnce({
+      inMemoryDb.findFirstMatch.mockResolvedValueOnce({
         id: 101,
         leagueId: 53941,
         league: {
@@ -469,7 +467,7 @@ describe('MatchesService', () => {
     });
 
     it('returns unscheduled match with null kickoffDate and kickoffTime cleanly', async () => {
-      mockFindFirst.mockResolvedValueOnce({
+      inMemoryDb.findFirstMatch.mockResolvedValueOnce({
         id: 2946831,
         leagueId: 53894,
         league: {
@@ -505,7 +503,7 @@ describe('MatchesService', () => {
     });
 
     it('returns null when match not found', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      inMemoryDb.findFirstMatch.mockResolvedValueOnce(null);
 
       const match = await service.findById(999);
 
@@ -539,6 +537,146 @@ describe('MatchesService', () => {
       await expect(unconfiguredService.findAllLeagues()).rejects.toThrow(
         'Database is not configured'
       );
+    });
+  });
+
+  describe('mapRelationalMatch & mapLeague', () => {
+    it('maps complete relational match row to domain Match DTO', () => {
+      const row: RelationalMatchRow = {
+        match: {
+          id: 100,
+          leagueId: 200,
+          matchDay: 5,
+          matchNo: 501,
+          kickoffDate: '2026-10-30',
+          kickoffTime: '19:30',
+          result: '80:75',
+          confirmed: true,
+        },
+        league: {
+          id: 200,
+          dbbId: 200,
+          name: 'Landesliga',
+          seasonId: 2026,
+          seasonName: '2026/2027',
+          verbandName: 'BBW',
+          skName: 'Landesliga',
+          akName: 'Senioren',
+          geschlecht: 'männlich',
+        },
+        homeTeam: {
+          id: 1,
+          dbbId: 10,
+          name: 'Home Team',
+          shortName: 'HT',
+          clubId: 100,
+        },
+        guestTeam: {
+          id: 2,
+          dbbId: 20,
+          name: 'Guest Team',
+          shortName: 'GT',
+          clubId: 200,
+        },
+        venue: {
+          id: 50,
+          name: 'Test Arena',
+          street: 'Main St 1',
+          postalCode: '70173',
+          city: 'Stuttgart',
+          latitude: 48.77,
+          longitude: 9.18,
+          geocodedAt: new Date('2026-10-01T12:00:00Z'),
+        },
+        distanceKm: '15.5',
+      };
+
+      const result = service.mapRelationalMatch(row);
+
+      expect(result).toEqual({
+        id: 100,
+        leagueId: 200,
+        league: {
+          id: 200,
+          dbbId: 200,
+          name: 'Landesliga',
+          seasonId: 2026,
+          seasonName: '2026/2027',
+          verbandName: 'BBW',
+          skName: 'Landesliga',
+          akName: 'Senioren',
+          geschlecht: 'männlich',
+        },
+        matchDay: 5,
+        matchNo: 501,
+        kickoffDate: '2026-10-30',
+        kickoffTime: '19:30',
+        homeTeam: {
+          id: 1,
+          dbbId: 10,
+          name: 'Home Team',
+          shortName: 'HT',
+          clubId: 100,
+        },
+        guestTeam: {
+          id: 2,
+          dbbId: 20,
+          name: 'Guest Team',
+          shortName: 'GT',
+          clubId: 200,
+        },
+        venue: {
+          id: 50,
+          name: 'Test Arena',
+          street: 'Main St 1',
+          postalCode: '70173',
+          city: 'Stuttgart',
+          latitude: 48.77,
+          longitude: 9.18,
+          geocodedAt: '2026-10-01T12:00:00.000Z',
+        },
+        result: '80:75',
+        confirmed: true,
+        distanceKm: 15.5,
+      });
+    });
+
+    it('maps relational match without venue to null venue', () => {
+      const row: RelationalMatchRow = {
+        match: {
+          id: 101,
+          leagueId: 200,
+          matchDay: 1,
+          confirmed: false,
+        },
+        homeTeam: { id: 1, dbbId: 10, name: 'Home' },
+        guestTeam: { id: 2, dbbId: 20, name: 'Guest' },
+        venue: null,
+      };
+
+      const result = service.mapRelationalMatch(row);
+
+      expect(result.venue).toBeNull();
+      expect(result.distanceKm).toBeUndefined();
+    });
+
+    it('coalesces league rawData when dedicated columns are null', () => {
+      const league = service.mapLeague({
+        id: 300,
+        name: 'Fallback League',
+        skName: null,
+        akName: null,
+        geschlecht: null,
+        rawData: {
+          skName: 'Coalesced SK',
+          akName: 'Coalesced AK',
+          geschlecht: 'mixed',
+        },
+      });
+
+      expect(league.skName).toBe('Coalesced SK');
+      expect(league.akName).toBe('Coalesced AK');
+      expect(league.geschlecht).toBe('mixed');
     });
   });
 });

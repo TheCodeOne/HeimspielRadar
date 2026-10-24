@@ -35,7 +35,17 @@ interface ExistingMatchRow {
 type SyncFailureSelect = typeof syncFailures.$inferSelect;
 
 interface MockInsertEntity {
+  id?: number;
   dbbId?: number;
+  name?: string;
+  street?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location?: { lng: number; lat: number } | null;
+  geocodedAt?: Date | null;
+  rawData?: unknown;
   entityType?: string;
   dbbLeagueId?: number;
   leagueName?: string | null;
@@ -58,6 +68,8 @@ interface InsertCallRecord {
 interface DbUpdateValues {
   latitude?: number | null;
   longitude?: number | null;
+  location?: { lng: number; lat: number } | null;
+  geocodedAt?: Date | null;
   errorMessage?: string;
   retryCount?: number | SQL;
   updatedAt?: Date;
@@ -146,13 +158,12 @@ class FakeDatabase {
     return {
       values: (vals: InsertPayload) => {
         const isBatch = Array.isArray(vals);
-        const rowCount = isBatch ? vals.length : 1;
+        const items = isBatch ? vals : [vals];
+        const rowCount = items.length;
 
         this.insertCalls.push({ table, isBatch, rowCount });
 
         if (table === syncFailures) {
-          const items = Array.isArray(vals) ? vals : [vals];
-
           for (const item of items) {
             this.existingFailures.push({
               id: this.existingFailures.length + 1,
@@ -169,9 +180,43 @@ class FakeDatabase {
           }
         }
 
-        const returningRows = isBatch
-          ? vals.map((item, idx) => ({ id: idx + 1, dbbId: item.dbbId }))
-          : [{ id: 1, dbbId: vals.dbbId }];
+        if (table === venues) {
+          for (const item of items) {
+            const v: typeof venues.$inferSelect = {
+              id: item.id ?? 1,
+              name: item.name ?? 'Venue',
+              street: item.street ?? null,
+              postalCode: item.postalCode ?? null,
+              city: item.city ?? null,
+              latitude: item.latitude ?? null,
+              longitude: item.longitude ?? null,
+              location: item.location ?? null,
+              geocodedAt: item.geocodedAt ?? null,
+              rawData: item.rawData ?? null,
+              updatedAt: new Date(),
+            };
+
+            const existingIdx = this.existingVenues.findIndex((x) => x.id === v.id);
+
+            if (existingIdx >= 0) {
+              this.existingVenues[existingIdx] = { ...this.existingVenues[existingIdx], ...v };
+            } else {
+              this.existingVenues.push(v);
+            }
+          }
+        }
+
+        const returningRows = items.map((item, idx) => {
+          if (table === venues) {
+            const found = this.existingVenues.find((x) => x.id === item.id);
+
+            if (found) {
+              return found;
+            }
+          }
+
+          return { id: idx + 1, dbbId: item.dbbId };
+        });
 
         const promise = Promise.resolve(returningRows);
 
@@ -192,6 +237,31 @@ class FakeDatabase {
         where: () => {
           this.updateCalls.push({ table, values: vals });
 
+          const updatedRows: Array<typeof venues.$inferSelect> = [];
+
+          if (table === venues) {
+            for (const v of this.existingVenues) {
+              if (vals.latitude !== undefined) {
+                v.latitude = vals.latitude;
+              }
+
+              if (vals.longitude !== undefined) {
+                v.longitude = vals.longitude;
+              }
+
+              if (vals.location !== undefined) {
+                v.location = vals.location;
+              }
+
+              if (vals.geocodedAt !== undefined) {
+                v.geocodedAt = vals.geocodedAt;
+              }
+
+              v.updatedAt = vals.updatedAt ?? new Date();
+              updatedRows.push({ ...v });
+            }
+          }
+
           if (table === syncFailures) {
             for (const item of this.existingFailures) {
               item.retryCount = (item.retryCount ?? 0) + 1;
@@ -199,7 +269,11 @@ class FakeDatabase {
             }
           }
 
-          return Promise.resolve();
+          const promise = Promise.resolve(updatedRows);
+
+          return Object.assign(promise, {
+            returning: () => Promise.resolve(updatedRows),
+          });
         },
       }),
     };
@@ -916,6 +990,77 @@ describe('ScraperService', () => {
           'Database is not configured!'
         );
       });
+    });
+  });
+
+  describe('resolveDbbTeamId', () => {
+    it('resolves seasonTeamId if available', () => {
+      const id = service.resolveDbbTeamId({
+        seasonTeamId: 101,
+        teamCompetitionId: 202,
+        teamPermanentId: 303,
+        teamname: 'Team A',
+      });
+
+      expect(id).toBe(101);
+    });
+
+    it('falls back to teamCompetitionId if seasonTeamId is not present', () => {
+      const id = service.resolveDbbTeamId({
+        teamCompetitionId: 202,
+        teamPermanentId: 303,
+        teamname: 'Team B',
+      });
+
+      expect(id).toBe(202);
+    });
+
+    it('falls back to teamPermanentId if other IDs are not present', () => {
+      const id = service.resolveDbbTeamId({
+        teamPermanentId: 303,
+        teamname: 'Team C',
+      });
+
+      expect(id).toBe(303);
+    });
+
+    it('returns null when team is null or undefined or IDs are missing', () => {
+      expect(service.resolveDbbTeamId(null)).toBeNull();
+      expect(service.resolveDbbTeamId(undefined)).toBeNull();
+      expect(service.resolveDbbTeamId({ teamname: 'No ID' })).toBeNull();
+    });
+  });
+
+  describe('persistVenueCoordinates', () => {
+    it('persists coordinates and PostGIS point to venue table', async () => {
+      fakeDb.existingVenues = [
+        {
+          id: 777,
+          name: 'Sporthalle',
+          street: 'Testweg 1',
+          postalCode: '70173',
+          city: 'Stuttgart',
+          latitude: null,
+          longitude: null,
+          location: null,
+          geocodedAt: null,
+          rawData: null,
+          updatedAt: new Date(),
+        },
+      ];
+
+      const updated = await service.persistVenueCoordinates(777, {
+        latitude: 48.78,
+        longitude: 9.18,
+      });
+
+      expect(updated).not.toBeNull();
+      expect(updated?.latitude).toBe(48.78);
+      expect(updated?.longitude).toBe(9.18);
+      expect(fakeDb.updateCalls).toHaveLength(1);
+      expect(fakeDb.updateCalls[0].values.latitude).toBe(48.78);
+      expect(fakeDb.updateCalls[0].values.longitude).toBe(9.18);
+      expect(fakeDb.updateCalls[0].values.location).toEqual({ lng: 9.18, lat: 48.78 });
     });
   });
 });
