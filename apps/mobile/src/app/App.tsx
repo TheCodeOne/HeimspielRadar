@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { PostHogProvider } from 'posthog-react-native';
 import type MapView from 'react-native-maps';
 
 import * as Location from 'expo-location';
@@ -20,6 +21,11 @@ import {
   saveCachedMatches,
   getCachedMatches,
 } from './matchCache';
+import {
+  POSTHOG_API_KEY,
+  posthogOptions,
+  trackEvent,
+} from './analytics';
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
@@ -77,9 +83,16 @@ export const App = () => {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      setLocation({
+      const coords = {
         latitude: currentPosition.coords.latitude,
         longitude: currentPosition.coords.longitude,
+      };
+
+      setLocation(coords);
+      trackEvent('location_centered', {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        source: 'initial_load',
       });
       setIsLocating(false);
     } catch {
@@ -184,6 +197,12 @@ export const App = () => {
   const handleRecenter = useCallback(() => {
     const target = location ?? STUTTGART_FALLBACK;
 
+    trackEvent('location_centered', {
+      latitude: target.latitude,
+      longitude: target.longitude,
+      source: 'user_action',
+    });
+
     if (mapRef.current) {
       mapRef.current.animateToRegion({
         latitude: target.latitude,
@@ -196,9 +215,14 @@ export const App = () => {
 
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
+    trackEvent('matches_refreshed', {
+      match_count: matches.length,
+      radius_km: DEFAULT_RADIUS_KM,
+    });
+
     const target = location ?? STUTTGART_FALLBACK;
     fetchMatchesForLocation(target, true);
-  }, [location, fetchMatchesForLocation]);
+  }, [location, matches.length, fetchMatchesForLocation]);
 
   // Selected match distance
   const selectedMatchDistance = useMemo(() => {
@@ -218,63 +242,101 @@ export const App = () => {
     );
   }, [selectedMatch, location]);
 
+  // Match selection handler
+  const handleSelectMatch = useCallback(
+    (match: Match) => {
+      setSelectedMatch(match);
+
+      const distance =
+        match.venue?.latitude && match.venue?.longitude && location
+          ? calculateDistanceKm(
+              location.latitude,
+              location.longitude,
+              match.venue.latitude,
+              match.venue.longitude,
+            )
+          : undefined;
+
+      trackEvent('match_selected', {
+        match_id: match.id,
+        home_team: match.homeTeam?.name,
+        guest_team: match.guestTeam?.name,
+        league: match.league?.name,
+        distance_km: distance !== undefined ? Number(distance.toFixed(1)) : undefined,
+      });
+    },
+    [location],
+  );
+
   if (isLocating && !location) {
     return (
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.centerContainer}>
-          <StatusBar barStyle="dark-content" />
-          <ActivityIndicator size="large" color="#0284c7" />
-          <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
-        </SafeAreaView>
-      </SafeAreaProvider>
+      <PostHogProvider
+        apiKey={POSTHOG_API_KEY}
+        options={posthogOptions}
+        autocapture={true}
+      >
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.centerContainer}>
+            <StatusBar barStyle="dark-content" />
+            <ActivityIndicator size="large" color="#0284c7" />
+            <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </PostHogProvider>
     );
   }
 
   const activeRegion = location ?? STUTTGART_FALLBACK;
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" />
+    <PostHogProvider
+      apiKey={POSTHOG_API_KEY}
+      options={posthogOptions}
+      autocapture={true}
+    >
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" />
 
-        {/* Main Fullscreen Interactive Map */}
-        <View style={styles.mapContainer}>
-          <NativeMap
-            mapRef={mapRef}
-            initialRegion={activeRegion}
-            radiusKm={DEFAULT_RADIUS_KM}
-            matches={matches}
-            selectedMatch={selectedMatch}
-            onSelectMatch={(match) => setSelectedMatch(match)}
-          />
-
-          {/* Floating Safe-Area Header Pill */}
-          <FloatingHeaderPill
-            matchCount={matches.length}
-            radiusKm={DEFAULT_RADIUS_KM}
-            isLoading={isLoadingMatches}
-            permissionDenied={permissionDenied}
-            isOffline={isOfflineMode || !network.isOnline}
-          />
-
-          {/* Floating Action Controls (Recenter, Reload) */}
-          <FloatingActionControls
-            onRecenter={handleRecenter}
-            onRefresh={handleRefresh}
-            isRefreshing={isLoadingMatches}
-          />
-
-          {/* Floating Glassmorphism Match Preview Card */}
-          {selectedMatch && (
-            <MatchPreviewCard
-              match={selectedMatch}
-              distanceKm={selectedMatchDistance}
-              onClose={() => setSelectedMatch(null)}
+          {/* Main Fullscreen Interactive Map */}
+          <View style={styles.mapContainer}>
+            <NativeMap
+              mapRef={mapRef}
+              initialRegion={activeRegion}
+              radiusKm={DEFAULT_RADIUS_KM}
+              matches={matches}
+              selectedMatch={selectedMatch}
+              onSelectMatch={handleSelectMatch}
             />
-          )}
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
+
+            {/* Floating Safe-Area Header Pill */}
+            <FloatingHeaderPill
+              matchCount={matches.length}
+              radiusKm={DEFAULT_RADIUS_KM}
+              isLoading={isLoadingMatches}
+              permissionDenied={permissionDenied}
+              isOffline={isOfflineMode || !network.isOnline}
+            />
+
+            {/* Floating Action Controls (Recenter, Reload) */}
+            <FloatingActionControls
+              onRecenter={handleRecenter}
+              onRefresh={handleRefresh}
+              isRefreshing={isLoadingMatches}
+            />
+
+            {/* Floating Glassmorphism Match Preview Card */}
+            {selectedMatch && (
+              <MatchPreviewCard
+                match={selectedMatch}
+                distanceKm={selectedMatchDistance}
+                onClose={() => setSelectedMatch(null)}
+              />
+            )}
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </PostHogProvider>
   );
 };
 
