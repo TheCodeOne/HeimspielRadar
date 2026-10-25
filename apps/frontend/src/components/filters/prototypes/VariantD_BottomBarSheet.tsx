@@ -31,8 +31,8 @@ interface DatePreset {
 const DATE_PRESETS: DatePreset[] = [
   { id: 'today', label: 'Heute' },
   { id: 'tomorrow', label: 'Morgen' },
-  { id: 'this_weekend', label: 'Wochenende' },
-  { id: 'next_weekend', label: 'Nächstes WE' },
+  { id: 'weekend', label: 'Wochenende' },
+  { id: 'next-weekend', label: 'Nächstes WE' },
   { id: 'all', label: 'Alle' },
 ];
 
@@ -123,18 +123,21 @@ export function VariantD_BottomBarSheet({
 
   const {
     dateMode,
-    setDateMode,
     radiusKm,
-    setRadiusKm,
     teamQuery,
-    setTeamQuery,
     genders,
-    setGenders,
     ageClasses,
-    setAgeClasses,
     activeFilterCount,
-    resetFilters,
   } = filters;
+
+  const {
+    setDateMode,
+    setRadius: setRadiusKm,
+    setTeamQuery,
+    setGenders,
+    setAgeClasses,
+    resetFilters,
+  } = actions;
 
   const effectiveMatchCount =
     availableOptions.matchesCount ?? availableOptions.matchCount ?? 0;
@@ -145,9 +148,9 @@ export function VariantD_BottomBarSheet({
         return 'Heute';
       case 'tomorrow':
         return 'Morgen';
-      case 'this_weekend':
+      case 'weekend':
         return 'Wochenende';
-      case 'next_weekend':
+      case 'next-weekend':
         return 'Nächstes WE';
       case 'custom':
         return 'Zeitraum';

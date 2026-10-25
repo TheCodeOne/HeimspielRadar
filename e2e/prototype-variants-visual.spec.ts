@@ -208,4 +208,47 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(sheet).not.toBeVisible();
     await expect(bottomBar).toBeVisible();
   });
+
+  test('Variant D: Filters work interactively (Gender toggle, Date selection, Reset)', async ({ page }) => {
+    await page.goto('/?variant=D');
+    await page.waitForLoadState('networkidle');
+
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar).toBeVisible();
+
+    // 1. Toggle "Damen" in Quick Chips
+    const damenBtn = bottomBar.getByRole('button', { name: 'Damen' });
+    await expect(damenBtn).toBeVisible();
+    await damenBtn.click();
+
+    // Verify Damen is now highlighted (active filter)
+    await expect(damenBtn).toHaveClass(/border-primary/);
+
+    // 2. Open sheet or use sidebar and change date to "Wochenende"
+    if (test.info().project.name === 'mobile-chromium') {
+      const filterBtn = bottomBar.getByRole('button', { name: /Filter/i }).first();
+      await filterBtn.click();
+
+      const sheet = page.getByRole('dialog');
+      await expect(sheet).toBeVisible();
+
+      // Click "Wochenende"
+      await sheet.getByRole('button', { name: 'Wochenende' }).click();
+
+      // Reset filters inside sheet
+      await sheet.getByRole('button', { name: 'Zurücksetzen' }).first().click();
+
+      // Close sheet
+      await sheet.getByRole('button', { name: /Spiele anzeigen/i }).click();
+    } else {
+      // On desktop, click "Wochenende" in sidebar
+      await page.getByRole('button', { name: 'Wochenende' }).click();
+
+      // Reset filters in sidebar
+      await page.getByRole('button', { name: 'Zurücksetzen' }).first().click();
+    }
+
+    // Verify Damen is no longer selected after reset
+    await expect(damenBtn).not.toHaveClass(/border-primary/);
+  });
 });

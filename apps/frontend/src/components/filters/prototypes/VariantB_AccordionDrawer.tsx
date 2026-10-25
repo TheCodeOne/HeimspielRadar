@@ -26,7 +26,7 @@ interface DatePreset {
 const DATE_PRESETS: DatePreset[] = [
   { id: 'today', label: 'Heute' },
   { id: 'tomorrow', label: 'Morgen' },
-  { id: 'this_weekend', label: 'Wochenende' },
+  { id: 'weekend', label: 'Wochenende' },
   { id: 'all', label: 'Alle' },
 ];
 
@@ -48,22 +48,25 @@ export function VariantB_AccordionDrawer({
 
   const {
     dateMode,
-    setDateMode,
     radiusKm,
-    setRadiusKm,
     teamQuery,
-    setTeamQuery,
     genders,
-    setGenders,
     ageClasses,
-    setAgeClasses,
     skillLevels,
-    setSkillLevels,
     leagueIds,
-    setLeagueIds,
     activeFilterCount,
-    resetFilters,
   } = filters;
+
+  const {
+    setDateMode,
+    setRadius: setRadiusKm,
+    setTeamQuery,
+    setGenders,
+    setAgeClasses,
+    setSkillLevels,
+    setLeagueIds,
+    resetFilters,
+  } = actions;
 
   const effectiveMatchCount =
     availableOptions.matchesCount ?? availableOptions.matchCount ?? 0;
