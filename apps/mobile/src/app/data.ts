@@ -12,16 +12,96 @@ export const STUTTGART_FALLBACK: LocationCoordinates = {
 
 export const DEFAULT_RADIUS_KM = 25;
 
-export function getSampleMatchesMobile(): Match[] {
-  // Use Europe/Berlin for current date calculation
-  const berlinParts = new Intl.DateTimeFormat('sv-SE', {
+export type RadiusOption = 10 | 25 | 50;
+
+export const RADIUS_OPTIONS: RadiusOption[] = [10, 25, 50];
+
+export type DateFilterOption = 'all' | 'today' | 'tomorrow' | 'weekend';
+
+export interface MobileFilterPreferences {
+  radiusKm: RadiusOption;
+  dateFilter: DateFilterOption;
+}
+
+export const DEFAULT_FILTER_PREFERENCES: MobileFilterPreferences = {
+  radiusKm: 25,
+  dateFilter: 'today',
+};
+
+export interface WeekendDates {
+  saturdayStr: string;
+  sundayStr: string;
+}
+
+/**
+ * Helper to get ISO date string (YYYY-MM-DD) in Europe/Berlin timezone
+ * with an optional day offset relative to now.
+ */
+export function getBerlinDateString(dayOffset = 0): string {
+  const target = new Date();
+
+  if (dayOffset !== 0) {
+    target.setDate(target.getDate() + dayOffset);
+  }
+
+  return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Europe/Berlin',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  }).format(target);
+}
 
-  const todayStr = berlinParts; // YYYY-MM-DD
+/**
+ * Calculate Saturday and Sunday ISO date strings for the upcoming / current weekend
+ * in Europe/Berlin timezone.
+ */
+export function getWeekendBerlinDates(): WeekendDates {
+  const now = new Date();
+
+  // Get day of week in Europe/Berlin
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin',
+    weekday: 'short',
+  });
+
+  const weekdayShort = formatter.format(now); // "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+
+  const dayOfWeek =
+    weekdayShort === 'Sun'
+      ? 0
+      : weekdayShort === 'Mon'
+      ? 1
+      : weekdayShort === 'Tue'
+      ? 2
+      : weekdayShort === 'Wed'
+      ? 3
+      : weekdayShort === 'Thu'
+      ? 4
+      : weekdayShort === 'Fri'
+      ? 5
+      : 6;
+
+  let daysToSaturday = 0;
+
+  if (dayOfWeek === 6) {
+    daysToSaturday = 0;
+  } else if (dayOfWeek === 0) {
+    daysToSaturday = -1; // Saturday was yesterday
+  } else {
+    daysToSaturday = 6 - dayOfWeek;
+  }
+
+  const saturdayStr = getBerlinDateString(daysToSaturday);
+  const sundayStr = getBerlinDateString(daysToSaturday + 1);
+
+  return { saturdayStr, sundayStr };
+}
+
+export function getSampleMatchesMobile(): Match[] {
+  const todayStr = getBerlinDateString(0);
+  const tomorrowStr = getBerlinDateString(1);
+  const { saturdayStr, sundayStr } = getWeekendBerlinDates();
 
   return [
     {
@@ -66,7 +146,7 @@ export function getSampleMatchesMobile(): Match[] {
       id: 91003,
       leagueId: 2,
       matchDay: 10,
-      kickoffDate: todayStr,
+      kickoffDate: tomorrowStr,
       kickoffTime: '19:30',
       confirmed: true,
       homeTeam: { id: 105, dbbId: 105, name: 'BBC Stuttgart' },
@@ -85,7 +165,7 @@ export function getSampleMatchesMobile(): Match[] {
       id: 91004,
       leagueId: 2,
       matchDay: 10,
-      kickoffDate: todayStr,
+      kickoffDate: tomorrowStr,
       kickoffTime: '14:00',
       confirmed: true,
       homeTeam: { id: 107, dbbId: 107, name: 'TV Kornwestheim' },
@@ -98,6 +178,63 @@ export function getSampleMatchesMobile(): Match[] {
         city: 'Kornwestheim',
         latitude: 48.8615,
         longitude: 9.1868,
+      },
+    },
+    {
+      id: 91005,
+      leagueId: 1,
+      matchDay: 13,
+      kickoffDate: saturdayStr,
+      kickoffTime: '17:30',
+      confirmed: true,
+      homeTeam: { id: 109, dbbId: 109, name: 'VfL Waiblingen 1' },
+      guestTeam: { id: 110, dbbId: 110, name: 'TSV Künzelsau' },
+      venue: {
+        id: 205,
+        name: 'Rundsporthalle Waiblingen',
+        street: 'Beinsteiner Str. 160',
+        postalCode: '71334',
+        city: 'Waiblingen',
+        latitude: 48.8315,
+        longitude: 9.3241,
+      },
+    },
+    {
+      id: 91006,
+      leagueId: 1,
+      matchDay: 13,
+      kickoffDate: sundayStr,
+      kickoffTime: '16:00',
+      confirmed: true,
+      homeTeam: { id: 111, dbbId: 111, name: 'SV 03 Tübingen' },
+      guestTeam: { id: 101, dbbId: 101, name: 'MTV Stuttgart' },
+      venue: {
+        id: 206,
+        name: 'Uhlandhalle Tübingen',
+        street: 'Uhlandstraße 28',
+        postalCode: '72072',
+        city: 'Tübingen',
+        latitude: 48.5175,
+        longitude: 9.0573,
+      },
+    },
+    {
+      id: 91007,
+      leagueId: 1,
+      matchDay: 14,
+      kickoffDate: saturdayStr,
+      kickoffTime: '20:00',
+      confirmed: true,
+      homeTeam: { id: 112, dbbId: 112, name: 'TSG Schwäbisch Hall' },
+      guestTeam: { id: 105, dbbId: 105, name: 'BBC Stuttgart' },
+      venue: {
+        id: 207,
+        name: 'Schenckenseehalle',
+        street: 'Schenckenseestraße 40',
+        postalCode: '74523',
+        city: 'Schwäbisch Hall',
+        latitude: 49.1065,
+        longitude: 9.7423,
       },
     },
   ];

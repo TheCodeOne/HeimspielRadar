@@ -16,6 +16,7 @@ import { NativeMap } from './NativeMap';
 import { MatchPreviewCard } from './MatchPreviewCard';
 import { FloatingHeaderPill } from './FloatingHeaderPill';
 import { FloatingActionControls } from './FloatingActionControls';
+import { FilterChips } from './FilterChips';
 import { useNetworkStatus } from './useNetworkStatus';
 import {
   saveCachedMatches,
@@ -29,10 +30,18 @@ import {
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
-  DEFAULT_RADIUS_KM,
+  RadiusOption,
+  DateFilterOption,
+  DEFAULT_FILTER_PREFERENCES,
+  getBerlinDateString,
+  getWeekendBerlinDates,
   getSampleMatchesMobile,
   calculateDistanceKm,
 } from './data';
+import {
+  loadFilterPreferences,
+  saveFilterPreferences,
+} from './storage';
 
 export const App = () => {
   const [location, setLocation] = useState<LocationCoordinates | null>(null);
@@ -43,26 +52,52 @@ export const App = () => {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
+  // Filter state with defaults
+  const [radiusKm, setRadiusKm] = useState<RadiusOption>(
+    DEFAULT_FILTER_PREFERENCES.radiusKm,
+  );
+
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>(
+    DEFAULT_FILTER_PREFERENCES.dateFilter,
+  );
+
+  const [isStorageLoaded, setIsStorageLoaded] = useState<boolean>(false);
+
   const mapRef = useRef<MapView | null>(null);
   const network = useNetworkStatus();
   const wasOfflineRef = useRef<boolean>(false);
 
-  // 1. Initial Load: Read cached matches first for immediate offline availability
+  // 1. Load initial cache & persisted filter preferences on mount
   useEffect(() => {
-    async function loadInitialCache() {
-      const cached = await getCachedMatches();
+    let isMounted = true;
 
-      if (cached && cached.matches.length > 0) {
-        setMatches(cached.matches);
+    async function init() {
+      const [cached, prefs] = await Promise.all([
+        getCachedMatches(),
+        loadFilterPreferences(),
+      ]);
 
-        if (!location) {
-          setLocation(cached.coords);
+      if (isMounted) {
+        if (cached && cached.matches.length > 0) {
+          setMatches(cached.matches);
+
+          if (!location) {
+            setLocation(cached.coords);
+          }
         }
+
+        setRadiusKm(prefs.radiusKm);
+        setDateFilter(prefs.dateFilter);
+        setIsStorageLoaded(true);
       }
     }
 
-    loadInitialCache();
-  }, []); // Run once on startup
+    init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // 2. Geolocation Request
   const requestLocation = useCallback(async () => {
@@ -73,7 +108,7 @@ export const App = () => {
 
       if (status !== 'granted') {
         setPermissionDenied(true);
-        setLocation((prev) => prev ?? STUTTGART_FALLBACK);
+        setLocation(STUTTGART_FALLBACK);
         setIsLocating(false);
 
         return;
@@ -97,7 +132,7 @@ export const App = () => {
       setIsLocating(false);
     } catch {
       setPermissionDenied(true);
-      setLocation((prev) => prev ?? STUTTGART_FALLBACK);
+      setLocation(STUTTGART_FALLBACK);
       setIsLocating(false);
     }
   }, []);
@@ -106,18 +141,72 @@ export const App = () => {
     requestLocation();
   }, [requestLocation]);
 
-  // 3. Fetch matches (API -> Cache -> Fallback)
+  // 3. Filtering logic for cached or sample matches
+  const filterMatchesLocally = useCallback(
+    (
+      pool: Match[],
+      coords: LocationCoordinates,
+      radius: number,
+      dateMode: DateFilterOption,
+    ): Match[] => {
+      const todayStr = getBerlinDateString(0);
+      const tomorrowStr = getBerlinDateString(1);
+      const { saturdayStr, sundayStr } = getWeekendBerlinDates();
+
+      return pool.filter((match) => {
+        // Distance check
+        if (match.venue?.latitude && match.venue?.longitude) {
+          const dist = calculateDistanceKm(
+            coords.latitude,
+            coords.longitude,
+            match.venue.latitude,
+            match.venue.longitude,
+          );
+
+          if (dist > radius) {
+            return false;
+          }
+        }
+
+        // Date check (Europe/Berlin kickoffDate)
+        if (dateMode === 'today') {
+          return match.kickoffDate === todayStr;
+        }
+
+        if (dateMode === 'tomorrow') {
+          return match.kickoffDate === tomorrowStr;
+        }
+
+        if (dateMode === 'weekend') {
+          return (
+            match.kickoffDate === saturdayStr || match.kickoffDate === sundayStr
+          );
+        }
+
+        return true;
+      });
+    },
+    [],
+  );
+
+  // 4. Fetch matches (API -> Cache -> Fallback)
   const fetchMatchesForLocation = useCallback(
-    async (coords: LocationCoordinates, isManualOrForced = false) => {
-      // If we know we are offline, immediately serve cache or fallback without network delay
+    async (
+      coords: LocationCoordinates,
+      radius: RadiusOption,
+      dateMode: DateFilterOption,
+      isManualOrForced = false,
+    ) => {
+      // If we know we are offline, immediately serve cache or sample fallback without network timeout
       if (!network.isOnline && !isManualOrForced) {
         setIsOfflineMode(true);
         const cached = await getCachedMatches();
 
         if (cached && cached.matches.length > 0) {
-          setMatches(cached.matches);
+          setMatches(filterMatchesLocally(cached.matches, coords, radius, dateMode));
         } else {
-          setMatches(getSampleMatchesMobile());
+          const samples = getSampleMatchesMobile();
+          setMatches(filterMatchesLocally(samples, coords, radius, dateMode));
         }
 
         setIsLoadingMatches(false);
@@ -127,8 +216,22 @@ export const App = () => {
 
       setIsLoadingMatches(true);
 
+      const todayStr = getBerlinDateString(0);
+      const tomorrowStr = getBerlinDateString(1);
+      const { saturdayStr, sundayStr } = getWeekendBerlinDates();
+
+      let queryParams = `lat=${coords.latitude}&lng=${coords.longitude}&radiusKm=${radius}`;
+
+      if (dateMode === 'today') {
+        queryParams += `&date=${todayStr}`;
+      } else if (dateMode === 'tomorrow') {
+        queryParams += `&date=${tomorrowStr}`;
+      } else if (dateMode === 'weekend') {
+        queryParams += `&dateFrom=${saturdayStr}&dateTo=${sundayStr}`;
+      }
+
       try {
-        const apiUrl = `http://localhost:3000/api/matches?lat=${coords.latitude}&lng=${coords.longitude}&radiusKm=${DEFAULT_RADIUS_KM}`;
+        const apiUrl = `http://localhost:3000/api/matches?${queryParams}`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
 
@@ -143,16 +246,17 @@ export const App = () => {
           setMatches(data);
           setIsOfflineMode(false);
           // Persist to cache on successful fetch
-          await saveCachedMatches(data, coords, DEFAULT_RADIUS_KM);
+          await saveCachedMatches(data, coords, radius);
         } else {
           // If server error, check cache first
           const cached = await getCachedMatches();
 
           if (cached && cached.matches.length > 0) {
-            setMatches(cached.matches);
+            setMatches(filterMatchesLocally(cached.matches, coords, radius, dateMode));
             setIsOfflineMode(true);
           } else {
-            setMatches(getSampleMatchesMobile());
+            const samples = getSampleMatchesMobile();
+            setMatches(filterMatchesLocally(samples, coords, radius, dateMode));
             setIsOfflineMode(!network.isOnline);
           }
         }
@@ -161,9 +265,10 @@ export const App = () => {
         const cached = await getCachedMatches();
 
         if (cached && cached.matches.length > 0) {
-          setMatches(cached.matches);
+          setMatches(filterMatchesLocally(cached.matches, coords, radius, dateMode));
         } else {
-          setMatches(getSampleMatchesMobile());
+          const samples = getSampleMatchesMobile();
+          setMatches(filterMatchesLocally(samples, coords, radius, dateMode));
         }
 
         setIsOfflineMode(true);
@@ -171,16 +276,42 @@ export const App = () => {
         setIsLoadingMatches(false);
       }
     },
-    [network.isOnline],
+    [filterMatchesLocally, network.isOnline],
   );
 
   useEffect(() => {
-    if (location) {
-      fetchMatchesForLocation(location);
+    if (location && isStorageLoaded) {
+      fetchMatchesForLocation(location, radiusKm, dateFilter);
     }
-  }, [location, fetchMatchesForLocation]);
+  }, [location, isStorageLoaded, radiusKm, dateFilter, fetchMatchesForLocation]);
 
-  // 4. Background revalidation when network transitions from offline to online
+  // Handle radius selection & persist
+  const handleSelectRadius = useCallback(
+    (newRadius: RadiusOption) => {
+      setRadiusKm(newRadius);
+      saveFilterPreferences({ radiusKm: newRadius, dateFilter });
+      trackEvent('filter_changed', {
+        filter_name: 'radiusKm',
+        value: newRadius,
+      });
+    },
+    [dateFilter],
+  );
+
+  // Handle date filter selection & persist
+  const handleSelectDate = useCallback(
+    (newDate: DateFilterOption) => {
+      setDateFilter(newDate);
+      saveFilterPreferences({ radiusKm, dateFilter: newDate });
+      trackEvent('filter_changed', {
+        filter_name: 'dateFilter',
+        value: newDate,
+      });
+    },
+    [radiusKm],
+  );
+
+  // Background revalidation when network transitions from offline to online
   useEffect(() => {
     if (!network.isOnline) {
       wasOfflineRef.current = true;
@@ -189,9 +320,9 @@ export const App = () => {
       // Back online!
       wasOfflineRef.current = false;
       const targetCoords = location ?? STUTTGART_FALLBACK;
-      fetchMatchesForLocation(targetCoords, true);
+      fetchMatchesForLocation(targetCoords, radiusKm, dateFilter, true);
     }
-  }, [network.isOnline, location, fetchMatchesForLocation]);
+  }, [network.isOnline, location, radiusKm, dateFilter, fetchMatchesForLocation]);
 
   // Recenter Map Handler
   const handleRecenter = useCallback(() => {
@@ -207,22 +338,22 @@ export const App = () => {
       mapRef.current.animateToRegion({
         latitude: target.latitude,
         longitude: target.longitude,
-        latitudeDelta: 0.25,
-        longitudeDelta: 0.25,
+        latitudeDelta: radiusKm > 25 ? 0.6 : 0.25,
+        longitudeDelta: radiusKm > 25 ? 0.6 : 0.25,
       });
     }
-  }, [location]);
+  }, [location, radiusKm]);
 
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
     trackEvent('matches_refreshed', {
       match_count: matches.length,
-      radius_km: DEFAULT_RADIUS_KM,
+      radius_km: radiusKm,
     });
 
     const target = location ?? STUTTGART_FALLBACK;
-    fetchMatchesForLocation(target, true);
-  }, [location, matches.length, fetchMatchesForLocation]);
+    fetchMatchesForLocation(target, radiusKm, dateFilter, true);
+  }, [location, matches.length, radiusKm, dateFilter, fetchMatchesForLocation]);
 
   // Selected match distance
   const selectedMatchDistance = useMemo(() => {
@@ -303,7 +434,7 @@ export const App = () => {
             <NativeMap
               mapRef={mapRef}
               initialRegion={activeRegion}
-              radiusKm={DEFAULT_RADIUS_KM}
+              radiusKm={radiusKm}
               matches={matches}
               selectedMatch={selectedMatch}
               onSelectMatch={handleSelectMatch}
@@ -312,10 +443,18 @@ export const App = () => {
             {/* Floating Safe-Area Header Pill */}
             <FloatingHeaderPill
               matchCount={matches.length}
-              radiusKm={DEFAULT_RADIUS_KM}
+              radiusKm={radiusKm}
               isLoading={isLoadingMatches}
               permissionDenied={permissionDenied}
               isOffline={isOfflineMode || !network.isOnline}
+            />
+
+            {/* Floating Filter Bar (Radius & Date Chips) */}
+            <FilterChips
+              selectedRadius={radiusKm}
+              onSelectRadius={handleSelectRadius}
+              selectedDate={dateFilter}
+              onSelectDate={handleSelectDate}
             />
 
             {/* Floating Action Controls (Recenter, Reload) */}
