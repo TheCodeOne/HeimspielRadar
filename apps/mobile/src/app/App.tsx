@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,7 +12,7 @@ import type MapView from 'react-native-maps';
 import * as Location from 'expo-location';
 import type { Match } from '@sundayleague/shared-types';
 import { NativeMap } from './NativeMap';
-import { MatchPreviewCard } from './MatchPreviewCard';
+import { MobileBottomSheet } from './MobileBottomSheet';
 import { FloatingHeaderPill } from './FloatingHeaderPill';
 import { FloatingActionControls } from './FloatingActionControls';
 import { FilterChips } from './FilterChips';
@@ -323,23 +323,23 @@ export const App = () => {
     fetchMatchesForLocation(target, radiusKm, dateFilter, true);
   }, [location, radiusKm, dateFilter, fetchMatchesForLocation]);
 
-  // Selected match distance
-  const selectedMatchDistance = useMemo(() => {
-    if (
-      !selectedMatch?.venue?.latitude ||
-      !selectedMatch?.venue?.longitude ||
-      !location
-    ) {
-      return undefined;
-    }
+  // 2-Way Sync: Tapping match in Bottom Sheet animates map to venue and highlights pin
+  const handleSelectMatch = useCallback((match: Match) => {
+    setSelectedMatch(match);
 
-    return calculateDistanceKm(
-      location.latitude,
-      location.longitude,
-      selectedMatch.venue.latitude,
-      selectedMatch.venue.longitude,
-    );
-  }, [selectedMatch, location]);
+    if (match.venue?.latitude && match.venue?.longitude && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: match.venue.latitude,
+        longitude: match.venue.longitude,
+        latitudeDelta: 0.08,
+        longitudeDelta: 0.08,
+      });
+    }
+  }, []);
+
+  const handleClearSelectedMatch = useCallback(() => {
+    setSelectedMatch(null);
+  }, []);
 
   if (isLocating && !location) {
     return (
@@ -368,7 +368,7 @@ export const App = () => {
             radiusKm={radiusKm}
             matches={matches}
             selectedMatch={selectedMatch}
-            onSelectMatch={(match) => setSelectedMatch(match)}
+            onSelectMatch={handleSelectMatch}
           />
 
           {/* Floating Safe-Area Header Pill */}
@@ -395,14 +395,16 @@ export const App = () => {
             isRefreshing={isLoadingMatches}
           />
 
-          {/* Floating Glassmorphism Match Preview Card */}
-          {selectedMatch && (
-            <MatchPreviewCard
-              match={selectedMatch}
-              distanceKm={selectedMatchDistance}
-              onClose={() => setSelectedMatch(null)}
-            />
-          )}
+          {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
+          <MobileBottomSheet
+            matches={matches}
+            userLocation={location}
+            selectedMatch={selectedMatch}
+            onSelectMatch={handleSelectMatch}
+            onClearSelectedMatch={handleClearSelectedMatch}
+            onRefresh={handleRefresh}
+            isRefreshing={isLoadingMatches}
+          />
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
