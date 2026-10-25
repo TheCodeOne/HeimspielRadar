@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
-  Sparkles,
   Trophy,
   Users,
   X,
@@ -95,7 +94,7 @@ export function VariantD_BottomBarSheet({
   );
 
   // Bottom Bar Style: 'docked' (Apple Maps Peek) vs 'capsule' (Airbnb Floating Pill)
-  const [bottomBarStyle, setBottomBarStyle] = React.useState<'docked' | 'capsule'>(() => {
+  const [bottomBarStyle] = React.useState<'docked' | 'capsule'>(() => {
     if (typeof window !== 'undefined') {
       const s = new URLSearchParams(window.location.search).get('style');
 
@@ -634,17 +633,6 @@ export function VariantD_BottomBarSheet({
                   </button>
                 );
               })}
-
-              {/* Style Switcher Toggle */}
-              <button
-                type="button"
-                onClick={() => setBottomBarStyle('capsule')}
-                className="shrink-0 flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-mono text-slate-400 hover:text-slate-200 border border-dashed border-slate-700 hover:border-slate-500 transition ml-auto"
-                title="Zur schwebenden Kapsel-Ansicht wechseln"
-              >
-                <Sparkles className="h-3 w-3 text-amber-400" />
-                <span>Kapsel-Style</span>
-              </button>
             </div>
           </div>
         </div>
@@ -726,16 +714,6 @@ export function VariantD_BottomBarSheet({
               )}
             </button>
           </div>
-
-          {/* Style Switcher Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setBottomBarStyle('docked')}
-            className="pointer-events-auto flex items-center gap-1 rounded-full bg-slate-900/80 px-2.5 py-0.5 text-[10px] font-mono text-slate-400 hover:text-slate-200 border border-slate-700/60 shadow-sm backdrop-blur-md"
-            title="Zur angedockten Apple Maps Ansicht wechseln"
-          >
-            <span>📱 Zu Dock-Ansicht wechseln</span>
-          </button>
         </div>
       ))}
 

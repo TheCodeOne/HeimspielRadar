@@ -47,14 +47,14 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       fullPage: true,
     });
 
-    // Test switching to Capsule style
-    await bottomBar.getByText(/Kapsel-Style/i).click();
-    await expect(bottomBar.getByText(/Zu Dock-Ansicht/i)).toBeVisible();
+    // No style-switcher chips are rendered anymore
+    await expect(bottomBar.getByText(/Kapsel-Style/i)).toHaveCount(0);
+    await expect(bottomBar.getByText(/Dock-Ansicht/i)).toHaveCount(0);
 
-    await page.screenshot({
-      path: `test-results/variant-d-capsule-${test.info().project.name}.png`,
-      fullPage: true,
-    });
+    // Locate button is icon-only and visible below the zoom controls
+    const locateBtn = page.getByRole('button', { name: 'Auf meinen Standort zentrieren' });
+    await expect(locateBtn).toBeVisible();
+    await expect(locateBtn).not.toContainText('Mein Standort');
 
     // 3. Test Settings Dialog (Verify header and footer are NOT cut off on any screen)
     await settingsBtn.click();

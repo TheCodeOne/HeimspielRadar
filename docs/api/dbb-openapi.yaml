@@ -20,7 +20,7 @@ info:
     ### Core Use Cases for Scrapers & Third-Party Clients:
     1. **League Discovery**: `POST /rest/wam/liga/list` with pagination to discover all active competitions per Verband.
     2. **Full Schedule Sync**: `GET /rest/competition/spielplan/id/{ligaId}` to fetch the entire season schedule.
-    3. **Delta Sync & Standings**: `GET /rest/competition/number/{liganr}/actual?rangeDays=14` for fast windowed syncs and tables.
+    3. **Delta Sync & Standings**: `GET /rest/competition/actual/id/{liganr}?rangeDays=14` for fast windowed syncs and tables.
     4. **Venue & Referee Details**: `GET /rest/match/id/{matchId}/matchInfo` to resolve gym locations (`spielfeld`) and officials.
     5. **Club Home Fixtures**: `GET /rest/club/id/{clubId}/actualmatches?justHome=true` to fetch home fixtures (*Heimspiele*).
   version: 1.0.0
@@ -140,7 +140,7 @@ paths:
         '404':
           description: Competition not found
 
-  /rest/competition/number/{liganr}/actual:
+  /rest/competition/actual/id/{liganr}:
     get:
       tags:
         - Competitions

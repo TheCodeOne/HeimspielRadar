@@ -9,6 +9,8 @@ import {
 } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
 import { formatLeagueName } from '@/components/map/map-utils';
+import { getMatchLinks } from '@/lib/match-links';
+import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
 import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
 export interface VenueModalProps {
@@ -19,18 +21,7 @@ export interface VenueModalProps {
 }
 
 function buildGoogleMapsRouteUrl(match: Match): string {
-  const venue = match.venue;
-
-  if (!venue) {
-    return 'https://www.google.com/maps';
-  }
-
-  const destination =
-    venue.latitude != null && venue.longitude != null
-      ? `${venue.latitude},${venue.longitude}`
-      : `${venue.name}, ${venue.street}, ${venue.postalCode} ${venue.city}`;
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+  return getMatchLinks(match).navigationUrl ?? 'https://www.google.com/maps';
 }
 
 export function VenueModal({
@@ -237,6 +228,14 @@ export function VenueModal({
                       Endstand: {venueMatch.result}
                     </div>
                   )}
+
+                  <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      DBB Quick-Actions
+                    </span>
+
+                    <MatchQuickActions match={venueMatch} size="sm" />
+                  </div>
                 </div>
               );
             })}

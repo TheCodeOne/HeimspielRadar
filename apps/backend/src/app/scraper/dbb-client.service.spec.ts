@@ -150,7 +150,7 @@ describe('DbbClientService', () => {
       fetchSpy.mockRestore();
     });
 
-    it('should query /rest/competition/number/{liganr}/actual with default rangeDays=14', async () => {
+    it('should query /rest/competition/actual/id/{liganr} with default rangeDays=14', async () => {
       fetchSpy.mockResolvedValueOnce(
         new Response(JSON.stringify(mockActualResponse), {
           status: 200,
@@ -162,7 +162,7 @@ describe('DbbClientService', () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(fetchSpy).toHaveBeenCalledWith(
-        'https://www.basketball-bund.net/rest/competition/number/7010/actual?rangeDays=14',
+        'https://www.basketball-bund.net/rest/competition/actual/id/7010?rangeDays=14',
         expect.objectContaining({
           headers: expect.objectContaining({
             Accept: 'application/json, text/plain, */*',
@@ -186,7 +186,7 @@ describe('DbbClientService', () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(fetchSpy).toHaveBeenCalledWith(
-        'https://www.basketball-bund.net/rest/competition/number/7010/actual?rangeDays=7',
+        'https://www.basketball-bund.net/rest/competition/actual/id/7010?rangeDays=7',
         expect.anything()
       );
       expect(result).toEqual(mockActualResponse);

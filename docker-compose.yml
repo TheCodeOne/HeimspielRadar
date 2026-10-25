@@ -13,6 +13,10 @@ services:
       - CRON_DELTA_SCHEDULE=${CRON_DELTA_SCHEDULE:-0 5,18 * * *}
       - CRON_DEEP_SCHEDULE=${CRON_DEEP_SCHEDULE:-0 2 * * 2}
       - SCRAPER_SECRET=${SCRAPER_SECRET:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ADMIN_BASE_URL=${ADMIN_BASE_URL:-http://raspberrypi.local:3000}
+      - ENABLE_ADMIN_API=${ENABLE_ADMIN_API:-true}
     env_file:
       - path: .env
         required: false
