@@ -65,8 +65,10 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
     if (!isWeb) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
+
     onClose();
   };
+
 
   const cardContent = (
     <View className="p-4">

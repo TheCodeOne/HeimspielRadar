@@ -35,6 +35,7 @@ export const App = () => {
   // 1. Geolocation Request
   const requestLocation = useCallback(async () => {
     setIsLocating(true);
+
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
@@ -42,8 +43,10 @@ export const App = () => {
         setPermissionDenied(true);
         setLocation(STUTTGART_FALLBACK);
         setIsLocating(false);
+
         return;
       }
+
 
       const currentPosition = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -105,6 +108,7 @@ export const App = () => {
   // Recenter Map Handler
   const handleRecenter = useCallback(() => {
     const target = location ?? STUTTGART_FALLBACK;
+
     if (mapRef.current) {
       mapRef.current.animateToRegion({
         latitude: target.latitude,
@@ -114,6 +118,7 @@ export const App = () => {
       });
     }
   }, [location]);
+
 
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
