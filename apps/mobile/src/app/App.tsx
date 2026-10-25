@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PostHogProvider } from 'posthog-react-native';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import type MapView from 'react-native-maps';
 
@@ -24,6 +25,11 @@ import {
   saveCachedMatches,
   getCachedMatches,
 } from './matchCache';
+import {
+  POSTHOG_API_KEY,
+  posthogOptions,
+  trackEvent,
+} from './analytics';
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
@@ -118,9 +124,16 @@ export const App = () => {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      setLocation({
+      const coords = {
         latitude: currentPosition.coords.latitude,
         longitude: currentPosition.coords.longitude,
+      };
+
+      setLocation(coords);
+      trackEvent('location_centered', {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        source: 'initial_load',
       });
       setIsLocating(false);
     } catch {
@@ -284,6 +297,10 @@ export const App = () => {
     (newRadius: RadiusOption) => {
       setRadiusKm(newRadius);
       saveFilterPreferences({ radiusKm: newRadius, dateFilter });
+      trackEvent('filter_changed', {
+        filter_name: 'radiusKm',
+        value: newRadius,
+      });
     },
     [dateFilter],
   );
@@ -293,6 +310,10 @@ export const App = () => {
     (newDate: DateFilterOption) => {
       setDateFilter(newDate);
       saveFilterPreferences({ radiusKm, dateFilter: newDate });
+      trackEvent('filter_changed', {
+        filter_name: 'dateFilter',
+        value: newDate,
+      });
     },
     [radiusKm],
   );
@@ -314,6 +335,12 @@ export const App = () => {
   const handleRecenter = useCallback(() => {
     const target = location ?? STUTTGART_FALLBACK;
 
+    trackEvent('location_centered', {
+      latitude: target.latitude,
+      longitude: target.longitude,
+      source: 'user_action',
+    });
+
     if (mapRef.current) {
       mapRef.current.animateToRegion({
         latitude: target.latitude,
@@ -326,23 +353,50 @@ export const App = () => {
 
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
+    trackEvent('matches_refreshed', {
+      match_count: matches.length,
+      radius_km: radiusKm,
+    });
+
     const target = location ?? STUTTGART_FALLBACK;
     fetchMatchesForLocation(target, radiusKm, dateFilter, true);
-  }, [location, radiusKm, dateFilter, fetchMatchesForLocation]);
+  }, [location, matches.length, radiusKm, dateFilter, fetchMatchesForLocation]);
 
-  // 2-Way Sync: Tapping match in Bottom Sheet animates map to venue and highlights pin
-  const handleSelectMatch = useCallback((match: Match) => {
-    setSelectedMatch(match);
+  // 2-Way Sync: Tapping match in Bottom Sheet animates map to venue and highlights pin + tracks analytics
+  const handleSelectMatch = useCallback(
+    (match: Match) => {
+      setSelectedMatch(match);
 
-    if (match.venue?.latitude && match.venue?.longitude && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: match.venue.latitude,
-        longitude: match.venue.longitude,
-        latitudeDelta: 0.08,
-        longitudeDelta: 0.08,
+      if (match.venue?.latitude && match.venue?.longitude && mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: match.venue.latitude,
+          longitude: match.venue.longitude,
+          latitudeDelta: 0.08,
+          longitudeDelta: 0.08,
+        });
+      }
+
+      const distance =
+        match.venue?.latitude && match.venue?.longitude && location
+          ? calculateDistanceKm(
+              location.latitude,
+              location.longitude,
+              match.venue.latitude,
+              match.venue.longitude,
+            )
+          : undefined;
+
+      trackEvent('match_selected', {
+        match_id: match.id,
+        home_team: match.homeTeam?.name,
+        guest_team: match.guestTeam?.name,
+        league: match.league?.name,
+        distance_km:
+          distance !== undefined ? Number(distance.toFixed(1)) : undefined,
       });
-    }
-  }, []);
+    },
+    [location],
+  );
 
   const handleClearSelectedMatch = useCallback(() => {
     setSelectedMatch(null);
@@ -380,13 +434,19 @@ export const App = () => {
   if (isLocating && !location) {
     return (
       <GestureHandlerRootView style={styles.rootView}>
-        <SafeAreaProvider>
-          <SafeAreaView style={styles.centerContainer}>
-            <StatusBar barStyle="dark-content" />
-            <ActivityIndicator size="large" color="#0284c7" />
-            <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
-          </SafeAreaView>
-        </SafeAreaProvider>
+        <PostHogProvider
+          apiKey={POSTHOG_API_KEY}
+          options={posthogOptions}
+          autocapture={true}
+        >
+          <SafeAreaProvider>
+            <SafeAreaView style={styles.centerContainer}>
+              <StatusBar barStyle="dark-content" />
+              <ActivityIndicator size="large" color="#0284c7" />
+              <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+            </SafeAreaView>
+          </SafeAreaProvider>
+        </PostHogProvider>
       </GestureHandlerRootView>
     );
   }
@@ -395,63 +455,72 @@ export const App = () => {
 
   return (
     <GestureHandlerRootView style={styles.rootView}>
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.safeArea}>
-          <StatusBar barStyle="dark-content" />
+      <PostHogProvider
+        apiKey={POSTHOG_API_KEY}
+        options={posthogOptions}
+        autocapture={true}
+      >
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.safeArea}>
+            <StatusBar barStyle="dark-content" />
 
-          {/* Main Fullscreen Interactive Map */}
-          <View style={styles.mapContainer}>
-            <NativeMap
-              mapRef={mapRef}
-              initialRegion={activeRegion}
-              radiusKm={radiusKm}
-              matches={matches}
-              selectedMatch={selectedMatch}
-              onSelectMatch={handleSelectMatch}
-            />
-
-            {/* Floating Controls Overlay: Remains naturally visible on the map; bottom sheet slides over it smoothly with zIndex: 40 */}
-            <View style={styles.floatingControlsLayer} pointerEvents="box-none">
-              {/* Floating Safe-Area Header Pill */}
-              <FloatingHeaderPill
-                matchCount={matches.length}
+            {/* Main Fullscreen Interactive Map */}
+            <View style={styles.mapContainer}>
+              <NativeMap
+                mapRef={mapRef}
+                initialRegion={activeRegion}
                 radiusKm={radiusKm}
-                isLoading={isLoadingMatches}
-                permissionDenied={permissionDenied}
-                isOffline={isOfflineMode || !network.isOnline}
+                matches={matches}
+                selectedMatch={selectedMatch}
+                onSelectMatch={handleSelectMatch}
               />
 
-              {/* Floating Filter Bar (Radius & Date Chips) */}
-              <FilterChips
-                selectedRadius={radiusKm}
-                onSelectRadius={handleSelectRadius}
-                selectedDate={dateFilter}
-                onSelectDate={handleSelectDate}
-              />
+              {/* Floating Controls Overlay: Remains naturally visible on the map; bottom sheet slides over it smoothly with zIndex: 40 */}
+              <View
+                style={styles.floatingControlsLayer}
+                pointerEvents="box-none"
+              >
+                {/* Floating Safe-Area Header Pill */}
+                <FloatingHeaderPill
+                  matchCount={matches.length}
+                  radiusKm={radiusKm}
+                  isLoading={isLoadingMatches}
+                  permissionDenied={permissionDenied}
+                  isOffline={isOfflineMode || !network.isOnline}
+                />
 
-              {/* Floating Action Controls (Recenter, Reload) */}
-              <FloatingActionControls
-                onRecenter={handleRecenter}
+                {/* Floating Filter Bar (Radius & Date Chips) */}
+                <FilterChips
+                  selectedRadius={radiusKm}
+                  onSelectRadius={handleSelectRadius}
+                  selectedDate={dateFilter}
+                  onSelectDate={handleSelectDate}
+                />
+
+                {/* Floating Action Controls (Recenter, Reload) */}
+                <FloatingActionControls
+                  onRecenter={handleRecenter}
+                  onRefresh={handleRefresh}
+                  isRefreshing={isLoadingMatches}
+                />
+              </View>
+
+              {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
+              <MobileBottomSheet
+                sheetRef={sheetRef}
+                onSnapChange={(idx) => setSheetIndex(idx)}
+                matches={matches}
+                userLocation={location}
+                selectedMatch={selectedMatch}
+                onSelectMatch={handleSelectMatch}
+                onClearSelectedMatch={handleClearSelectedMatch}
                 onRefresh={handleRefresh}
                 isRefreshing={isLoadingMatches}
               />
             </View>
-
-            {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
-            <MobileBottomSheet
-              sheetRef={sheetRef}
-              onSnapChange={(idx) => setSheetIndex(idx)}
-              matches={matches}
-              userLocation={location}
-              selectedMatch={selectedMatch}
-              onSelectMatch={handleSelectMatch}
-              onClearSelectedMatch={handleClearSelectedMatch}
-              onRefresh={handleRefresh}
-              isRefreshing={isLoadingMatches}
-            />
-          </View>
-        </SafeAreaView>
-      </SafeAreaProvider>
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </PostHogProvider>
     </GestureHandlerRootView>
   );
 };

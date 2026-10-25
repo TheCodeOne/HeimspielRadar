@@ -12,6 +12,7 @@ import { BlurView } from 'expo-blur';
 import type { Match } from '@sundayleague/shared-types';
 import { formatKickoffTime } from './data';
 import { TimeIcon, NavigateIcon, NavigateOutlineIcon, CloseIcon } from './Icons';
+import { trackEvent } from './analytics';
 
 export interface MatchPreviewCardProps {
   match: Match;
@@ -41,6 +42,13 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
     const lat = match.venue?.latitude;
     const lng = match.venue?.longitude;
     const label = encodeURIComponent(venueName || 'Basketball Spiel');
+
+    trackEvent('route_clicked', {
+      match_id: match.id,
+      venue_name: venueName,
+      has_coordinates: Boolean(lat && lng),
+      platform: Platform.OS,
+    });
 
     if (lat && lng) {
       if (Platform.OS === 'ios') {

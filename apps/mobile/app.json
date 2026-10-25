@@ -38,6 +38,10 @@
           "locationWhenInUsePermission": "Show matches near you."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "posthogApiKey": "phc_kSUoSJyMiaFgk63LDYRx4MWU34mpN2dP5GXDj5DcaN3p",
+      "posthogHost": "https://eu.i.posthog.com"
+    }
   }
 }

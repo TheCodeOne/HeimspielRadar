@@ -12,6 +12,7 @@
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
+    "posthog-react-native": "*",
     "react": "*",
     "react-native": "*",
     "react-native-svg": "*",
