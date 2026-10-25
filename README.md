@@ -1,16 +1,19 @@
-# Sundayleague Monorepo
+# HeimspielRadar Monorepo
 
-Ein modernes Fullstack-Monorepo auf Basis von **Nx**, mit einem **Nest.js**-Backend und einer flexiblen Architektur für jedes beliebige Frontend-Framework.
+> **Live:** [**heimspielradar.app**](https://heimspielradar.app)  
+> Entdecke Amateur-Basketballspiele in deiner Nähe auf einer interaktiven Karte mit Hallen-Navigation, Live-Ergebnissen und Kiosk-Infos.
+
+Ein modernes Fullstack-Monorepo auf Basis von **Nx**, mit einem **Nest.js**-Backend und einem **React 19 (Vite)** Frontend.
 
 ---
 
 ## 📁 Projektstruktur
 
 ```text
-sundayleague/
+heimspielradar/
 ├── apps/
 │   ├── backend/             # Nest.js API-Server (Port 3000, Prefix: /api)
-│   └── frontend/            # (Platzhalter für dein zukünftiges Frontend)
+│   └── frontend/            # React 19 + Vite PWA (Karten- und Listenansicht)
 ├── libs/
 │   └── shared-types/        # Geteilte TypeScript-Typen & Interfaces (@sundayleague/shared-types)
 ├── nx.json                  # Nx-Konfiguration
@@ -110,12 +113,12 @@ Das Projekt enthält einen manuell auslösbaren GitHub-Actions-Workflow (`.githu
 1. Gehe im GitHub Repository zum Reiter **Actions**.
 2. Wähle **Manual DBB Scraper Sync** in der linken Seitenleiste.
 3. Klicke auf **Run workflow**.
-4. Wähle optional die `verbandId` (Standard: `1` für Baden-Württemberg) und die `backendUrl` (Standard: `https://heimspiel-radar.onrender.com`).
+4. Wähle optional die `verbandId` (Standard: `1` für Baden-Württemberg) und die `backendUrl` (Standard: `https://heimspielradar.app` bzw. Backend-Instanz).
 5. Nach Abschluss zeigt das Job-Summary eine strukturierte Übersicht der synchronisierten Ligen, Spiele und Sporthallen.
 
 Alternativ via GitHub CLI:
 ```bash
-gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspiel-radar.onrender.com
+gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspielradar.app
 ```
 
 ### GitHub Secret Konfiguration

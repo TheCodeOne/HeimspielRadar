@@ -26,6 +26,7 @@ import {
   searchCuratedCities,
 } from '@/lib/cities';
 import { formatLastSyncedAt } from '@/lib/date-utils';
+import { getDonationUrl, getTransparencyUrl } from '@/lib/donation';
 import { STUTTGART_FALLBACK } from '@/lib/geo-utils';
 import { getSampleMatches } from '@/lib/sample-matches';
 import {
@@ -51,6 +52,8 @@ export interface FilterBarProps {
   availableOptions: FilterAvailableOptions;
   actions: MatchFiltersActions;
   className?: string;
+  donationUrl?: string;
+  transparencyUrl?: string;
 }
 
 function formatGenderLabel(gender: string): string {
@@ -86,6 +89,8 @@ export function FilterBar({
   availableOptions,
   actions,
   className = '',
+  donationUrl = getDonationUrl(),
+  transparencyUrl = getTransparencyUrl(),
 }: FilterBarProps) {
   const {
     viewMode,
@@ -1490,6 +1495,46 @@ export function FilterBar({
               </button>
             );
           })}
+        </div>
+      </div>
+
+      <hr className="border-border/60" />
+
+      {/* Unterstützer-Box: Hallenkaffee & Transparenz */}
+      <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-4 shadow-xs">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <span>Gefällt dir HeimspielRadar?</span>
+          <span role="img" aria-hidden="true" className="text-sm leading-none">
+            ☕
+          </span>
+        </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+          Wir sind 100% werbefrei und Open Source. Hilf uns, die Server am Laufen zu halten!
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <a
+            href={donationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/25 hover:text-amber-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span role="img" aria-hidden="true">
+              ☕
+            </span>
+            <span>Einen Kaffee spendieren</span>
+          </a>
+          <span className="text-muted-foreground/50 select-none">•</span>
+          <a
+            href={transparencyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span role="img" aria-hidden="true">
+              📊
+            </span>
+            <span>Finanzen einsehen (TRANSPARENCY.md)</span>
+          </a>
         </div>
       </div>
 
