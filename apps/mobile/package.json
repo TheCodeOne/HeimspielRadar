@@ -8,12 +8,10 @@
   "dependencies": {
     "@expo/vector-icons": "*",
     "@expo/metro": "*",
-    "@testing-library/react-native": "*",
     "expo": "*",
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
-    "jest-expo": "*",
     "react": "*",
     "react-native": "*",
     "react-native-svg": "*",

@@ -6,9 +6,17 @@
   "tags": [],
   "// targets": "to see all targets run: nx show project mobile --web",
   "targets": {
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "expo start",
+        "cwd": "apps/mobile"
+      }
+    },
     "build": {
       "dependsOn": ["export"]
     }
   }
 }
+
 
