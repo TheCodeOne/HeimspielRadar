@@ -4,10 +4,12 @@ import {
   View,
   Text,
   StatusBar,
+  BackHandler,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import type BottomSheet from '@gorhom/bottom-sheet';
 import type MapView from 'react-native-maps';
 
 import * as Location from 'expo-location';
@@ -57,8 +59,10 @@ export const App = () => {
   );
 
   const [isStorageLoaded, setIsStorageLoaded] = useState<boolean>(false);
+  const [sheetIndex, setSheetIndex] = useState<number>(0);
 
   const mapRef = useRef<MapView | null>(null);
+  const sheetRef = useRef<BottomSheet | null>(null);
   const network = useNetworkStatus();
   const wasOfflineRef = useRef<boolean>(false);
 
@@ -342,6 +346,35 @@ export const App = () => {
     setSelectedMatch(null);
   }, []);
 
+  // Android Hardware Back Handler: Step down full -> half or half -> peek/deselect
+  useEffect(() => {
+    const onBackPress = () => {
+      if (selectedMatch) {
+        setSelectedMatch(null);
+        sheetRef.current?.snapToIndex(1);
+
+        return true;
+      }
+
+      if (sheetIndex > 0) {
+        sheetRef.current?.snapToIndex(0);
+
+        return true;
+      }
+
+      return false;
+    };
+
+    const backSubscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      onBackPress,
+    );
+
+    return () => {
+      backSubscription.remove();
+    };
+  }, [selectedMatch, sheetIndex]);
+
   if (isLocating && !location) {
     return (
       <GestureHandlerRootView style={styles.rootView}>
@@ -375,32 +408,43 @@ export const App = () => {
               onSelectMatch={handleSelectMatch}
             />
 
-            {/* Floating Safe-Area Header Pill */}
-            <FloatingHeaderPill
-              matchCount={matches.length}
-              radiusKm={radiusKm}
-              isLoading={isLoadingMatches}
-              permissionDenied={permissionDenied}
-              isOffline={isOfflineMode || !network.isOnline}
-            />
+            {/* Floating Controls Overlay Container: Fades out and disables pointer events when sheet is expanded */}
+            <View
+              style={[
+                styles.floatingControlsLayer,
+                sheetIndex > 0 && styles.floatingControlsHidden,
+              ]}
+              pointerEvents={sheetIndex > 0 ? 'none' : 'box-none'}
+            >
+              {/* Floating Safe-Area Header Pill */}
+              <FloatingHeaderPill
+                matchCount={matches.length}
+                radiusKm={radiusKm}
+                isLoading={isLoadingMatches}
+                permissionDenied={permissionDenied}
+                isOffline={isOfflineMode || !network.isOnline}
+              />
 
-            {/* Floating Filter Bar (Radius & Date Chips) */}
-            <FilterChips
-              selectedRadius={radiusKm}
-              onSelectRadius={handleSelectRadius}
-              selectedDate={dateFilter}
-              onSelectDate={handleSelectDate}
-            />
+              {/* Floating Filter Bar (Radius & Date Chips) */}
+              <FilterChips
+                selectedRadius={radiusKm}
+                onSelectRadius={handleSelectRadius}
+                selectedDate={dateFilter}
+                onSelectDate={handleSelectDate}
+              />
 
-            {/* Floating Action Controls (Recenter, Reload) */}
-            <FloatingActionControls
-              onRecenter={handleRecenter}
-              onRefresh={handleRefresh}
-              isRefreshing={isLoadingMatches}
-            />
+              {/* Floating Action Controls (Recenter, Reload) */}
+              <FloatingActionControls
+                onRecenter={handleRecenter}
+                onRefresh={handleRefresh}
+                isRefreshing={isLoadingMatches}
+              />
+            </View>
 
             {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
             <MobileBottomSheet
+              sheetRef={sheetRef}
+              onSnapChange={(idx) => setSheetIndex(idx)}
               matches={matches}
               userLocation={location}
               selectedMatch={selectedMatch}
@@ -439,6 +483,18 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     position: 'relative',
+  },
+  floatingControlsLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    opacity: 1,
+  },
+  floatingControlsHidden: {
+    opacity: 0,
   },
 });
 

@@ -5,6 +5,7 @@ import {
   Pressable,
   Platform,
   Linking,
+  Share,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
@@ -27,8 +28,11 @@ import {
   BasketballIcon,
   ChevronUpIcon,
   TrophyIcon,
-  SnackIcon,
+  ShareIcon,
+  CalendarIcon,
+  FileTextIcon,
 } from './Icons';
+import { getMatchLinks } from './matchLinks';
 
 export interface MobileBottomSheetProps {
   matches: Match[];
@@ -38,6 +42,8 @@ export interface MobileBottomSheetProps {
   onClearSelectedMatch: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  onSnapChange?: (index: number) => void;
+  sheetRef?: React.RefObject<BottomSheet | null>;
 }
 
 export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
@@ -46,11 +52,14 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
   selectedMatch,
   onSelectMatch,
   onClearSelectedMatch,
-  onRefresh,
+  onRefresh: _onRefresh,
   isRefreshing = false,
+  onSnapChange,
+  sheetRef,
 }) => {
   const isWeb = Platform.OS === 'web';
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const internalBottomSheetRef = useRef<BottomSheet>(null);
+  const bottomSheetRef = sheetRef || internalBottomSheetRef;
 
   // 3 Snap points: Collapsed peek (80px), Half-screen (48%), Full-screen (90%)
   const snapPoints = useMemo(() => [80, '48%', '90%'], []);
@@ -120,21 +129,22 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
 
   // When selectedMatch changes:
   // If selected -> snap to Full-screen (index 2)
-  // If deselected -> snap to Collapsed peek (index 0)
   useEffect(() => {
     if (selectedMatch) {
       bottomSheetRef.current?.snapToIndex(2);
     }
-  }, [selectedMatch]);
+  }, [selectedMatch, bottomSheetRef]);
 
   const handleSnapChange = useCallback(
     (index: number) => {
-      // If user snaps down to peek or half while a match was selected, reset selection if down to peek
+      onSnapChange?.(index);
+
+      // If user snaps down to peek while a match was selected, reset selection
       if (index === 0 && selectedMatch) {
         onClearSelectedMatch();
       }
     },
-    [selectedMatch, onClearSelectedMatch],
+    [selectedMatch, onClearSelectedMatch, onSnapChange],
   );
 
   const handleSelectMatchItem = useCallback(
@@ -146,7 +156,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
       onSelectMatch(match);
       bottomSheetRef.current?.snapToIndex(2);
     },
-    [isWeb, onSelectMatch],
+    [isWeb, onSelectMatch, bottomSheetRef],
   );
 
   const handleCloseDetail = useCallback(() => {
@@ -156,7 +166,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
 
     onClearSelectedMatch();
     bottomSheetRef.current?.snapToIndex(1); // Return to half-screen match list
-  }, [isWeb, onClearSelectedMatch]);
+  }, [isWeb, onClearSelectedMatch, bottomSheetRef]);
 
   const handleOpenNavigation = useCallback((match: Match) => {
     if (Platform.OS !== 'web') {
@@ -211,12 +221,88 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
     }
   }, []);
 
+  const handleShareMatch = useCallback((match: Match) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+
+    const homeName = match.homeTeam?.name ?? 'Heim';
+    const guestName = match.guestTeam?.name ?? 'Gast';
+    const timeFormatted = formatKickoffTime(match.kickoffTime);
+    const dateFormatted = match.kickoffDate ?? '';
+    const venueName = match.venue?.name ?? 'Sporthalle';
+
+    const venueAddress = [
+      match.venue?.street,
+      match.venue?.postalCode,
+      match.venue?.city,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const shareMessage = [
+      `🏀 HeimspielRadar: ${homeName} vs. ${guestName}`,
+      `📅 Datum: ${dateFormatted} um ${timeFormatted}`,
+      `📍 Halle: ${venueName}${venueAddress ? ` (${venueAddress})` : ''}`,
+      `🔗 Spielbericht: https://www.basketball-bund.net/static/#/spiel/${match.id}`,
+    ].join('\n');
+
+    Share.share({
+      title: `${homeName} vs. ${guestName}`,
+      message: shareMessage,
+    }).catch(() => {});
+  }, []);
+
+  const handleOpenCalendar = useCallback((match: Match) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+
+    const homeName = match.homeTeam?.name ?? 'Heim';
+    const guestName = match.guestTeam?.name ?? 'Gast';
+    const title = encodeURIComponent(`Basketball: ${homeName} vs. ${guestName}`);
+    const venueName = match.venue?.name ?? '';
+
+    const venueAddress = [
+      match.venue?.street,
+      match.venue?.postalCode,
+      match.venue?.city,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const locationStr = encodeURIComponent(
+      venueAddress ? `${venueName}, ${venueAddress}` : venueName,
+    );
+
+    const dateStr = match.kickoffDate?.replace(/-/g, '') ?? '';
+    const timeStr = (match.kickoffTime ?? '18:00').replace(':', '') + '00';
+    const dates = `${dateStr}T${timeStr}/${dateStr}T${timeStr}`;
+
+    const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&location=${locationStr}&dates=${dates}`;
+
+    Linking.openURL(googleCalUrl).catch(() => {});
+  }, []);
+
+  const handleOpenUrl = useCallback((url: string | null) => {
+    if (!url) {
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+
+    Linking.openURL(url).catch(() => {});
+  }, []);
+
   // Web Fallback: Render a lightweight panel overlay
   if (isWeb) {
     if (selectedMatch) {
       const homeName = selectedMatch.homeTeam?.name ?? 'Heim';
       const guestName = selectedMatch.guestTeam?.name ?? 'Gast';
       const venueName = selectedMatch.venue?.name ?? 'Unbekannte Spielstätte';
+      const matchLinks = getMatchLinks(selectedMatch);
 
       const venueAddress = [
         selectedMatch.venue?.street,
@@ -269,14 +355,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
                 <Text style={styles.detailVenueAddress}>{venueAddress}</Text>
               )}
 
-              {/* Facility & Catering Info Placeholder */}
-              <View style={styles.facilityBadge}>
-                <SnackIcon size={14} color="#ea580c" />
-                <Text style={styles.facilityText}>
-                  Verpflegungs-Info unbekannt / Community-Tipp
-                </Text>
-              </View>
-
+              {/* Action Buttons: Primary Navigation */}
               <Pressable
                 onPress={() => handleOpenNavigation(selectedMatch)}
                 style={styles.navButton}
@@ -286,6 +365,51 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
                 <NavigateIcon size={14} color="#ffffff" />
                 <Text style={styles.navButtonText}>Route starten</Text>
               </Pressable>
+
+              {/* Quick Actions Grid: Teilen, Kalender, DBB Spielinfo, Tabelle */}
+              <View style={styles.actionButtonsGrid}>
+                <Pressable
+                  onPress={() => handleShareMatch(selectedMatch)}
+                  style={styles.actionSecondaryBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Spiel teilen"
+                >
+                  <ShareIcon size={15} color="#0284c7" />
+                  <Text style={styles.actionSecondaryText}>Teilen</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleOpenCalendar(selectedMatch)}
+                  style={styles.actionSecondaryBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="In Kalender eintragen"
+                >
+                  <CalendarIcon size={15} color="#0284c7" />
+                  <Text style={styles.actionSecondaryText}>Kalender</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleOpenUrl(matchLinks.dbbMatchInfoUrl)}
+                  style={styles.actionSecondaryBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="DBB Spielbericht öffnen"
+                >
+                  <FileTextIcon size={15} color="#0284c7" />
+                  <Text style={styles.actionSecondaryText}>Spielbericht</Text>
+                </Pressable>
+
+                {matchLinks.dbbStandingsUrl && (
+                  <Pressable
+                    onPress={() => handleOpenUrl(matchLinks.dbbStandingsUrl)}
+                    style={styles.actionSecondaryBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="DBB Ligatabelle öffnen"
+                  >
+                    <TrophyIcon size={15} color="#0284c7" />
+                    <Text style={styles.actionSecondaryText}>Tabelle</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -319,6 +443,8 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
       index={0}
       onChange={handleSnapChange}
       enablePanDownToClose={false}
+      style={styles.sheetShadow}
+      containerStyle={styles.sheetContainer}
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.sheetIndicator}
     >
@@ -405,14 +531,6 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
               </Text>
             )}
 
-            {/* Catering & Facility Info Placeholder */}
-            <View style={styles.facilityBadge}>
-              <SnackIcon size={14} color="#ea580c" />
-              <Text style={styles.facilityText}>
-                Verpflegungs-Info unbekannt / Community-Tipp
-              </Text>
-            </View>
-
             {/* 1-Tap Navigation Action */}
             <Pressable
               onPress={() => handleOpenNavigation(selectedMatch)}
@@ -426,6 +544,71 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
               <NavigateIcon size={15} color="#ffffff" />
               <Text style={styles.navButtonText}>Route starten (Maps)</Text>
             </Pressable>
+
+            {/* Quick Actions Grid: Teilen, Kalender, DBB Spielinfo, Tabelle */}
+            <View style={styles.actionButtonsGrid}>
+              <Pressable
+                onPress={() => handleShareMatch(selectedMatch)}
+                style={({ pressed }) => [
+                  styles.actionSecondaryBtn,
+                  pressed && styles.actionSecondaryBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Spiel teilen"
+              >
+                <ShareIcon size={15} color="#0284c7" />
+                <Text style={styles.actionSecondaryText}>Teilen</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleOpenCalendar(selectedMatch)}
+                style={({ pressed }) => [
+                  styles.actionSecondaryBtn,
+                  pressed && styles.actionSecondaryBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="In Kalender eintragen"
+              >
+                <CalendarIcon size={15} color="#0284c7" />
+                <Text style={styles.actionSecondaryText}>Kalender</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() =>
+                  handleOpenUrl(
+                    getMatchLinks(selectedMatch).dbbMatchInfoUrl,
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.actionSecondaryBtn,
+                  pressed && styles.actionSecondaryBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="DBB Spielbericht öffnen"
+              >
+                <FileTextIcon size={15} color="#0284c7" />
+                <Text style={styles.actionSecondaryText}>Spielbericht</Text>
+              </Pressable>
+
+              {getMatchLinks(selectedMatch).dbbStandingsUrl && (
+                <Pressable
+                  onPress={() =>
+                    handleOpenUrl(
+                      getMatchLinks(selectedMatch).dbbStandingsUrl,
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.actionSecondaryBtn,
+                    pressed && styles.actionSecondaryBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="DBB Ligatabelle öffnen"
+                >
+                  <TrophyIcon size={15} color="#0284c7" />
+                  <Text style={styles.actionSecondaryText}>Tabelle</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         </BottomSheetView>
       ) : (
@@ -459,13 +642,11 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
             <ChevronUpIcon size={20} color="#94a3b8" />
           </Pressable>
 
-          {/* Chronological Scrollable Match List with Pull-to-Refresh */}
+          {/* Chronological Scrollable Match List without aggressive pull-to-refresh so downward swipe drags sheet smoothly */}
           <BottomSheetFlatList
             data={sortedMatches}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
             renderItem={({ item }) => {
               const dist =
                 item.venue?.latitude && item.venue?.longitude && userLocation
@@ -544,15 +725,21 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
 };
 
 const styles = StyleSheet.create({
+  sheetContainer: {
+    zIndex: 50,
+    elevation: 25,
+  },
+  sheetShadow: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 25,
+  },
   sheetBackground: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 16,
   },
   sheetIndicator: {
     backgroundColor: '#cbd5e1',
@@ -801,24 +988,6 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 2,
   },
-  facilityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#fff7ed',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ffedd5',
-  },
-  facilityText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#c2410c',
-    flex: 1,
-  },
   navButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -827,7 +996,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0284c7',
     paddingVertical: 14,
     borderRadius: 16,
-    marginTop: 20,
+    marginTop: 16,
     shadowColor: '#0284c7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -843,6 +1012,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  actionButtonsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+  actionSecondaryBtn: {
+    flex: 1,
+    minWidth: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  actionSecondaryBtnPressed: {
+    backgroundColor: '#e0f2fe',
+    transform: [{ scale: 0.98 }],
+  },
+  actionSecondaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0284c7',
+  },
   webContainer: {
     position: 'absolute',
     bottom: 0,
@@ -857,6 +1054,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
-    zIndex: 20,
+    zIndex: 50,
   },
 });
