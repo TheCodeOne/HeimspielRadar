@@ -7,6 +7,7 @@ import {
   ExternalLink,
   MapPin,
   RotateCcw,
+  Settings,
   SlidersHorizontal,
   Trophy,
   X,
@@ -16,7 +17,9 @@ import {
   VariantA_QuickFilterBar,
   VariantB_AccordionDrawer,
   VariantC_DesktopSidebar,
+  VariantD_BottomBarSheet,
 } from '@/components/filters/prototypes';
+import { SettingsDialog } from '@/components/settings';
 import {
   PrototypeSwitcher,
   type PrototypeVariant,
@@ -69,18 +72,19 @@ export function App() {
   });
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
 
-  // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar)
+  // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar), D (Hybrid Bottom-Bar + Sheet)
   const [currentVariant, setCurrentVariant] = React.useState<PrototypeVariant>(() => {
     if (typeof window !== 'undefined') {
       const param = new URLSearchParams(window.location.search).get('variant');
 
-      if (param === 'A' || param === 'B' || param === 'C') {
+      if (param === 'A' || param === 'B' || param === 'C' || param === 'D') {
         return param;
       }
     }
 
-    return 'A';
+    return 'D';
   });
 
   const handleSelectVariant = React.useCallback((v: PrototypeVariant) => {
@@ -225,22 +229,51 @@ export function App() {
           </div>
         </div>
 
-        {/* Right: Filter Drawer Trigger Button with Active Count Badge */}
+        {/* Right: Actions (Filter Trigger & Settings Gear Icon) */}
         <div className="flex items-center gap-2">
+          {/* Active filter count badge in header for Variant D */}
+          {currentVariant === 'D' && filters.activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+              title="Aktive Filter bearbeiten"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>{filters.activeFilterCount} aktiv</span>
+            </button>
+          )}
+
+          {/* Filter Drawer Trigger Button for Variants A, B, C */}
+          {currentVariant !== 'D' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              <span>Filter</span>
+              {filters.activeFilterCount > 0 && (
+                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                  {filters.activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
+
+          {/* Settings Gear Button (User requested: oben rechts ein gear icon fuer 'Einstellungen') */}
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            onClick={() => setIsFilterDrawerOpen(true)}
-            className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+            size="icon"
+            onClick={() => setIsSettingsOpen(true)}
+            className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Einstellungen"
+            title="Einstellungen & Karten-Optionen"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-            <span>Filter</span>
-            {filters.activeFilterCount > 0 && (
-              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                {filters.activeFilterCount}
-              </span>
-            )}
+            <Settings className="h-4 w-4 text-slate-300" />
           </Button>
         </div>
       </header>
@@ -284,6 +317,24 @@ export function App() {
           />
         )}
 
+        {/* Variant D: Hybrid Bottom-Bar + Bottom-Sheet + Desktop-Sidebar */}
+        {currentVariant === 'D' && (
+          <VariantD_BottomBarSheet
+            isOpen={isFilterDrawerOpen}
+            onClose={() => setIsFilterDrawerOpen(false)}
+            filters={filters}
+            availableOptions={{
+              leagues,
+              genders: availableGenders,
+              ageClasses: availableAgeClasses,
+              skillLevels: availableSkillLevels,
+              matchCount: matches.length,
+              lastSyncedAt,
+            }}
+            actions={actions}
+          />
+        )}
+
         {filters.viewMode === 'map' ? (
           <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
             {/* Variant A: Floating Quick-Filter Pill Bar on Map */}
@@ -305,7 +356,7 @@ export function App() {
             )}
 
             {/* Floating Map Summary Chip (Active in Variants B & C) */}
-            {currentVariant !== 'A' && (
+            {currentVariant !== 'A' && currentVariant !== 'D' && (
               <button
                 type="button"
                 onClick={() => setIsFilterDrawerOpen(true)}
@@ -646,6 +697,20 @@ export function App() {
       <PrototypeSwitcher
         currentVariant={currentVariant}
         onSelectVariant={handleSelectVariant}
+      />
+
+      {/* Settings & System Options Modal (Triggered by Header Gear Icon) */}
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        mapEngine={filters.mapEngine}
+        onEngineChange={actions.setMapEngine}
+        showRadiusCircle={filters.showRadiusCircle}
+        onToggleRadiusCircle={actions.setShowRadiusCircle}
+        viewMode={filters.viewMode}
+        onViewModeChange={actions.setViewMode}
+        lastSyncedAt={lastSyncedAt}
+        matchCount={matches.length}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}

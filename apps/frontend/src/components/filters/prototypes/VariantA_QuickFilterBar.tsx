@@ -236,7 +236,7 @@ export function VariantA_QuickFilterBar({
             <TeamSearchInput
               value={teamQuery || ''}
               compact
-              placeholder="🔍 Verein / Team..."
+              placeholder="Verein / Team suchen..."
               onSelectSuggestion={(s) => {
                 setTeamQuery(s.name);
 

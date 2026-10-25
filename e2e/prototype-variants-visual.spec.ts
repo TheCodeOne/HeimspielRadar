@@ -1,16 +1,64 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
+  test('Variant D (Favorit Hybrid): Bottom-Bar, Mobile Bottom-Sheet & Gear Settings', async ({ page }) => {
+    await page.goto('/?variant=D');
+    await page.waitForLoadState('networkidle');
+
+    // 1. Verify Header Gear Icon is present
+    const settingsBtn = page.getByRole('button', { name: /Einstellungen/i });
+    await expect(settingsBtn).toBeVisible();
+
+    // 2. Verify Bottom Quick-Filter Bar is visible
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar).toBeVisible();
+    await expect(bottomBar.getByText(/Heute|Termin/i)).toBeVisible();
+    await expect(bottomBar.getByText(/30 km/i)).toBeVisible();
+    await expect(bottomBar.getByText(/Verein suchen.../i)).toBeVisible();
+
+    if (test.info().project.name === 'desktop-chromium') {
+      // On desktop, the split-sidebar is visible beside the map
+      await expect(page.getByRole('heading', { name: /Filter & Umkreis/i })).toBeVisible();
+    } else {
+      // On mobile, tap the bottom bar Filter button to slide up the Mobile Bottom Sheet
+      const filterPill = bottomBar.getByRole('button', { name: 'Filter', exact: true });
+      await filterPill.click();
+
+      // Mobile Bottom Sheet should be open
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByRole('button', { name: /Spiele anzeigen/i })).toBeVisible();
+    }
+
+    await page.screenshot({
+      path: `test-results/variant-d-${test.info().project.name}.png`,
+      fullPage: true,
+    });
+
+    // 3. Test Settings Dialog
+    if (test.info().project.name === 'desktop-chromium') {
+      await settingsBtn.click();
+      const settingsModal = page.getByRole('dialog');
+      await expect(settingsModal.getByRole('heading', { name: /Einstellungen & Optionen/i })).toBeVisible();
+      await expect(settingsModal.getByText(/Karten-Engine/i)).toBeVisible();
+      await expect(settingsModal.getByText(/OpenLayers/i).first()).toBeVisible();
+      await expect(settingsModal.getByText(/MapLibre GL/i)).toBeVisible();
+
+      await page.screenshot({
+        path: `test-results/settings-dialog-${test.info().project.name}.png`,
+        fullPage: true,
+      });
+
+      // Close settings modal
+      await settingsModal.getByRole('button', { name: /Fertig/i }).click();
+    }
+  });
+
   test('Variant A: Quick-Filter Pill Bar on Map renders cleanly', async ({ page }) => {
     await page.goto('/?variant=A');
     await page.waitForLoadState('networkidle');
 
-    // Verify Prototype Switcher is visible
-    const switcher = page.getByText(/Variante A: Quick-Filter Bar/i);
-    await expect(switcher).toBeVisible();
-
     // Verify Quick Filter Bar Pills are visible
-    await expect(page.getByText(/Heute|Termin/i)).toBeVisible();
+    await expect(page.getByText(/Heute|Termin/i).first()).toBeVisible();
     await expect(page.getByText('30 km')).toBeVisible();
     await expect(page.getByPlaceholder(/Verein \/ Team/i)).toBeVisible();
 
