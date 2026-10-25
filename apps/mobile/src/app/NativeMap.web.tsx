@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
-    paddingTop: 80, // Space for floating header pill
+    paddingTop: 130, // Space for floating header pill and filter chips
     gap: 12,
   },
   webMapBanner: {
