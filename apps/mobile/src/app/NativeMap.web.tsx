@@ -3,6 +3,8 @@ import { View, StyleSheet, Text, Pressable, ScrollView } from 'react-native';
 import type { Match } from '@sundayleague/shared-types';
 import type { LocationCoordinates } from './data';
 import { calculateDistanceKm, formatKickoffTime } from './data';
+import { BasketballIcon, MapOutlineIcon } from './Icons';
+
 
 export interface NativeMapProps {
   initialRegion: LocationCoordinates;
@@ -10,6 +12,8 @@ export interface NativeMapProps {
   matches: Match[];
   selectedMatch: Match | null;
   onSelectMatch: (match: Match) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mapRef?: any;
 }
 
 export const NativeMap: React.FC<NativeMapProps> = ({
@@ -21,16 +25,16 @@ export const NativeMap: React.FC<NativeMapProps> = ({
 }) => {
   return (
     <View style={styles.webMapContainer}>
-      <View style={styles.webNoticeHeader}>
-        <Text style={styles.webNoticeTitle}>
-          Web Map Preview ({matches.length} Matches im Umkreis von {radiusKm} km)
-        </Text>
-        <Text style={styles.webNoticeSubtitle}>
-          Zentrum: {initialRegion.latitude.toFixed(4)}, {initialRegion.longitude.toFixed(4)}
-        </Text>
-      </View>
-
       <ScrollView contentContainerStyle={styles.listContainer}>
+        <View style={styles.webMapBanner}>
+          <MapOutlineIcon size={24} color="#0284c7" />
+          <Text style={styles.webMapBannerTitle}>Interaktive Spielübersicht (Web-Modus)</Text>
+          <Text style={styles.webMapBannerSubtitle}>
+            {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'} im {radiusKm} km Umkreis
+          </Text>
+        </View>
+
+
         {matches.map((match) => {
           const isSelected = selectedMatch?.id === match.id;
 
@@ -60,8 +64,12 @@ export const NativeMap: React.FC<NativeMapProps> = ({
                     isSelected ? styles.pinIconSelected : styles.pinIconDefault,
                   ]}
                 >
-                  <Text style={styles.pinIconText}>📍</Text>
+                  <BasketballIcon
+                    size={20}
+                    color={isSelected ? '#ea580c' : '#0284c7'}
+                  />
                 </View>
+
                 <View style={styles.pinTitleBox}>
                   <Text style={styles.matchTeams}>
                     {match.homeTeam?.name ?? 'Heim'} vs. {match.guestTeam?.name ?? 'Gast'}
@@ -92,39 +100,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  webNoticeHeader: {
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  webNoticeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  webNoticeSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
-  },
   listContainer: {
     padding: 16,
+    paddingTop: 80, // Space for floating header pill
     gap: 12,
+  },
+  webMapBanner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    marginBottom: 4,
+  },
+  webMapBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0369a1',
+    marginTop: 6,
+  },
+  webMapBannerSubtitle: {
+    fontSize: 12,
+    color: '#0284c7',
+    marginTop: 2,
   },
   matchPinCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowRadius: 4,
+    elevation: 2,
   },
   matchPinCardSelected: {
-    borderColor: '#f97316',
+    borderColor: '#ea580c',
     borderWidth: 2,
     backgroundColor: '#fff7ed',
   },
@@ -133,9 +148,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pinIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -145,9 +160,6 @@ const styles = StyleSheet.create({
   },
   pinIconSelected: {
     backgroundColor: '#ffedd5',
-  },
-  pinIconText: {
-    fontSize: 18,
   },
   pinTitleBox: {
     flex: 1,
@@ -168,7 +180,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#0284c7',
   },
   distText: {

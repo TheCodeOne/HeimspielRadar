@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
+import * as Haptics from 'expo-haptics';
 import type { Match } from '@sundayleague/shared-types';
 import type { LocationCoordinates } from './data';
+import { NativeMarkerPin } from './NativeMarkerPin';
 
 export interface NativeMapProps {
   initialRegion: LocationCoordinates;
@@ -10,6 +12,7 @@ export interface NativeMapProps {
   matches: Match[];
   selectedMatch: Match | null;
   onSelectMatch: (match: Match) => void;
+  mapRef?: React.RefObject<MapView | null>;
 }
 
 export const NativeMap: React.FC<NativeMapProps> = ({
@@ -18,10 +21,17 @@ export const NativeMap: React.FC<NativeMapProps> = ({
   matches,
   selectedMatch,
   onSelectMatch,
+  mapRef,
 }) => {
+  const handleMarkerPress = (match: Match) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onSelectMatch(match);
+  };
+
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={{
           latitude: initialRegion.latitude,
@@ -30,7 +40,7 @@ export const NativeMap: React.FC<NativeMapProps> = ({
           longitudeDelta: 0.25,
         }}
         showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false}
       >
         <Circle
           center={{
@@ -59,9 +69,15 @@ export const NativeMap: React.FC<NativeMapProps> = ({
               }}
               title={`${match.homeTeam?.name ?? 'Heim'} vs. ${match.guestTeam?.name ?? 'Gast'}`}
               description={match.venue.name}
-              pinColor={isSelected ? '#f97316' : '#0284c7'}
-              onPress={() => onSelectMatch(match)}
-            />
+              onPress={() => handleMarkerPress(match)}
+              tracksViewChanges={false}
+              zIndex={isSelected ? 100 : 1}
+            >
+              <NativeMarkerPin
+                isSelected={isSelected}
+                kickoffTime={match.kickoffTime}
+              />
+            </Marker>
           );
         })}
       </MapView>

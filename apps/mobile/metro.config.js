@@ -1,12 +1,35 @@
+const fs = require('fs');
+const path = require('path');
 const { withNxMetro } = require('@nx/expo');
-
-// Expo SDK 55+ ships Metro via `@expo/metro`. `getDefaultConfig` and
-// `mergeConfig` must come from the Expo-provided Metro instance.
 const { getDefaultConfig } = require('expo/metro-config');
 const { mergeConfig } = require('@expo/metro/metro-config');
+const { withNativewind } = require('nativewind/metro');
 
 const defaultConfig = getDefaultConfig(__dirname);
 const { assetExts, sourceExts } = defaultConfig.resolver;
+
+// In a Git worktree or Nx monorepo, node_modules may be symlinked or located in the workspace root.
+// Metro requires all resolved files to be included in watchFolders to compute SHA-1 hashes properly.
+const watchFolders = new Set();
+const currentRoot = path.resolve(__dirname, '../../');
+
+watchFolders.add(currentRoot);
+
+const currentRootNodeModules = path.resolve(currentRoot, 'node_modules');
+
+if (fs.existsSync(currentRootNodeModules)) {
+  watchFolders.add(currentRootNodeModules);
+
+  try {
+    const realNodeModules = fs.realpathSync(currentRootNodeModules);
+    watchFolders.add(realNodeModules);
+    const parentRoot = path.dirname(realNodeModules);
+    watchFolders.add(parentRoot);
+  } catch {
+    // ignore symlink resolution errors
+  }
+}
+
 
 /**
  * Metro configuration
@@ -25,13 +48,12 @@ const customConfig = {
   },
 };
 
-
-module.exports = withNxMetro(mergeConfig(defaultConfig, customConfig), {
-  // Change this to true to see debugging info.
-  // Useful if you have issues resolving modules
+const nxConfig = withNxMetro(mergeConfig(defaultConfig, customConfig), {
   debug: false,
-  // all the file extensions used for imports other than 'ts', 'tsx', 'js', 'jsx', 'json'
   extensions: [],
-  // Specify folders to watch, in addition to Nx defaults (workspace libraries and node_modules)
-  watchFolders: [],
+  watchFolders: Array.from(watchFolders),
 });
+
+module.exports = withNativewind(nxConfig);
+
+

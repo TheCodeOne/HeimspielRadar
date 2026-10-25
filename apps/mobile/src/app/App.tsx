@@ -1,16 +1,20 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   StatusBar,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import type MapView from 'react-native-maps';
+
 import * as Location from 'expo-location';
 import type { Match } from '@sundayleague/shared-types';
 import { NativeMap } from './NativeMap';
-import { MatchPreviewSheet } from './MatchPreviewSheet';
+import { MatchPreviewCard } from './MatchPreviewCard';
+import { FloatingHeaderPill } from './FloatingHeaderPill';
+import { FloatingActionControls } from './FloatingActionControls';
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
@@ -27,50 +31,43 @@ export const App = () => {
   const [isLoadingMatches, setIsLoadingMatches] = useState<boolean>(true);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+  const mapRef = useRef<MapView | null>(null);
+
   // 1. Geolocation Request
-  useEffect(() => {
-    let isMounted = true;
+  const requestLocation = useCallback(async () => {
+    setIsLocating(true);
 
-    async function requestLocation() {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
-        if (status !== 'granted') {
-          if (isMounted) {
-            setPermissionDenied(true);
-            setLocation(STUTTGART_FALLBACK);
-            setIsLocating(false);
-          }
+      if (status !== 'granted') {
+        setPermissionDenied(true);
+        setLocation(STUTTGART_FALLBACK);
+        setIsLocating(false);
 
-          return;
-        }
-
-        const currentPosition = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        if (isMounted) {
-          setLocation({
-            latitude: currentPosition.coords.latitude,
-            longitude: currentPosition.coords.longitude,
-          });
-          setIsLocating(false);
-        }
-      } catch {
-        if (isMounted) {
-          setPermissionDenied(true);
-          setLocation(STUTTGART_FALLBACK);
-          setIsLocating(false);
-        }
+        return;
       }
+
+
+      const currentPosition = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      setLocation({
+        latitude: currentPosition.coords.latitude,
+        longitude: currentPosition.coords.longitude,
+      });
+      setIsLocating(false);
+    } catch {
+      setPermissionDenied(true);
+      setLocation(STUTTGART_FALLBACK);
+      setIsLocating(false);
     }
-
-    requestLocation();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
 
   // 2. Fetch matches (API or sample fallback)
   const fetchMatchesForLocation = useCallback(
@@ -78,7 +75,6 @@ export const App = () => {
       setIsLoadingMatches(true);
 
       try {
-        // Attempt to fetch from backend API if available, otherwise fallback
         const apiUrl = `http://localhost:3000/api/matches?lat=${coords.latitude}&lng=${coords.longitude}&radiusKm=${DEFAULT_RADIUS_KM}`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -96,7 +92,6 @@ export const App = () => {
           setMatches(getSampleMatchesMobile());
         }
       } catch {
-        // Network error or local dev environment without backend running: use fallback
         setMatches(getSampleMatchesMobile());
       } finally {
         setIsLoadingMatches(false);
@@ -106,6 +101,28 @@ export const App = () => {
   );
 
   useEffect(() => {
+    if (location) {
+      fetchMatchesForLocation(location);
+    }
+  }, [location, fetchMatchesForLocation]);
+
+  // Recenter Map Handler
+  const handleRecenter = useCallback(() => {
+    const target = location ?? STUTTGART_FALLBACK;
+
+    if (mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: target.latitude,
+        longitude: target.longitude,
+        latitudeDelta: 0.25,
+        longitudeDelta: 0.25,
+      });
+    }
+  }, [location]);
+
+
+  // Refresh Matches Handler
+  const handleRefresh = useCallback(() => {
     if (location) {
       fetchMatchesForLocation(location);
     }
@@ -131,57 +148,62 @@ export const App = () => {
 
   if (isLocating && !location) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#0284c7" />
-        <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.centerContainer}>
+          <StatusBar barStyle="dark-content" />
+          <ActivityIndicator size="large" color="#0284c7" />
+          <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
   const activeRegion = location ?? STUTTGART_FALLBACK;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" />
 
-      {/* Header bar */}
-      <View style={styles.headerBar}>
-        <View>
-          <Text style={styles.headerTitle}>HeimspielRadar</Text>
-          <Text style={styles.headerSubtitle}>
-            {permissionDenied
-              ? 'Standort verweigert (Fallback: Stuttgart)'
-              : `Umkreis ${DEFAULT_RADIUS_KM} km`}
-          </Text>
-        </View>
-
-        {isLoadingMatches && (
-          <ActivityIndicator size="small" color="#0284c7" />
-        )}
-      </View>
-
-      {/* Interactive Map */}
-      <View style={styles.mapContainer}>
-        <NativeMap
-          initialRegion={activeRegion}
-          radiusKm={DEFAULT_RADIUS_KM}
-          matches={matches}
-          selectedMatch={selectedMatch}
-          onSelectMatch={(match) => setSelectedMatch(match)}
-        />
-
-        {/* Selected Match Preview Sheet */}
-        {selectedMatch && (
-          <MatchPreviewSheet
-            match={selectedMatch}
-            distanceKm={selectedMatchDistance}
-            onClose={() => setSelectedMatch(null)}
+        {/* Main Fullscreen Interactive Map */}
+        <View style={styles.mapContainer}>
+          <NativeMap
+            mapRef={mapRef}
+            initialRegion={activeRegion}
+            radiusKm={DEFAULT_RADIUS_KM}
+            matches={matches}
+            selectedMatch={selectedMatch}
+            onSelectMatch={(match) => setSelectedMatch(match)}
           />
-        )}
-      </View>
-    </SafeAreaView>
+
+          {/* Floating Safe-Area Header Pill */}
+          <FloatingHeaderPill
+            matchCount={matches.length}
+            radiusKm={DEFAULT_RADIUS_KM}
+            isLoading={isLoadingMatches}
+            permissionDenied={permissionDenied}
+          />
+
+          {/* Floating Action Controls (Recenter, Reload) */}
+          <FloatingActionControls
+            onRecenter={handleRecenter}
+            onRefresh={handleRefresh}
+            isRefreshing={isLoadingMatches}
+          />
+
+          {/* Floating Glassmorphism Match Preview Card */}
+          {selectedMatch && (
+            <MatchPreviewCard
+              match={selectedMatch}
+              distanceKm={selectedMatchDistance}
+              onClose={() => setSelectedMatch(null)}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
+
 };
 
 const styles = StyleSheet.create({
@@ -200,27 +222,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#64748b',
     fontWeight: '500',
-  },
-  headerBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-    zIndex: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
   },
   mapContainer: {
     flex: 1,
