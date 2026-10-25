@@ -174,7 +174,7 @@ export class DbbClientService {
     liganr: number,
     rangeDays = 14
   ): Promise<DbbCompetitionActualResponse> {
-    const url = `${this.baseUrl}/rest/competition/number/${liganr}/actual?rangeDays=${rangeDays}`;
+    const url = `${this.baseUrl}/rest/competition/actual/id/${liganr}?rangeDays=${rangeDays}`;
 
     this.logger.debug(`Fetching competition actual from: ${url}`);
 
