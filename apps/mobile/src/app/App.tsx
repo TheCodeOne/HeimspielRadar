@@ -15,6 +15,11 @@ import { NativeMap } from './NativeMap';
 import { MatchPreviewCard } from './MatchPreviewCard';
 import { FloatingHeaderPill } from './FloatingHeaderPill';
 import { FloatingActionControls } from './FloatingActionControls';
+import { useNetworkStatus } from './useNetworkStatus';
+import {
+  saveCachedMatches,
+  getCachedMatches,
+} from './matchCache';
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
@@ -30,10 +35,30 @@ export const App = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState<boolean>(true);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
 
   const mapRef = useRef<MapView | null>(null);
+  const network = useNetworkStatus();
+  const wasOfflineRef = useRef<boolean>(false);
 
-  // 1. Geolocation Request
+  // 1. Initial Load: Read cached matches first for immediate offline availability
+  useEffect(() => {
+    async function loadInitialCache() {
+      const cached = await getCachedMatches();
+
+      if (cached && cached.matches.length > 0) {
+        setMatches(cached.matches);
+
+        if (!location) {
+          setLocation(cached.coords);
+        }
+      }
+    }
+
+    loadInitialCache();
+  }, []); // Run once on startup
+
+  // 2. Geolocation Request
   const requestLocation = useCallback(async () => {
     setIsLocating(true);
 
@@ -42,12 +67,11 @@ export const App = () => {
 
       if (status !== 'granted') {
         setPermissionDenied(true);
-        setLocation(STUTTGART_FALLBACK);
+        setLocation((prev) => prev ?? STUTTGART_FALLBACK);
         setIsLocating(false);
 
         return;
       }
-
 
       const currentPosition = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -60,7 +84,7 @@ export const App = () => {
       setIsLocating(false);
     } catch {
       setPermissionDenied(true);
-      setLocation(STUTTGART_FALLBACK);
+      setLocation((prev) => prev ?? STUTTGART_FALLBACK);
       setIsLocating(false);
     }
   }, []);
@@ -69,9 +93,25 @@ export const App = () => {
     requestLocation();
   }, [requestLocation]);
 
-  // 2. Fetch matches (API or sample fallback)
+  // 3. Fetch matches (API -> Cache -> Fallback)
   const fetchMatchesForLocation = useCallback(
-    async (coords: LocationCoordinates) => {
+    async (coords: LocationCoordinates, isManualOrForced = false) => {
+      // If we know we are offline, immediately serve cache or fallback without network delay
+      if (!network.isOnline && !isManualOrForced) {
+        setIsOfflineMode(true);
+        const cached = await getCachedMatches();
+
+        if (cached && cached.matches.length > 0) {
+          setMatches(cached.matches);
+        } else {
+          setMatches(getSampleMatchesMobile());
+        }
+
+        setIsLoadingMatches(false);
+
+        return;
+      }
+
       setIsLoadingMatches(true);
 
       try {
@@ -88,16 +128,37 @@ export const App = () => {
         if (response.ok) {
           const data: Match[] = await response.json();
           setMatches(data);
+          setIsOfflineMode(false);
+          // Persist to cache on successful fetch
+          await saveCachedMatches(data, coords, DEFAULT_RADIUS_KM);
+        } else {
+          // If server error, check cache first
+          const cached = await getCachedMatches();
+
+          if (cached && cached.matches.length > 0) {
+            setMatches(cached.matches);
+            setIsOfflineMode(true);
+          } else {
+            setMatches(getSampleMatchesMobile());
+            setIsOfflineMode(!network.isOnline);
+          }
+        }
+      } catch {
+        // Network error / timeout / unreachable
+        const cached = await getCachedMatches();
+
+        if (cached && cached.matches.length > 0) {
+          setMatches(cached.matches);
         } else {
           setMatches(getSampleMatchesMobile());
         }
-      } catch {
-        setMatches(getSampleMatchesMobile());
+
+        setIsOfflineMode(true);
       } finally {
         setIsLoadingMatches(false);
       }
     },
-    [],
+    [network.isOnline],
   );
 
   useEffect(() => {
@@ -105,6 +166,19 @@ export const App = () => {
       fetchMatchesForLocation(location);
     }
   }, [location, fetchMatchesForLocation]);
+
+  // 4. Background revalidation when network transitions from offline to online
+  useEffect(() => {
+    if (!network.isOnline) {
+      wasOfflineRef.current = true;
+      setIsOfflineMode(true);
+    } else if (wasOfflineRef.current && network.isOnline) {
+      // Back online!
+      wasOfflineRef.current = false;
+      const targetCoords = location ?? STUTTGART_FALLBACK;
+      fetchMatchesForLocation(targetCoords, true);
+    }
+  }, [network.isOnline, location, fetchMatchesForLocation]);
 
   // Recenter Map Handler
   const handleRecenter = useCallback(() => {
@@ -120,12 +194,10 @@ export const App = () => {
     }
   }, [location]);
 
-
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
-    if (location) {
-      fetchMatchesForLocation(location);
-    }
+    const target = location ?? STUTTGART_FALLBACK;
+    fetchMatchesForLocation(target, true);
   }, [location, fetchMatchesForLocation]);
 
   // Selected match distance
@@ -182,6 +254,7 @@ export const App = () => {
             radiusKm={DEFAULT_RADIUS_KM}
             isLoading={isLoadingMatches}
             permissionDenied={permissionDenied}
+            isOffline={isOfflineMode || !network.isOnline}
           />
 
           {/* Floating Action Controls (Recenter, Reload) */}
@@ -203,7 +276,6 @@ export const App = () => {
       </SafeAreaView>
     </SafeAreaProvider>
   );
-
 };
 
 const styles = StyleSheet.create({
