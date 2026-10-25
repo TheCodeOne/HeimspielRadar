@@ -82,6 +82,14 @@ export interface LeagueRawData {
   skName?: string;
   akName?: string;
   geschlecht?: string;
+  tabelle?: unknown;
+  seasonId?: number;
+  seasonName?: string;
+  ligaId?: number;
+  liganame?: string;
+  liganr?: number;
+  verbandId?: number;
+  verbandName?: string;
 }
 
 export const leagues = pgTable('leagues', {
