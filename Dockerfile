@@ -14,6 +14,10 @@ RUN npm ci
 # Copy source code and workspace configuration
 COPY . .
 
+# Pass build arg and env for enabling admin dashboard on Pi
+ARG VITE_ENABLE_ADMIN_UI=true
+ENV VITE_ENABLE_ADMIN_UI=$VITE_ENABLE_ADMIN_UI
+
 # Build backend and frontend
 RUN npx nx build backend && npx nx build frontend
 

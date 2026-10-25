@@ -141,3 +141,43 @@ export interface RetryFailedResult {
   resolved?: number;
   stillFailing?: number;
 }
+
+export type SyncRunStatus = 'running' | 'success' | 'partial' | 'error';
+
+export type SyncType = 'delta' | 'deep' | 'manual';
+
+export interface SyncRun {
+  id: number;
+  syncType: string;
+  target: string;
+  startedAt: string | Date;
+  finishedAt?: string | Date | null;
+  durationMs?: number | null;
+  totalLeagues: number;
+  successfulLeagues: number;
+  syncedMatches: number;
+  geocodedVenues: number;
+  failuresCount: number;
+  status: SyncRunStatus | string;
+  errorMessage?: string | null;
+  createdAt: string | Date;
+}
+
+export interface AdminStatusResponse {
+  uptimeSeconds: number;
+  nodeVersion: string;
+  memory: {
+    heapUsedMb: number;
+    heapTotalMb: number;
+    rssMb: number;
+  };
+  databaseConnected: boolean;
+  telegramConfigured: boolean;
+  activeSyncRun: SyncRun | null;
+  lastSyncRun: SyncRun | null;
+}
+
+export interface SyncTriggerDto {
+  type: 'delta' | 'deep';
+  target: 'all' | 'verband:1' | 'verband:31' | string;
+}

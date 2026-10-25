@@ -36,7 +36,7 @@ export class ScraperSchedulerService {
       return;
     }
 
-    if (this.isSyncRunning) {
+    if (this.isSyncRunning || this.scraperService.isSyncActive()) {
       this.logger.warn('Weekly full sync skipped because another sync is currently active.');
 
       return;
@@ -46,7 +46,10 @@ export class ScraperSchedulerService {
     this.isSyncRunning = true;
 
     try {
-      const result = await this.scraperService.syncAllBawueLeagues({ quickSync: false });
+      const result = await this.scraperService.executeAuditedSync({
+        type: 'deep',
+        target: 'verband:1',
+      });
 
       this.logger.log(
         `Scheduled weekly full sync completed in ${result.durationMs}ms: ` +
@@ -72,7 +75,7 @@ export class ScraperSchedulerService {
       return;
     }
 
-    if (this.isSyncRunning) {
+    if (this.isSyncRunning || this.scraperService.isSyncActive()) {
       this.logger.warn('Weekend match sync skipped because another sync is currently active.');
 
       return;
@@ -82,7 +85,10 @@ export class ScraperSchedulerService {
     this.isSyncRunning = true;
 
     try {
-      const result = await this.scraperService.syncAllBawueLeagues({ quickSync: true });
+      const result = await this.scraperService.executeAuditedSync({
+        type: 'delta',
+        target: 'verband:1',
+      });
 
       this.logger.log(
         `Scheduled weekend match sync completed in ${result.durationMs}ms: ` +

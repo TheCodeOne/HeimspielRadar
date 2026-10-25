@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
+import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
@@ -46,7 +47,7 @@ function buildGoogleMapsRouteUrl(match: Match): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
-export function App() {
+function MainView() {
   // Fetch available leagues and distinct hierarchy options from /api/leagues
   const {
     leagues,
@@ -575,4 +576,42 @@ export function App() {
       <ReloadPrompt />
     </div>
   );
+}
+
+export function App() {
+  const [isAdminRoute, setIsAdminRoute] = React.useState<boolean>(() => {
+    return (
+      typeof window !== 'undefined' &&
+      window.location.pathname.startsWith('/admin')
+    );
+  });
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (isAdminRoute) {
+    const isAdminEnabled = import.meta.env.VITE_ENABLE_ADMIN_UI === 'true';
+
+    if (!isAdminEnabled) {
+      return (
+        <div className="flex h-dvh w-full flex-col items-center justify-center bg-background px-4 text-center text-foreground">
+          <h1 className="text-4xl font-extrabold tracking-tight">404</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Diese Seite konnte nicht gefunden werden.
+          </p>
+        </div>
+      );
+    }
+
+    return <AdminDashboard />;
+  }
+
+  return <MainView />;
 }

@@ -2,7 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
-import { LeagueRawData, leagues, matches, syncFailures, teams, venues } from '../database/schema';
+import {
+  LeagueRawData,
+  leagues,
+  matches,
+  syncFailures,
+  syncRuns,
+  teams,
+  venues,
+} from '../database/schema';
 import {
   DbbClientService,
   DbbCompetitionActualResponse,
@@ -148,6 +156,7 @@ class FakeDatabase {
   existingTeams: ExistingTeamRow[] = [];
   existingLeagues: ExistingLeagueRow[] = [];
   existingFailures: SyncFailureSelect[] = [];
+  existingSyncRuns: any[] = [];
   insertCalls: InsertCallRecord[] = [];
   updateCalls: UpdateCallRecord[] = [];
   deleteCalls: DeleteCallRecord[] = [];
@@ -155,6 +164,20 @@ class FakeDatabase {
   select() {
     return {
       from: (table: PgTable) => {
+        if (table === syncRuns) {
+          const makePromiseChain = () => {
+            const promise = Promise.resolve(this.existingSyncRuns);
+
+            return Object.assign(promise, {
+              where: () => makePromiseChain(),
+              orderBy: () => makePromiseChain(),
+              limit: (n: number) => Promise.resolve(this.existingSyncRuns.slice(0, n)),
+            });
+          };
+
+          return makePromiseChain();
+        }
+
         if (table === venues) {
           const promise = Promise.resolve(this.existingVenues);
 
@@ -249,6 +272,21 @@ class FakeDatabase {
         const rowCount = items.length;
 
         this.insertCalls.push({ table, isBatch, rowCount });
+
+        if (table === syncRuns) {
+          const runItem = {
+            id: this.existingSyncRuns.length + 1,
+            ...items[0],
+            createdAt: new Date(),
+          };
+
+          this.existingSyncRuns.push(runItem);
+          const promise = Promise.resolve([runItem]);
+
+          return Object.assign(promise, {
+            returning: () => Promise.resolve([runItem]),
+          });
+        }
 
         if (table === syncFailures) {
           for (const item of items) {
@@ -464,6 +502,12 @@ class FakeDatabase {
             for (const item of this.existingFailures) {
               item.retryCount = (item.retryCount ?? 0) + 1;
               item.updatedAt = new Date();
+            }
+          }
+
+          if (table === syncRuns) {
+            for (const item of this.existingSyncRuns) {
+              Object.assign(item, vals);
             }
           }
 
@@ -1576,6 +1620,103 @@ describe('ScraperService', () => {
         });
         expect(result.syncedMatches).toBe(5);
       });
+    });
+  });
+
+  describe('audited sync & runs', () => {
+    it('executes audited sync for verband:1 and records sync run', async () => {
+      mockDbbClient.fetchAllWamLeagues.mockResolvedValueOnce([
+        {
+          ligaId: 53941,
+          liganame: 'Kreisliga A',
+          seasonId: 2026,
+        },
+      ]);
+
+      mockDbbClient.fetchSpielplan.mockResolvedValueOnce(sampleSpielplan);
+      mockDbbClient.fetchMatchInfo.mockResolvedValueOnce({
+        data: {
+          matchId: 1001,
+          matchInfo: {
+            spielfeld: {
+              id: 999,
+              bezeichnung: 'Halle A',
+              strasse: 'Sportstr. 1',
+              plz: '70173',
+              ort: 'Stuttgart',
+            },
+          },
+        },
+      });
+
+      const run = await service.executeAuditedSync({
+        type: 'deep',
+        target: 'verband:1',
+      });
+
+      expect(run).toBeDefined();
+      expect(run.status).toBe('success');
+      expect(run.target).toBe('verband:1');
+      expect(run.totalLeagues).toBe(1);
+      expect(run.successfulLeagues).toBe(1);
+      expect(run.syncedMatches).toBe(1);
+      expect(fakeDb.existingSyncRuns).toHaveLength(1);
+    });
+
+    it('rejects concurrent sync with ConflictException', async () => {
+      // Simulate active sync
+      service.setSyncActiveForTesting(true, 99);
+
+      await expect(
+        service.executeAuditedSync({ type: 'delta', target: 'verband:1' })
+      ).rejects.toThrow('A sync run is already in progress (ID: #99)');
+
+      service.setSyncActiveForTesting(false, null);
+    });
+
+    it('triggers audited sync in background and returns running run info', async () => {
+      mockDbbClient.fetchSpielplan.mockResolvedValueOnce(sampleSpielplan);
+      mockDbbClient.fetchMatchInfo.mockResolvedValueOnce({
+        data: {
+          matchId: 1001,
+          matchInfo: {
+            spielfeld: {
+              id: 999,
+              bezeichnung: 'Halle A',
+              strasse: 'Sportstr. 1',
+              plz: '70173',
+              ort: 'Stuttgart',
+            },
+          },
+        },
+      });
+
+      const res = await service.triggerAuditedSync({
+        type: 'delta',
+        target: 'league:53941',
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.status).toBe('running');
+      expect(res.runId).toBeGreaterThan(0);
+    });
+
+    it('queries active and recent sync runs', async () => {
+      fakeDb.existingSyncRuns = [
+        {
+          id: 1,
+          syncType: 'delta',
+          target: 'verband:1',
+          startedAt: new Date(),
+          status: 'running',
+        },
+      ];
+
+      const active = await service.getActiveSyncRun();
+      expect(active?.id).toBe(1);
+
+      const recent = await service.getRecentSyncRuns(5);
+      expect(recent).toHaveLength(1);
     });
   });
 });
