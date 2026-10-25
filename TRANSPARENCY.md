@@ -24,9 +24,9 @@ Hier ist die detaillierte Aufschlüsselung der monatlichen Betriebskosten nach S
 | **Datenbank (PostgreSQL / PostGIS)** | **0,00 €** (Neon Serverless Free Tier) | **0,00 €** (Postgres direkt im Docker auf dem Hetzner VPS) | **3,81 €** (Hetzner VPS + 1 TB Storage Box für Backups) | **10,00 €** (Managed Postgres oder Hetzner VPS Cluster) |
 | **Frontend CDN & Edge Caching** | **0,00 €** (Cloudflare Free Tier) | **0,00 €** (Cloudflare Free Tier) | **0,00 €** (Cloudflare Free Tier) | **0,00 € – 20,00 €** (Cloudflare Pro / CDN) |
 | **Geocoding & Karten-Tiles** | **0,00 €** (Nominatim Cache + OSM Fair-Use) | **0,00 €** (OSM Tiles / MapTiler Free bis 100k Aufrufe) | **~5,00 €** (Protomaps / eigene PMTiles Vektorkacheln via Cloudflare R2) | **~15,00 €** (PMTiles CDN Storage & Egress) |
-| **Domain & DNS (`heimspielradar.de`)** | **~1,00 €** (ca. 12 €/Jahr) | **~1,00 €** | **~1,00 €** | **~2,00 €** (inkl. Fallback-Domains) |
+| **Domain & DNS (`heimspielradar.app`)** | **~1,18 €** ($14.20/Jahr) | **~1,18 €** | **~1,18 €** | **~2,50 €** (inkl. Fallback-Domains) |
 | **Alerting, Logging & Monitoring** | **0,00 €** (Telegram Bot API + Sentry Free) | **0,00 €** (Telegram Bot + BetterStack Uptime Free) | **0,00 €** (Telegram + GlitchTip self-hosted) | **5,00 €** (Erweitertes Log-Management) |
-| **Gesamtkosten pro Monat** | **~2,30 € / Monat** | **~4,79 € / Monat** | **~16,81 € / Monat** | **~47,00 € / Monat** |
+| **Gesamtkosten pro Monat** | **~2,48 € / Monat** | **~4,97 € / Monat** | **~16,99 € / Monat** | **~47,50 € / Monat** |
 | **Benötigte "Kaffees" zur Kostendeckung** | **1 Kaffee (3 €)** | **2 Kaffees (6 €)** | **6 Kaffees oder 2 Featured Matches** | **15 Kaffees oder 5 Featured Matches** |
 
 ### 💡 Warum unsere Kosten so extrem niedrig bleiben:
@@ -56,8 +56,8 @@ Alle Einnahmen und Ausgaben werden hier monatlich aufgeführt.
 | Datum | Typ | Kategorie | Beschreibung | Betrag | Saldo |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | 25.10.2026 | Ausgabe | Infrastruktur | Raspberry Pi 4 Stromverbrauch (Schätzung Monat) | -1,30 € | -1,30 € |
-| 25.10.2026 | Ausgabe | Domain | Domainregistrierung `heimspielradar.de` (anteilig Monat) | -1,00 € | -2,30 € |
-| 25.10.2026 | Einnahme | Startkapital | Privater Entwickler-Zuschuss (Ausgleich Startkosten) | +2,30 € | **0,00 €** |
+| 25.10.2026 | Ausgabe | Domain | Kauf Domain `heimspielradar.app` (1 Jahr, $14.20) | -13,10 € | -14,40 € |
+| 25.10.2026 | Einnahme | Startkapital | Privater Entwickler-Zuschuss (Ausgleich Startkosten) | +14,40 € | **0,00 €** |
 
 ---
 
