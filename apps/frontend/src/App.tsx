@@ -34,9 +34,12 @@ import {
   compareMatchesChronologically,
   formatLastSyncedAt,
 } from '@/lib/date-utils';
+import { getDonationUrl } from '@/lib/donation';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
+
+const DONATION_URL = getDonationUrl();
 
 function MainView() {
   // Fetch available leagues and distinct hierarchy options from /api/leagues
@@ -247,8 +250,23 @@ function MainView() {
           </div>
         </div>
 
-        {/* Right: Actions (Filter Trigger & Settings Gear Icon) */}
+        {/* Right: Actions (Hallenkaffee, Filter Trigger & Settings Gear Icon) */}
         <div className="flex items-center gap-2">
+          {/* Hallenkaffee Donation Link */}
+          <a
+            href={DONATION_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Hallenkaffee spendieren (Serverkosten unterstützen)"
+            aria-label="Hallenkaffee spendieren (Serverkosten unterstützen)"
+            className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span className="text-sm leading-none" role="img" aria-hidden="true">
+              ☕
+            </span>
+            <span className="hidden sm:inline">Hallenkaffee</span>
+          </a>
+
           {isLegacy ? (
             /* Legacy Filter Trigger Button */
             <Button
