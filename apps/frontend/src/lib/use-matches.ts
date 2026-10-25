@@ -6,6 +6,35 @@ import { getSampleMatches } from './sample-matches';
 
 export { useLeagues, type UseLeaguesResult } from './use-leagues';
 
+export function isTeamNumberMatch(
+  teamName: string,
+  shortName: string | null | undefined,
+  queryNum: number | undefined,
+  queryBase: string,
+  rawQuery: string,
+): boolean {
+  const tTrim = teamName.trim();
+  const m = tTrim.match(/^(.*?)(?:\s+(\d+)|\s*\((\d+)\))$/);
+  const tBase = (m ? m[1] : tTrim).trim().toLowerCase();
+  const tNum = m ? parseInt(m[2] ?? m[3], 10) : 1;
+  const sLower = shortName?.trim().toLowerCase() ?? '';
+
+  if (queryNum !== undefined) {
+    return tNum === queryNum;
+  }
+
+  // queryNum is undefined: if candidate is a reserve team (>= 2), check if query targets its base
+  if (tNum >= 2) {
+    const rawLower = rawQuery.trim().toLowerCase();
+
+    if (rawLower.includes(tBase) || (sLower && rawLower.includes(sLower))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export interface UseMatchesOptions {
   date?: string;
   dateFrom?: string;
@@ -248,27 +277,65 @@ export function useMatches({
             continue;
           }
 
-          // Apply teamQuery filter if selected (supports multi-token queries like "MTV Stuttgart U12")
+          // Apply teamQuery filter if selected (supports multi-token queries like "MTV Stuttgart U12" and disambiguates reserve teams)
           if (teamQuery) {
-            const tokens = teamQuery.toLowerCase().split(/\s+/).filter(Boolean);
+            const numMatch = teamQuery.trim().match(/^(.*?)(?:\s+(\d+)|\s*\((\d+)\))$/);
+            const queryNum = numMatch ? parseInt(numMatch[2] ?? numMatch[3], 10) : undefined;
+            const queryBase = (numMatch ? numMatch[1] : teamQuery).trim();
+            const searchPhrase = queryNum !== undefined ? queryBase : teamQuery;
 
-            const allTokensMatch = tokens.every((tok) => {
-              const homeMatches =
-                sample.homeTeam.name.toLowerCase().includes(tok) ||
-                Boolean(sample.homeTeam.shortName?.toLowerCase().includes(tok));
+            const isHomeValid = isTeamNumberMatch(
+              sample.homeTeam.name,
+              sample.homeTeam.shortName,
+              queryNum,
+              queryBase,
+              teamQuery,
+            );
 
-              const guestMatches =
-                sample.guestTeam.name.toLowerCase().includes(tok) ||
-                Boolean(sample.guestTeam.shortName?.toLowerCase().includes(tok));
+            const isGuestValid = isTeamNumberMatch(
+              sample.guestTeam.name,
+              sample.guestTeam.shortName,
+              queryNum,
+              queryBase,
+              teamQuery,
+            );
 
-              const leagueMatches =
-                Boolean(sample.league?.akName?.toLowerCase().includes(tok)) ||
-                Boolean(sample.league?.geschlecht?.toLowerCase().includes(tok));
 
-              return homeMatches || guestMatches || leagueMatches;
-            });
+            const qLower = searchPhrase.toLowerCase();
 
-            if (!allTokensMatch) {
+            const homePhraseMatches =
+              isHomeValid &&
+              (sample.homeTeam.name.toLowerCase().includes(qLower) ||
+                Boolean(sample.homeTeam.shortName?.toLowerCase().includes(qLower)));
+
+            const guestPhraseMatches =
+              isGuestValid &&
+              (sample.guestTeam.name.toLowerCase().includes(qLower) ||
+                Boolean(sample.guestTeam.shortName?.toLowerCase().includes(qLower)));
+
+            const tokens = qLower.split(/\s+/).filter(Boolean);
+
+            const multiTokenMatches =
+              tokens.length > 1 &&
+              tokens.every((tok) => {
+                const homeMatches =
+                  isHomeValid &&
+                  (sample.homeTeam.name.toLowerCase().includes(tok) ||
+                    Boolean(sample.homeTeam.shortName?.toLowerCase().includes(tok)));
+
+                const guestMatches =
+                  isGuestValid &&
+                  (sample.guestTeam.name.toLowerCase().includes(tok) ||
+                    Boolean(sample.guestTeam.shortName?.toLowerCase().includes(tok)));
+
+                const leagueMatches =
+                  Boolean(sample.league?.akName?.toLowerCase().includes(tok)) ||
+                  Boolean(sample.league?.geschlecht?.toLowerCase().includes(tok));
+
+                return homeMatches || guestMatches || leagueMatches;
+              });
+
+            if (!homePhraseMatches && !guestPhraseMatches && !multiTokenMatches) {
               continue;
             }
           }

@@ -257,14 +257,48 @@ export class MatchesService {
     const guestTeam = aliasedTable(teams, 'guest_team');
 
     if (trimmedTeam) {
+      const numMatch = trimmedTeam.match(/^(.*?)(?:\s+(\d+)|\s*\((\d+)\))$/);
+      const queryNum = numMatch ? parseInt(numMatch[2] ?? numMatch[3], 10) : undefined;
+      const queryBase = (numMatch ? numMatch[1] : trimmedTeam).trim();
+      const searchPhrase = queryNum !== undefined ? queryBase : trimmedTeam;
+      const reserveSuffixRegex = '(\\s+([2-9]|\\d{2,})|\\(([2-9]|\\d{2,})\\))$';
+
+      const buildTeamValidity = (teamTable: typeof homeTeam) => {
+        if (queryNum === 1) {
+          return sql`NOT (${teamTable.name} ~* ${reserveSuffixRegex})`;
+        }
+
+        if (queryNum !== undefined && queryNum >= 2) {
+          return sql`${teamTable.name} ~* ('(\\s+' || ${queryNum} || '|\\(' || ${queryNum} || '\\))$')`;
+        }
+
+        return sql`NOT (
+          ${teamTable.name} ~* ${reserveSuffixRegex}
+          AND lower(${trimmedTeam}) LIKE ('%' || lower(btrim(regexp_replace(${teamTable.name}, ${reserveSuffixRegex}, ''))) || '%')
+        )`;
+      };
+
+      const homeReserveValid = buildTeamValidity(homeTeam);
+      const guestReserveValid = buildTeamValidity(guestTeam);
+
       const fullPhraseCondition = or(
-        ilike(homeTeam.name, `%${trimmedTeam}%`),
-        ilike(guestTeam.name, `%${trimmedTeam}%`),
-        ilike(homeTeam.shortName, `%${trimmedTeam}%`),
-        ilike(guestTeam.shortName, `%${trimmedTeam}%`)
+        and(
+          or(
+            ilike(homeTeam.name, `%${searchPhrase}%`),
+            ilike(homeTeam.shortName, `%${searchPhrase}%`)
+          ),
+          homeReserveValid
+        ),
+        and(
+          or(
+            ilike(guestTeam.name, `%${searchPhrase}%`),
+            ilike(guestTeam.shortName, `%${searchPhrase}%`)
+          ),
+          guestReserveValid
+        )
       )!;
 
-      const tokens = trimmedTeam.split(/\s+/).filter(Boolean);
+      const tokens = searchPhrase.split(/\s+/).filter(Boolean);
 
       if (tokens.length <= 1) {
         conditions.push(fullPhraseCondition);
@@ -273,10 +307,20 @@ export class MatchesService {
           const pat = `%${tok}%`;
 
           return or(
-            ilike(homeTeam.name, pat),
-            ilike(guestTeam.name, pat),
-            ilike(homeTeam.shortName, pat),
-            ilike(guestTeam.shortName, pat),
+            and(
+              or(
+                ilike(homeTeam.name, pat),
+                ilike(homeTeam.shortName, pat)
+              ),
+              homeReserveValid
+            ),
+            and(
+              or(
+                ilike(guestTeam.name, pat),
+                ilike(guestTeam.shortName, pat)
+              ),
+              guestReserveValid
+            ),
             ilike(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`, pat),
             ilike(sql`coalesce(${leagues.geschlecht}, ${leagues.rawData}->>'geschlecht')`, pat)
           )!;

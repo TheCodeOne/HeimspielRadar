@@ -660,6 +660,59 @@ describe('MatchesService', () => {
       expect(queryObj.params).toContain('%U12%');
     });
 
+    it('disambiguates first team from reserve teams when teamQuery targets base name', async () => {
+      await service.findMatches({
+        teamQuery: 'SpVgg Mössingen',
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%SpVgg Mössingen%');
+      expect(queryObj.sql).toContain('regexp_replace');
+    });
+
+    it('specifically targets reserve teams when teamQuery ends with team number', async () => {
+      await service.findMatches({
+        teamQuery: 'SpVgg Mössingen 2',
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%SpVgg Mössingen%');
+      expect(queryObj.sql).toContain('~*');
+      expect(queryObj.params).toContain(2);
+    });
+
+    it('specifically targets first team when teamQuery ends with 1', async () => {
+      await service.findMatches({
+        teamQuery: 'SpVgg Mössingen 1',
+      });
+
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+
+      const dialect = new PgDialect();
+
+      const queryObj = inMemoryDb.capturedWhereConditions[0]
+        ? dialect.sqlToQuery(inMemoryDb.capturedWhereConditions[0])
+        : { sql: '', params: [] };
+
+      expect(queryObj.params).toContain('%SpVgg Mössingen%');
+      expect(queryObj.sql).toContain('NOT');
+      expect(queryObj.sql).toContain('~*');
+    });
+
     it('bypasses ST_DWithin radius filter when teamQuery is active even if coordinates are passed', async () => {
       await service.findMatches({
         teamQuery: 'TSG Reutlingen',
