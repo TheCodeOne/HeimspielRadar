@@ -38,8 +38,8 @@ export async function saveCachedMatches(
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    console.warn('Failed to save matches to cache:', error);
+  } catch {
+    // Graceful fallback if AsyncStorage native module is not ready or fails
   }
 }
 
@@ -98,9 +98,8 @@ export async function getCachedMatches(): Promise<CachedMatchData | null> {
     }
 
     return null;
-  } catch (error) {
-    console.warn('Failed to load matches from cache:', error);
-
+  } catch {
+    // Graceful degradation when AsyncStorage native module is unavailable (e.g. legacy storage / Expo Go init)
     return null;
   }
 }
@@ -111,7 +110,7 @@ export async function getCachedMatches(): Promise<CachedMatchData | null> {
 export async function clearCachedMatches(): Promise<void> {
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);
-  } catch (error) {
-    console.warn('Failed to clear matches cache:', error);
+  } catch {
+    // Graceful degradation
   }
 }

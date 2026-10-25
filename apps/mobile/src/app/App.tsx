@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type MapView from 'react-native-maps';
 
 import * as Location from 'expo-location';
@@ -343,75 +344,82 @@ export const App = () => {
 
   if (isLocating && !location) {
     return (
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.centerContainer}>
-          <StatusBar barStyle="dark-content" />
-          <ActivityIndicator size="large" color="#0284c7" />
-          <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
-        </SafeAreaView>
-      </SafeAreaProvider>
+      <GestureHandlerRootView style={styles.rootView}>
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.centerContainer}>
+            <StatusBar barStyle="dark-content" />
+            <ActivityIndicator size="large" color="#0284c7" />
+            <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     );
   }
 
   const activeRegion = location ?? STUTTGART_FALLBACK;
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" />
+    <GestureHandlerRootView style={styles.rootView}>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" />
 
-        {/* Main Fullscreen Interactive Map */}
-        <View style={styles.mapContainer}>
-          <NativeMap
-            mapRef={mapRef}
-            initialRegion={activeRegion}
-            radiusKm={radiusKm}
-            matches={matches}
-            selectedMatch={selectedMatch}
-            onSelectMatch={handleSelectMatch}
-          />
+          {/* Main Fullscreen Interactive Map */}
+          <View style={styles.mapContainer}>
+            <NativeMap
+              mapRef={mapRef}
+              initialRegion={activeRegion}
+              radiusKm={radiusKm}
+              matches={matches}
+              selectedMatch={selectedMatch}
+              onSelectMatch={handleSelectMatch}
+            />
 
-          {/* Floating Safe-Area Header Pill */}
-          <FloatingHeaderPill
-            matchCount={matches.length}
-            radiusKm={radiusKm}
-            isLoading={isLoadingMatches}
-            permissionDenied={permissionDenied}
-            isOffline={isOfflineMode || !network.isOnline}
-          />
+            {/* Floating Safe-Area Header Pill */}
+            <FloatingHeaderPill
+              matchCount={matches.length}
+              radiusKm={radiusKm}
+              isLoading={isLoadingMatches}
+              permissionDenied={permissionDenied}
+              isOffline={isOfflineMode || !network.isOnline}
+            />
 
-          {/* Floating Filter Bar (Radius & Date Chips) */}
-          <FilterChips
-            selectedRadius={radiusKm}
-            onSelectRadius={handleSelectRadius}
-            selectedDate={dateFilter}
-            onSelectDate={handleSelectDate}
-          />
+            {/* Floating Filter Bar (Radius & Date Chips) */}
+            <FilterChips
+              selectedRadius={radiusKm}
+              onSelectRadius={handleSelectRadius}
+              selectedDate={dateFilter}
+              onSelectDate={handleSelectDate}
+            />
 
-          {/* Floating Action Controls (Recenter, Reload) */}
-          <FloatingActionControls
-            onRecenter={handleRecenter}
-            onRefresh={handleRefresh}
-            isRefreshing={isLoadingMatches}
-          />
+            {/* Floating Action Controls (Recenter, Reload) */}
+            <FloatingActionControls
+              onRecenter={handleRecenter}
+              onRefresh={handleRefresh}
+              isRefreshing={isLoadingMatches}
+            />
 
-          {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
-          <MobileBottomSheet
-            matches={matches}
-            userLocation={location}
-            selectedMatch={selectedMatch}
-            onSelectMatch={handleSelectMatch}
-            onClearSelectedMatch={handleClearSelectedMatch}
-            onRefresh={handleRefresh}
-            isRefreshing={isLoadingMatches}
-          />
-        </View>
-      </SafeAreaView>
-    </SafeAreaProvider>
+            {/* Gesture-Driven Expandable Bottom Sheet with 2-Way Sync */}
+            <MobileBottomSheet
+              matches={matches}
+              userLocation={location}
+              selectedMatch={selectedMatch}
+              onSelectMatch={handleSelectMatch}
+              onClearSelectedMatch={handleClearSelectedMatch}
+              onRefresh={handleRefresh}
+              isRefreshing={isLoadingMatches}
+            />
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 };
 
 const styles = StyleSheet.create({
+  rootView: {
+    flex: 1,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#ffffff',
