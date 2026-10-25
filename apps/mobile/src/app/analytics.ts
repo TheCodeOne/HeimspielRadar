@@ -2,10 +2,14 @@ import { PostHog, PostHogOptions } from 'posthog-react-native';
 
 export const POSTHOG_HOST = 'https://eu.i.posthog.com';
 
+export const DEFAULT_POSTHOG_API_KEY =
+  'phc_kSUoSJyMiaFgk63LDYRx4MWU34mpN2dP5GXDj5DcaN3p';
+
 /**
- * Expo public environment variable or empty string fallback
+ * Expo public environment variable or production client API key fallback
  */
-export const POSTHOG_API_KEY = process.env.EXPO_PUBLIC_POSTHOG_API_KEY || '';
+export const POSTHOG_API_KEY =
+  process.env.EXPO_PUBLIC_POSTHOG_API_KEY || DEFAULT_POSTHOG_API_KEY;
 
 export const posthogOptions: PostHogOptions = {
   host: POSTHOG_HOST,
