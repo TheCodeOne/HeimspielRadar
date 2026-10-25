@@ -1,47 +1,50 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
-  SyncVerbandDeltaResult,
-  VerbandSyncResult,
-} from '@sundayleague/shared-types';
-import {
   ACTIVE_VERBAENDE,
+  ALL_VERBAENDE,
+  getActiveVerbaende,
   ScraperSchedulerService,
 } from './scraper-scheduler.service';
-import { ScraperService, SyncVerbandOptions } from './scraper.service';
+import { ScraperService } from './scraper.service';
 
 class FakeScraperService {
-  syncVerbandDelta = jest.fn().mockImplementation(
-    async (): Promise<SyncVerbandDeltaResult> => ({
-      durationMs: 100,
-      successfulLeagues: 5,
-      totalLeagues: 5,
-      syncedMatches: 25,
-      errors: [],
-      leagueResults: [],
-    })
-  );
+  executeAuditedSyncCallCount = 0;
+  lastAuditedParams?: { type: string; target: string };
+  isSyncRunning = false;
+  shouldThrowError = false;
 
-  syncVerbandLeagues = jest.fn().mockImplementation(
-    async (
-      verbandId: number,
-      _options?: SyncVerbandOptions
-    ): Promise<VerbandSyncResult> => ({
-      verbandId,
-      totalLeagues: 10,
-      successfulLeagues: 10,
-      failedLeagues: 0,
-      totalMatches: 100,
-      syncedMatches: 100,
-      syncedVenues: 20,
-      geocodedVenues: 5,
+  isSyncActive(): boolean {
+    return this.isSyncRunning;
+  }
+
+  async executeAuditedSync(params: {
+    type: 'delta' | 'deep' | 'manual';
+    target: string;
+  }) {
+    this.executeAuditedSyncCallCount++;
+    this.lastAuditedParams = params;
+
+    if (this.shouldThrowError) {
+      throw new Error('Database connection failed during audited sync');
+    }
+
+    return {
+      id: 1,
+      syncType: params.type,
+      target: params.target,
+      startedAt: new Date(),
+      finishedAt: new Date(),
       durationMs: 120,
-    })
-  );
-
-  syncAllBawueLeagues = jest.fn().mockImplementation(
-    async (options?: SyncVerbandOptions): Promise<VerbandSyncResult> =>
-      this.syncVerbandLeagues(1, options)
-  );
+      totalLeagues: 250,
+      successfulLeagues: 248,
+      syncedMatches: 1250,
+      geocodedVenues: 15,
+      failuresCount: 2,
+      status: 'partial' as const,
+      errorMessage: null,
+      createdAt: new Date(),
+    };
+  }
 }
 
 describe('ScraperSchedulerService', () => {
@@ -75,22 +78,51 @@ describe('ScraperSchedulerService', () => {
     expect(scheduler.isRunning).toBe(false);
   });
 
-  it('should define active associations with BBW (1) and Regionalliga Südwest (31)', () => {
-    expect(ACTIVE_VERBAENDE).toEqual([
-      { id: 1, name: 'Baden-Württemberg (BBW)' },
-      { id: 31, name: 'Regionalliga Südwest e.V.' },
-    ]);
+  it('should define all 23 nationwide German basketball associations', () => {
+    expect(ALL_VERBAENDE.length).toBe(23);
+    expect(ACTIVE_VERBAENDE.length).toBe(23);
+
+    const ids = ALL_VERBAENDE.map((v) => v.id);
+
+    // Bundesligen & Nationale
+    expect(ids).toContain(100);
+    expect(ids).toContain(29);
+
+    // 4 Regionalligen
+    expect(ids).toContain(30);
+    expect(ids).toContain(31);
+    expect(ids).toContain(32);
+    expect(ids).toContain(33);
+
+    // 16 Landesverbände
+    for (let id = 1; id <= 16; id++) {
+      expect(ids).toContain(id);
+    }
+
+    // Rollstuhlbasketball
+    expect(ids).toContain(40);
+  });
+
+  it('should respect ACTIVE_VERBAND_IDS environment override in getActiveVerbaende', () => {
+    process.env['ACTIVE_VERBAND_IDS'] = '1,31';
+
+    const filtered = getActiveVerbaende();
+
+    expect(filtered.length).toBe(2);
+    expect(filtered.map((v) => v.id)).toEqual([31, 1]);
   });
 
   describe('handleDailyDeltaSync', () => {
-    it('should trigger delta sync for both Verband 1 and Verband 31 when cron is enabled', async () => {
+    it('should trigger delta sync for all nationwide associations when cron is enabled', async () => {
       delete process.env['DISABLE_CRON'];
 
       await scheduler.handleDailyDeltaSync();
 
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenNthCalledWith(1, 1);
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenNthCalledWith(2, 31);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'delta',
+        target: 'all',
+      });
     });
 
     it('should trigger delta sync when ENABLE_CRON_SYNC is explicitly true', async () => {
@@ -99,7 +131,11 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleDailyDeltaSync();
 
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'delta',
+        target: 'all',
+      });
     });
 
     it('should skip delta sync when DISABLE_CRON is true', async () => {
@@ -107,7 +143,7 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleDailyDeltaSync();
 
-      expect(fakeScraperService.syncVerbandDelta).not.toHaveBeenCalled();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
     it('should skip delta sync when ENABLE_CRON_SYNC is false', async () => {
@@ -115,95 +151,39 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleDailyDeltaSync();
 
-      expect(fakeScraperService.syncVerbandDelta).not.toHaveBeenCalled();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
-    it('should not allow overlapping delta syncs via isSyncRunning lock', async () => {
+    it('should skip delta sync if scraperService.isSyncActive() is true', async () => {
       delete process.env['DISABLE_CRON'];
+      fakeScraperService.isSyncRunning = true;
 
-      let resolveSync: ((val: SyncVerbandDeltaResult) => void) | undefined;
+      await scheduler.handleDailyDeltaSync();
 
-      const delayedPromise = new Promise<SyncVerbandDeltaResult>((resolve) => {
-        resolveSync = resolve;
-      });
-
-      fakeScraperService.syncVerbandDelta.mockReturnValueOnce(delayedPromise);
-
-      const firstSync = scheduler.handleDailyDeltaSync();
-      const secondSync = scheduler.handleDailyDeltaSync();
-
-      // Second sync should have been skipped immediately while first was running
-      expect(scheduler.isRunning).toBe(true);
-
-      resolveSync!({
-        durationMs: 50,
-        successfulLeagues: 1,
-        totalLeagues: 1,
-        syncedMatches: 5,
-        errors: [],
-        leagueResults: [],
-      });
-
-      await Promise.all([firstSync, secondSync]);
-
-      // Only the first sync executed across the 2 associations
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
-      expect(scheduler.isRunning).toBe(false);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
-    it('should isolate errors so exceptions in one association do not crash scheduler or stop remaining associations', async () => {
+    it('should handle errors gracefully without throwing', async () => {
       delete process.env['DISABLE_CRON'];
+      fakeScraperService.shouldThrowError = true;
 
-      fakeScraperService.syncVerbandDelta
-        .mockRejectedValueOnce(new Error('DBB API timeout for Verband 1'))
-        .mockResolvedValueOnce({
-          durationMs: 80,
-          successfulLeagues: 2,
-          totalLeagues: 2,
-          syncedMatches: 10,
-          errors: [],
-          leagueResults: [],
-        });
-
-      await expect(scheduler.handleDailyDeltaSync()).resolves.not.toThrow();
-
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenNthCalledWith(1, 1);
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenNthCalledWith(2, 31);
-      expect(scheduler.isRunning).toBe(false);
-    });
-
-    it('should safely release lock even if all associations throw errors', async () => {
-      delete process.env['DISABLE_CRON'];
-
-      fakeScraperService.syncVerbandDelta.mockRejectedValue(
-        new Error('Network catastrophic outage')
-      );
-
-      await expect(scheduler.handleDailyDeltaSync()).resolves.not.toThrow();
-
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
+      await expect(scheduler.handleDailyDeltaSync()).resolves.toBeUndefined();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
       expect(scheduler.isRunning).toBe(false);
     });
   });
 
   describe('handleWeeklyDeepSync', () => {
-    it('should trigger deep sync for both Verband 1 and Verband 31 with quickSync false', async () => {
+    it('should trigger deep sync for all nationwide associations when cron is enabled', async () => {
       delete process.env['DISABLE_CRON'];
 
       await scheduler.handleWeeklyDeepSync();
 
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenCalledTimes(2);
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenNthCalledWith(
-        1,
-        1,
-        { quickSync: false }
-      );
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenNthCalledWith(
-        2,
-        31,
-        { quickSync: false }
-      );
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'deep',
+        target: 'all',
+      });
     });
 
     it('should skip deep sync when DISABLE_CRON is true', async () => {
@@ -211,7 +191,7 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeeklyDeepSync();
 
-      expect(fakeScraperService.syncVerbandLeagues).not.toHaveBeenCalled();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
     it('should skip deep sync when ENABLE_CRON_SYNC is false', async () => {
@@ -219,118 +199,30 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeeklyDeepSync();
 
-      expect(fakeScraperService.syncVerbandLeagues).not.toHaveBeenCalled();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
-    it('should not allow overlapping deep syncs via isSyncRunning lock', async () => {
+    it('should handle deep sync errors gracefully without throwing', async () => {
       delete process.env['DISABLE_CRON'];
+      fakeScraperService.shouldThrowError = true;
 
-      let resolveSync: ((val: VerbandSyncResult) => void) | undefined;
-
-      const delayedPromise = new Promise<VerbandSyncResult>((resolve) => {
-        resolveSync = resolve;
-      });
-
-      fakeScraperService.syncVerbandLeagues.mockReturnValueOnce(delayedPromise);
-
-      const firstSync = scheduler.handleWeeklyDeepSync();
-      const secondSync = scheduler.handleWeeklyDeepSync();
-
-      expect(scheduler.isRunning).toBe(true);
-
-      resolveSync!({
-        verbandId: 1,
-        totalLeagues: 1,
-        successfulLeagues: 1,
-        failedLeagues: 0,
-        totalMatches: 10,
-        syncedMatches: 10,
-        syncedVenues: 2,
-        geocodedVenues: 1,
-        durationMs: 50,
-      });
-
-      await Promise.all([firstSync, secondSync]);
-
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenCalledTimes(2);
-      expect(scheduler.isRunning).toBe(false);
-    });
-
-    it('should isolate errors during deep sync without throwing', async () => {
-      delete process.env['DISABLE_CRON'];
-
-      fakeScraperService.syncVerbandLeagues
-        .mockRejectedValueOnce(new Error('Network error on Verband 1'))
-        .mockResolvedValueOnce({
-          verbandId: 31,
-          totalLeagues: 5,
-          successfulLeagues: 5,
-          failedLeagues: 0,
-          totalMatches: 20,
-          syncedMatches: 20,
-          syncedVenues: 5,
-          geocodedVenues: 0,
-          durationMs: 75,
-        });
-
-      await expect(scheduler.handleWeeklyDeepSync()).resolves.not.toThrow();
-
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenCalledTimes(2);
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenNthCalledWith(
-        1,
-        1,
-        { quickSync: false }
-      );
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenNthCalledWith(
-        2,
-        31,
-        { quickSync: false }
-      );
+      await expect(scheduler.handleWeeklyDeepSync()).resolves.toBeUndefined();
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
       expect(scheduler.isRunning).toBe(false);
     });
   });
 
-  describe('cross-sync concurrency lock', () => {
-    it('should block deep sync when delta sync is currently active', async () => {
-      delete process.env['DISABLE_CRON'];
-
-      let resolveDelta: ((val: SyncVerbandDeltaResult) => void) | undefined;
-
-      const delayedDelta = new Promise<SyncVerbandDeltaResult>((resolve) => {
-        resolveDelta = resolve;
-      });
-
-      fakeScraperService.syncVerbandDelta.mockReturnValueOnce(delayedDelta);
-
-      const deltaSync = scheduler.handleDailyDeltaSync();
-      const deepSync = scheduler.handleWeeklyDeepSync();
-
-      expect(scheduler.isRunning).toBe(true);
-
-      resolveDelta!({
-        durationMs: 20,
-        successfulLeagues: 1,
-        totalLeagues: 1,
-        syncedMatches: 2,
-        errors: [],
-        leagueResults: [],
-      });
-
-      await Promise.all([deltaSync, deepSync]);
-
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
-      expect(fakeScraperService.syncVerbandLeagues).not.toHaveBeenCalled();
-      expect(scheduler.isRunning).toBe(false);
-    });
-  });
-
-  describe('backwards compatibility wrappers', () => {
+  describe('backward-compatible aliases', () => {
     it('handleWeeklyFullSync should delegate to handleWeeklyDeepSync', async () => {
       delete process.env['DISABLE_CRON'];
 
       await scheduler.handleWeeklyFullSync();
 
-      expect(fakeScraperService.syncVerbandLeagues).toHaveBeenCalledTimes(2);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'deep',
+        target: 'all',
+      });
     });
 
     it('handleWeekendMatchSync should delegate to handleDailyDeltaSync', async () => {
@@ -338,7 +230,11 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeekendMatchSync();
 
-      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledTimes(2);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'delta',
+        target: 'all',
+      });
     });
   });
 });

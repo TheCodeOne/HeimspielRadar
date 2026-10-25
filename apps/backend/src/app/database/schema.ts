@@ -199,6 +199,23 @@ export const syncFailures = pgTable('sync_failures', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const syncRuns = pgTable('sync_runs', {
+  id: serial('id').primaryKey(),
+  syncType: text('sync_type').notNull(), // 'delta' | 'deep' | 'manual'
+  target: text('target').notNull(), // 'all' | 'verband:1' | 'verband:31' | 'league:53941'
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  finishedAt: timestamp('finished_at'),
+  durationMs: integer('duration_ms'),
+  totalLeagues: integer('total_leagues').default(0).notNull(),
+  successfulLeagues: integer('successful_leagues').default(0).notNull(),
+  syncedMatches: integer('synced_matches').default(0).notNull(),
+  geocodedVenues: integer('geocoded_venues').default(0).notNull(),
+  failuresCount: integer('failures_count').default(0).notNull(),
+  status: text('status').default('running').notNull(), // 'running' | 'success' | 'partial' | 'error'
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const leaguesRelations = relations(leagues, ({ many }) => ({
   matches: many(matches),
 }));

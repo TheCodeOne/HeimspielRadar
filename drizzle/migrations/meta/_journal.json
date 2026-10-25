@@ -50,6 +50,13 @@
       "when": 1792879196014,
       "tag": "0006_real_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792919467414,
+      "tag": "0007_normal_stardust",
+      "breakpoints": true
     }
   ]
 }
