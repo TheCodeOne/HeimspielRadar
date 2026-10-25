@@ -2,9 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { DRIZZLE_DB } from '../database/database.module';
-import { syncFailures, venues } from '../database/schema';
+import { LeagueRawData, leagues, matches, syncFailures, teams, venues } from '../database/schema';
 import {
   DbbClientService,
+  DbbCompetitionActualResponse,
   DbbMatch,
   DbbMatchInfoResponse,
   DbbSpielplanResponse,
@@ -16,6 +17,8 @@ class MockDbbClientService {
   fetchSpielplan = jest.fn<Promise<DbbSpielplanResponse>, [number]>();
   fetchMatchInfo = jest.fn<Promise<DbbMatchInfoResponse>, [number]>();
   fetchAllWamLeagues = jest.fn();
+  fetchCompetitionActual = jest.fn<Promise<DbbCompetitionActualResponse>, [number, (number | { rangeDays?: number })?]>();
+  fetchLeagues = jest.fn();
 }
 
 class MockGeocoderService {
@@ -30,6 +33,25 @@ interface ExistingMatchRow {
   id: number;
   venueId: number | null;
   result?: string | null;
+  kickoffDate?: string | null;
+  kickoffTime?: string | null;
+  homeTeamId?: number;
+  guestTeamId?: number;
+  isVenueVerified?: boolean;
+}
+
+interface ExistingTeamRow {
+  id: number;
+  dbbId: number;
+  name: string;
+  primaryVenueId?: number | null;
+}
+
+interface ExistingLeagueRow {
+  id: number;
+  dbbId: number;
+  name: string;
+  rawData?: unknown;
 }
 
 type SyncFailureSelect = typeof syncFailures.$inferSelect;
@@ -46,6 +68,15 @@ interface MockInsertEntity {
   location?: { lng: number; lat: number } | null;
   geocodedAt?: Date | null;
   rawData?: unknown;
+  primaryVenueId?: number | null;
+  homeTeamId?: number;
+  guestTeamId?: number;
+  kickoffDate?: string | null;
+  kickoffTime?: string | null;
+  venueId?: number | null;
+  isVenueVerified?: boolean;
+  result?: string | null;
+  confirmed?: boolean;
   entityType?: string;
   dbbLeagueId?: number;
   leagueName?: string | null;
@@ -70,6 +101,8 @@ interface DbUpdateValues {
   longitude?: number | null;
   location?: { lng: number; lat: number } | null;
   geocodedAt?: Date | null;
+  primaryVenueId?: number | null;
+  rawData?: unknown;
   errorMessage?: string;
   retryCount?: number | SQL;
   updatedAt?: Date;
@@ -112,6 +145,8 @@ function hasSqlParam(clause: SQL | undefined, target: string): boolean {
 class FakeDatabase {
   existingVenues: Array<typeof venues.$inferSelect> = [];
   existingMatches: ExistingMatchRow[] = [];
+  existingTeams: ExistingTeamRow[] = [];
+  existingLeagues: ExistingLeagueRow[] = [];
   existingFailures: SyncFailureSelect[] = [];
   insertCalls: InsertCallRecord[] = [];
   updateCalls: UpdateCallRecord[] = [];
@@ -147,9 +182,61 @@ class FakeDatabase {
           return makePromiseChain();
         }
 
-        return {
-          where: () => Promise.resolve(this.existingMatches),
+        if (table === teams) {
+          const makeTeamsChain = () => {
+            const promise = Promise.resolve(this.existingTeams);
+
+            return Object.assign(promise, {
+              where: () => makeTeamsChain(),
+              limit: (n: number) => Promise.resolve(this.existingTeams.slice(0, n)),
+            });
+          };
+
+          return makeTeamsChain();
+        }
+
+        if (table === leagues) {
+          const makeLeaguesChain = () => {
+            const promise = Promise.resolve(this.existingLeagues);
+
+            return Object.assign(promise, {
+              where: () => makeLeaguesChain(),
+              limit: (n: number) => Promise.resolve(this.existingLeagues.slice(0, n)),
+            });
+          };
+
+          return makeLeaguesChain();
+        }
+
+        const makeMatchesChain = () => {
+          const promise = Promise.resolve(this.existingMatches);
+
+          return Object.assign(promise, {
+            where: () => makeMatchesChain(),
+            groupBy: () => {
+              const venueCounts = new Map<number, number>();
+
+              for (const m of this.existingMatches) {
+                if (m.venueId !== null && m.venueId !== undefined && m.isVenueVerified) {
+                  venueCounts.set(m.venueId, (venueCounts.get(m.venueId) || 0) + 1);
+                }
+              }
+
+              const grouped = Array.from(venueCounts.entries())
+                .map(([venueId, count]) => ({ venueId, count }))
+                .sort((a, b) => b.count - a.count);
+
+              const groupPromise = Promise.resolve(grouped);
+
+              return Object.assign(groupPromise, {
+                orderBy: () => groupPromise,
+              });
+            },
+            limit: (n: number) => Promise.resolve(this.existingMatches.slice(0, n)),
+          });
         };
+
+        return makeMatchesChain();
       },
     };
   }
@@ -206,6 +293,85 @@ class FakeDatabase {
           }
         }
 
+        if (table === teams) {
+          for (const item of items) {
+            const existing = this.existingTeams.find(
+              (t) => (item.dbbId && t.dbbId === item.dbbId) || (item.id && t.id === item.id)
+            );
+
+            if (existing) {
+              existing.name = item.name ?? existing.name;
+
+              if (item.primaryVenueId !== undefined) {
+                existing.primaryVenueId = item.primaryVenueId;
+              }
+            } else {
+              this.existingTeams.push({
+                id: item.id ?? this.existingTeams.length + 1,
+                dbbId: item.dbbId ?? 0,
+                name: item.name ?? 'Team',
+                primaryVenueId: item.primaryVenueId ?? null,
+              });
+            }
+          }
+        }
+
+        if (table === matches) {
+          for (const item of items) {
+            const existing = this.existingMatches.find((m) => m.id === item.id);
+
+            if (existing) {
+              if (item.venueId !== undefined) {
+                existing.venueId = item.venueId;
+              }
+
+              if (item.isVenueVerified !== undefined) {
+                existing.isVenueVerified = item.isVenueVerified;
+              }
+
+              if (item.result !== undefined) {
+                existing.result = item.result;
+              }
+
+              if (item.kickoffDate !== undefined) {
+                existing.kickoffDate = item.kickoffDate;
+              }
+
+              if (item.kickoffTime !== undefined) {
+                existing.kickoffTime = item.kickoffTime;
+              }
+            } else {
+              this.existingMatches.push({
+                id: item.id ?? this.existingMatches.length + 1,
+                venueId: item.venueId ?? null,
+                result: item.result ?? null,
+                kickoffDate: item.kickoffDate ?? null,
+                kickoffTime: item.kickoffTime ?? null,
+                homeTeamId: item.homeTeamId,
+                guestTeamId: item.guestTeamId,
+                isVenueVerified: Boolean(item.isVenueVerified),
+              });
+            }
+          }
+        }
+
+        if (table === leagues) {
+          for (const item of items) {
+            const existing = this.existingLeagues.find((l) => l.dbbId === item.dbbId);
+
+            if (existing) {
+              existing.rawData = item.rawData;
+            } else {
+              this.existingLeagues.push({
+                id: item.id ?? this.existingLeagues.length + 1,
+                dbbId: item.dbbId ?? 0,
+                name: item.name ?? 'League',
+                rawData: item.rawData,
+              });
+            }
+          }
+        }
+
         const returningRows = items.map((item, idx) => {
           if (table === venues) {
             const found = this.existingVenues.find((x) => x.id === item.id);
@@ -215,7 +381,23 @@ class FakeDatabase {
             }
           }
 
-          return { id: idx + 1, dbbId: item.dbbId };
+          if (table === teams) {
+            const found = this.existingTeams.find((x) => x.dbbId === item.dbbId);
+
+            if (found) {
+              return found;
+            }
+          }
+
+          if (table === leagues) {
+            const found = this.existingLeagues.find((x) => x.dbbId === item.dbbId);
+
+            if (found) {
+              return found;
+            }
+          }
+
+          return { id: idx + 1, dbbId: item.dbbId, primaryVenueId: item.primaryVenueId };
         });
 
         const promise = Promise.resolve(returningRows);
@@ -259,6 +441,22 @@ class FakeDatabase {
 
               v.updatedAt = vals.updatedAt ?? new Date();
               updatedRows.push({ ...v });
+            }
+          }
+
+          if (table === teams) {
+            for (const t of this.existingTeams) {
+              if (vals.primaryVenueId !== undefined) {
+                t.primaryVenueId = vals.primaryVenueId;
+              }
+            }
+          }
+
+          if (table === leagues) {
+            for (const l of this.existingLeagues) {
+              if (vals.rawData !== undefined) {
+                l.rawData = vals.rawData;
+              }
             }
           }
 
@@ -1061,6 +1259,323 @@ describe('ScraperService', () => {
       expect(fakeDb.updateCalls[0].values.latitude).toBe(48.78);
       expect(fakeDb.updateCalls[0].values.longitude).toBe(9.18);
       expect(fakeDb.updateCalls[0].values.location).toEqual({ lng: 9.18, lat: 48.78 });
+    });
+  });
+
+  describe('Two-Tier Delta-Sync and Majority Voting (#74)', () => {
+    const berlinDatePlus = (days: number): string => {
+      const target = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+      return new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Berlin',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(target);
+    };
+
+    const imminentMatch = {
+      matchId: 4001,
+      matchDay: 5,
+      kickoffDate: berlinDatePlus(3),
+      kickoffTime: '18:00',
+      homeTeam: { seasonTeamId: 10, teamname: 'TV Derendingen' },
+      guestTeam: { seasonTeamId: 20, teamname: 'SV 03 Tübingen' },
+    };
+
+    const distantMatch = {
+      matchId: 4002,
+      matchDay: 12,
+      kickoffDate: berlinDatePlus(25),
+      kickoffTime: '20:00',
+      homeTeam: { seasonTeamId: 10, teamname: 'TV Derendingen' },
+      guestTeam: { seasonTeamId: 30, teamname: 'USC Heidelberg' },
+    };
+
+    const sampleActualPayload: DbbCompetitionActualResponse = {
+      data: {
+        ligaData: {
+          ligaId: 53941,
+          liganame: 'Kreisliga A',
+          seasonId: 2026,
+          seasonName: '2026/2027',
+          verbandName: 'Baden-Württemberg',
+        },
+        matches: [imminentMatch, distantMatch],
+        tabelle: {
+          entries: [
+            {
+              rang: 1,
+              team: { seasonTeamId: 10, teamname: 'TV Derendingen' },
+              anzspiele: 4,
+              s: 4,
+              n: 0,
+              koerbe: 320,
+              gegenKoerbe: 250,
+              korbdiff: 70,
+            },
+          ],
+        },
+      },
+    };
+
+    describe('syncLeagueDelta', () => {
+      it('should verify imminent fixture via fetchMatchInfo and provisionally assign primaryVenueId to distant fixture', async () => {
+        mockDbbClient.fetchCompetitionActual.mockResolvedValue(sampleActualPayload);
+        mockDbbClient.fetchMatchInfo.mockResolvedValue({
+          data: {
+            matchId: 4001,
+            matchInfo: {
+              spielfeld: {
+                id: 888,
+                bezeichnung: 'Derendingen Gym',
+                strasse: 'Sportstr. 1',
+                plz: '72072',
+                ort: 'Tübingen',
+              },
+            },
+          },
+        });
+
+        const result = await service.syncLeagueDelta(53941);
+
+        expect(result.success).toBe(true);
+        expect(result.leagueId).toBe(53941);
+        expect(result.totalMatches).toBe(2);
+        expect(result.syncedMatches).toBe(2);
+        expect(result.verifiedMatches).toBe(1);
+        expect(result.provisionalMatches).toBe(1);
+        expect(result.syncedVenues).toBe(1);
+        expect(result.geocodedVenues).toBe(1);
+
+        // Tier 1 fixture was verified via DBB matchInfo
+        expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledTimes(1);
+        expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledWith(4001);
+
+        // Tier 2 fixture was NOT queried via HTTP
+        expect(mockDbbClient.fetchMatchInfo).not.toHaveBeenCalledWith(4002);
+
+        // Verified venue was propagated to team primaryVenueId and distant fixture
+        const savedMatches = fakeDb.existingMatches;
+        const savedImminent = savedMatches.find((m) => m.id === 4001);
+        const savedDistant = savedMatches.find((m) => m.id === 4002);
+
+        expect(savedImminent?.isVenueVerified).toBe(true);
+        expect(savedImminent?.venueId).toBe(888);
+        expect(savedDistant?.isVenueVerified).toBe(false);
+        expect(savedDistant?.venueId).toBe(888);
+
+        // Official standings were persisted in league rawData
+        expect(fakeDb.existingLeagues).toHaveLength(1);
+        const savedLeague = fakeDb.existingLeagues[0];
+
+        // SAFETY: League rawData was saved as LeagueRawData
+        const rawData = savedLeague.rawData as LeagueRawData | undefined;
+
+        expect(rawData?.tabelle).toBeDefined();
+      });
+
+      it('should skip calling fetchMatchInfo for imminent fixture if already verified and kickoff unchanged', async () => {
+        fakeDb.existingMatches = [
+          {
+            id: 4001,
+            venueId: 888,
+            isVenueVerified: true,
+            kickoffDate: berlinDatePlus(3),
+            kickoffTime: '18:00',
+          },
+        ];
+
+        mockDbbClient.fetchCompetitionActual.mockResolvedValue({
+          data: {
+            ...sampleActualPayload.data,
+            matches: [imminentMatch],
+          },
+        });
+
+        const result = await service.syncLeagueDelta(53941);
+
+        expect(result.syncedMatches).toBe(1);
+        expect(result.verifiedMatches).toBe(1);
+        expect(mockDbbClient.fetchMatchInfo).not.toHaveBeenCalled();
+      });
+
+      it('should re-verify imminent fixture via fetchMatchInfo if kickoff date or time changed', async () => {
+        fakeDb.existingMatches = [
+          {
+            id: 4001,
+            venueId: 888,
+            isVenueVerified: true,
+            kickoffDate: berlinDatePlus(2), // previously scheduled on different date
+            kickoffTime: '17:00',
+          },
+        ];
+
+        mockDbbClient.fetchCompetitionActual.mockResolvedValue({
+          data: {
+            ...sampleActualPayload.data,
+            matches: [imminentMatch],
+          },
+        });
+
+        mockDbbClient.fetchMatchInfo.mockResolvedValue({
+          data: {
+            matchId: 4001,
+            matchInfo: {
+              spielfeld: {
+                id: 999,
+                bezeichnung: 'Relocated Gym',
+                strasse: 'Neueweg 2',
+                plz: '72072',
+                ort: 'Tübingen',
+              },
+            },
+          },
+        });
+
+        const result = await service.syncLeagueDelta(53941);
+
+        expect(result.verifiedMatches).toBe(1);
+        expect(mockDbbClient.fetchMatchInfo).toHaveBeenCalledWith(4001);
+        const matchRecord = fakeDb.existingMatches.find((m) => m.id === 4001);
+        expect(matchRecord?.venueId).toBe(999);
+        expect(matchRecord?.isVenueVerified).toBe(true);
+      });
+
+      it('should provisionally assign existing primaryVenueId to distant fixture when known in DB', async () => {
+        fakeDb.existingTeams = [
+          { id: 1, dbbId: 10, name: 'TV Derendingen', primaryVenueId: 777 },
+        ];
+
+        mockDbbClient.fetchCompetitionActual.mockResolvedValue({
+          data: {
+            ...sampleActualPayload.data,
+            matches: [distantMatch],
+          },
+        });
+
+        const result = await service.syncLeagueDelta(53941);
+
+        expect(result.syncedMatches).toBe(1);
+        expect(result.provisionalMatches).toBe(1);
+        expect(mockDbbClient.fetchMatchInfo).not.toHaveBeenCalled();
+
+        const matchRecord = fakeDb.existingMatches.find((m) => m.id === 4002);
+        expect(matchRecord?.venueId).toBe(777);
+        expect(matchRecord?.isVenueVerified).toBe(false);
+      });
+    });
+
+    describe('recalculateTeamPrimaryVenue', () => {
+      it('should compute mode venue among verified home fixtures and update teams.primaryVenueId', async () => {
+        fakeDb.existingTeams = [
+          { id: 1, dbbId: 10, name: 'TV Derendingen', primaryVenueId: null },
+        ];
+
+        fakeDb.existingMatches = [
+          { id: 1, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+          { id: 2, homeTeamId: 1, venueId: 200, isVenueVerified: true }, // Ausweichhalle
+          { id: 3, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+          { id: 4, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+          { id: 5, homeTeamId: 1, venueId: 300, isVenueVerified: false }, // unverified fixture ignored
+        ];
+
+        const modeVenue = await service.recalculateTeamPrimaryVenue(10);
+
+        expect(modeVenue).toBe(100);
+        expect(fakeDb.existingTeams[0].primaryVenueId).toBe(100);
+      });
+
+      it('should self-correct when regular home games out-vote an earlier temporary venue', async () => {
+        fakeDb.existingTeams = [
+          { id: 1, dbbId: 10, name: 'TV Derendingen', primaryVenueId: 200 }, // previously latched to temporary gym 200
+        ];
+
+        fakeDb.existingMatches = [
+          { id: 1, homeTeamId: 1, venueId: 200, isVenueVerified: true },
+          { id: 2, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+          { id: 3, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+          { id: 4, homeTeamId: 1, venueId: 100, isVenueVerified: true },
+        ];
+
+        const modeVenue = await service.recalculateTeamPrimaryVenue(10);
+
+        expect(modeVenue).toBe(100);
+        expect(fakeDb.existingTeams[0].primaryVenueId).toBe(100);
+      });
+
+      it('should return null if team is not found in database', async () => {
+        const result = await service.recalculateTeamPrimaryVenue(99999);
+
+        expect(result).toBeNull();
+      });
+    });
+
+    describe('syncVerbandDelta', () => {
+      it('should discover leagues and run bounded concurrent delta sync across them', async () => {
+        mockDbbClient.fetchLeagues.mockResolvedValue([
+          { ligaId: 1001, liganame: 'Liga 1' },
+          { ligaId: 1002, liganame: 'Liga 2' },
+        ]);
+
+        const deltaSpy = jest.spyOn(service, 'syncLeagueDelta').mockResolvedValue({
+          success: true,
+          leagueId: 1001,
+          leagueName: 'Liga 1',
+          totalMatches: 8,
+          syncedMatches: 8,
+          matchesCount: 8,
+          verifiedMatches: 2,
+          provisionalMatches: 6,
+          syncedVenues: 1,
+          geocodedVenues: 1,
+          durationMs: 30,
+        });
+
+        const result = await service.syncVerbandDelta(1, { concurrency: 2 });
+
+        expect(mockDbbClient.fetchLeagues).toHaveBeenCalledWith(1);
+        expect(deltaSpy).toHaveBeenCalledTimes(2);
+        expect(result.totalLeagues).toBe(2);
+        expect(result.successfulLeagues).toBe(2);
+        expect(result.syncedMatches).toBe(16);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('should record error and continue when individual league delta-sync fails', async () => {
+        mockDbbClient.fetchLeagues.mockResolvedValue([
+          { ligaId: 1001, liganame: 'Failing Liga' },
+          { ligaId: 1002, liganame: 'Passing Liga' },
+        ]);
+
+        jest
+          .spyOn(service, 'syncLeagueDelta')
+          .mockRejectedValueOnce(new Error('Connection reset by peer'))
+          .mockResolvedValueOnce({
+            success: true,
+            leagueId: 1002,
+            leagueName: 'Passing Liga',
+            totalMatches: 5,
+            syncedMatches: 5,
+            matchesCount: 5,
+            verifiedMatches: 1,
+            provisionalMatches: 4,
+            syncedVenues: 0,
+            geocodedVenues: 0,
+            durationMs: 20,
+          });
+
+        const result = await service.syncVerbandDelta(1);
+
+        expect(result.totalLeagues).toBe(2);
+        expect(result.successfulLeagues).toBe(1);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toEqual({
+          leagueId: 1001,
+          message: 'Connection reset by peer',
+        });
+        expect(result.syncedMatches).toBe(5);
+      });
     });
   });
 });

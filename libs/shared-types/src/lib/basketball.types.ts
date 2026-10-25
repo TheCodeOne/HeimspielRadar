@@ -16,6 +16,7 @@ export interface Team {
   name: string;
   shortName?: string;
   clubId?: number;
+  primaryVenueId?: number | null;
 }
 
 export interface TeamSuggestion {
@@ -50,6 +51,7 @@ export interface Match {
   homeTeam: Team;
   guestTeam: Team;
   venue?: Venue | null;
+  isVenueVerified?: boolean;
   result?: string | null;
   confirmed: boolean;
   distanceKm?: number;
@@ -63,6 +65,29 @@ export interface SyncResult {
   syncedVenues: number;
   geocodedVenues: number;
   durationMs: number;
+}
+
+export interface DeltaSyncResult {
+  success: boolean;
+  leagueId: number;
+  leagueName: string;
+  totalMatches: number;
+  syncedMatches: number;
+  matchesCount?: number;
+  verifiedMatches: number;
+  provisionalMatches: number;
+  syncedVenues: number;
+  geocodedVenues: number;
+  durationMs: number;
+}
+
+export interface SyncVerbandDeltaResult {
+  durationMs: number;
+  successfulLeagues: number;
+  totalLeagues: number;
+  syncedMatches: number;
+  errors: Array<{ leagueId: number; message: string }>;
+  leagueResults?: DeltaSyncResult[];
 }
 
 export interface VerbandSyncResult {

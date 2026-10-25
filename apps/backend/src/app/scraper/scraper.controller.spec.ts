@@ -34,6 +34,28 @@ class FakeScraperService {
     durationMs: 4500,
   });
 
+  syncLeagueDelta = jest.fn().mockResolvedValue({
+    success: true,
+    leagueId: 53941,
+    leagueName: 'Kreisliga A',
+    totalMatches: 20,
+    syncedMatches: 20,
+    matchesCount: 20,
+    verifiedMatches: 5,
+    provisionalMatches: 15,
+    syncedVenues: 2,
+    geocodedVenues: 1,
+    durationMs: 40,
+  });
+
+  syncVerbandDelta = jest.fn().mockResolvedValue({
+    durationMs: 3000,
+    successfulLeagues: 280,
+    totalLeagues: 280,
+    syncedMatches: 1200,
+    errors: [],
+  });
+
   getFailures = jest.fn().mockResolvedValue([
     {
       id: 1,
@@ -148,6 +170,45 @@ describe('ScraperController', () => {
       expect(fakeScraperService.syncVerbandLeagues).toHaveBeenCalledWith(1, {
         quickSync: true,
         concurrency: 5,
+      });
+    });
+  });
+
+  describe('syncLeagueDelta', () => {
+    it('should call scraperService.syncLeagueDelta with parsed liganr and default options', async () => {
+      const result = await controller.syncLeagueDelta(53941);
+
+      expect(fakeScraperService.syncLeagueDelta).toHaveBeenCalledWith(53941, undefined);
+      expect(result.leagueId).toBe(53941);
+      expect(result.verifiedMatches).toBe(5);
+    });
+
+    it('should pass parsed rangeDays query parameter', async () => {
+      await controller.syncLeagueDelta(53941, '14');
+
+      expect(fakeScraperService.syncLeagueDelta).toHaveBeenCalledWith(53941, {
+        rangeDays: 14,
+      });
+    });
+  });
+
+  describe('syncVerbandDelta', () => {
+    it('should call scraperService.syncVerbandDelta with default options', async () => {
+      const result = await controller.syncVerbandDelta(1);
+
+      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledWith(1, {
+        rangeDays: undefined,
+        concurrency: undefined,
+      });
+      expect(result.successfulLeagues).toBe(280);
+    });
+
+    it('should pass parsed rangeDays and concurrency query params', async () => {
+      await controller.syncVerbandDelta(1, '21', '8');
+
+      expect(fakeScraperService.syncVerbandDelta).toHaveBeenCalledWith(1, {
+        rangeDays: 21,
+        concurrency: 8,
       });
     });
   });

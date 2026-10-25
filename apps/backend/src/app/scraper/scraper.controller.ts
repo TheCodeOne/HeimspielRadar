@@ -62,6 +62,44 @@ export class ScraperController {
     });
   }
 
+  @Post('sync-delta/league/:liganr')
+  @UseGuards(ScraperAuthGuard)
+  async syncLeagueDelta(
+    @Param('liganr', ParseIntPipe) liganr: number,
+    @Query('rangeDays') rangeDays?: string
+  ) {
+    const parsedRangeDays = rangeDays ? parseInt(rangeDays, 10) : undefined;
+
+    return this.scraperService.syncLeagueDelta(
+      liganr,
+      parsedRangeDays !== undefined && !isNaN(parsedRangeDays)
+        ? { rangeDays: parsedRangeDays }
+        : undefined
+    );
+  }
+
+  @Post('sync-delta/verband/:verbandId')
+  @UseGuards(ScraperAuthGuard)
+  async syncVerbandDelta(
+    @Param('verbandId', ParseIntPipe) verbandId: number,
+    @Query('rangeDays') rangeDays?: string,
+    @Query('concurrency') concurrency?: string
+  ) {
+    const parsedRangeDays = rangeDays ? parseInt(rangeDays, 10) : undefined;
+    const parsedConcurrency = concurrency ? parseInt(concurrency, 10) : undefined;
+
+    return this.scraperService.syncVerbandDelta(verbandId, {
+      rangeDays:
+        parsedRangeDays !== undefined && !isNaN(parsedRangeDays)
+          ? parsedRangeDays
+          : undefined,
+      concurrency:
+        parsedConcurrency !== undefined && !isNaN(parsedConcurrency)
+          ? parsedConcurrency
+          : undefined,
+    });
+  }
+
   @Post('retry-failed')
   @UseGuards(ScraperAuthGuard)
   async retryFailed(

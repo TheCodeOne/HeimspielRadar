@@ -175,6 +175,7 @@ export class DbbClientService {
     rangeDays = 14
   ): Promise<DbbCompetitionActualResponse> {
     const url = `${this.baseUrl}/rest/competition/number/${liganr}/actual?rangeDays=${rangeDays}`;
+
     this.logger.debug(`Fetching competition actual from: ${url}`);
 
     return this.fetchJson<DbbCompetitionActualResponse>(
@@ -265,6 +266,13 @@ export class DbbClientService {
     this.logger.log(`Discovered ${allLeagues.length} total leagues for verbandId ${verbandId}`);
 
     return allLeagues;
+  }
+
+  /**
+   * Fetches active leagues for an association (alias for fetchAllWamLeagues).
+   */
+  async fetchLeagues(verbandId = 1): Promise<DbbLigaData[]> {
+    return this.fetchAllWamLeagues(verbandId);
   }
 }
 
