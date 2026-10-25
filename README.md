@@ -123,3 +123,10 @@ Der Workflow benötigt das Secret `SCRAPER_SECRET` zur Authentifizierung am Back
 - Gehe zu **Settings** → **Secrets and variables** → **Actions** im GitHub Repository.
 - Erstelle ein neues Repository-Secret mit dem Namen `SCRAPER_SECRET` und trage denselben Wert wie in der Backend-Umgebungsvariable ein.
 
+---
+
+## 💎 Open Source Transparenz & Kosten
+
+HeimspielRadar ist zu 100% Open Source und gemeinnützig orientiert. Alle Betriebskosten, Einnahmen und Ausgaben werden transparent in [**`TRANSPARENCY.md`**](TRANSPARENCY.md) offengelegt.
+
+
