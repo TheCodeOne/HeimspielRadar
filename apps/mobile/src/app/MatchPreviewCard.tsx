@@ -1,11 +1,17 @@
 import React from 'react';
-import { View, Text, Pressable, Platform, Linking } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  Platform,
+  Linking,
+  StyleSheet,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import type { Match } from '@sundayleague/shared-types';
 import { formatKickoffTime } from './data';
 import { TimeIcon, NavigateIcon, NavigateOutlineIcon, CloseIcon } from './Icons';
-
 
 export interface MatchPreviewCardProps {
   match: Match;
@@ -39,6 +45,7 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
     if (lat && lng) {
       if (Platform.OS === 'ios') {
         const appleMapsUrl = `maps://?q=${label}&ll=${lat},${lng}`;
+
         Linking.canOpenURL(appleMapsUrl).then((supported) => {
           if (supported) {
             Linking.openURL(appleMapsUrl);
@@ -48,6 +55,7 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
         });
       } else {
         const googleMapsUrl = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+
         Linking.canOpenURL(googleMapsUrl).then((supported) => {
           if (supported) {
             Linking.openURL(googleMapsUrl);
@@ -58,6 +66,7 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
       }
     } else if (venueAddress) {
       const encodedAddress = encodeURIComponent(venueAddress);
+
       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
     }
   };
@@ -70,25 +79,24 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
     onClose();
   };
 
-
   const cardContent = (
-    <View className="p-4">
+    <View style={styles.cardPadding}>
       {/* Top Meta Bar */}
-      <View className="flex-row items-center justify-between mb-3">
-        <View className="flex-row items-center gap-2">
+      <View style={styles.headerRow}>
+        <View style={styles.metaChips}>
           {/* Kickoff Chip */}
-          <View className="bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-full flex-row items-center gap-1.5">
-            <TimeIcon size={12} color="#0284c7" />
-            <Text className="text-xs font-bold text-sky-700">
+          <View style={styles.kickoffChip}>
+            <TimeIcon size={13} color="#0284c7" />
+            <Text style={styles.kickoffText}>
               {formatKickoffTime(match.kickoffTime)}
             </Text>
           </View>
 
           {/* Distance Indicator */}
           {distanceKm !== undefined && (
-            <View className="flex-row items-center gap-1">
+            <View style={styles.distanceBadge}>
               <NavigateOutlineIcon size={12} color="#64748b" />
-              <Text className="text-xs font-semibold text-slate-500">
+              <Text style={styles.distanceText}>
                 {distanceKm.toFixed(1)} km
               </Text>
             </View>
@@ -101,53 +109,32 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
           accessibilityLabel="Schließen"
           accessibilityRole="button"
           hitSlop={10}
-          className="w-7 h-7 rounded-full bg-slate-200/60 items-center justify-center active:bg-slate-300"
+          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
         >
-          <CloseIcon size={14} color="#475569" />
+          <CloseIcon size={14} color="#64748b" />
         </Pressable>
       </View>
 
-
       {/* Team Matchup */}
-      <View className="mb-3.5">
-        <View className="flex-row items-center justify-between">
-          <Text
-            className="text-base font-bold text-slate-900 flex-1"
-            numberOfLines={1}
-          >
-            {homeName}
-          </Text>
-        </View>
-        <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest my-0.5">
-          vs.
+      <View style={styles.matchupSection}>
+        <Text style={styles.teamHome} numberOfLines={1}>
+          {homeName}
         </Text>
-        <View className="flex-row items-center justify-between">
-          <Text
-            className="text-base font-bold text-slate-900 flex-1"
-            numberOfLines={1}
-          >
-            {guestName}
-          </Text>
-        </View>
+        <Text style={styles.versusDivider}>VS.</Text>
+        <Text style={styles.teamGuest} numberOfLines={1}>
+          {guestName}
+        </Text>
       </View>
 
-      {/* Venue Section */}
-      <View className="pt-2.5 border-t border-slate-200/60 flex-row items-center justify-between">
-        <View className="flex-1 mr-2">
-          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Spielort
-          </Text>
-          <Text
-            className="text-xs font-semibold text-slate-700 mt-0.5"
-            numberOfLines={1}
-          >
+      {/* Venue Section & Route Button */}
+      <View style={styles.footerSection}>
+        <View style={styles.venueInfo}>
+          <Text style={styles.venueLabel}>Spielort</Text>
+          <Text style={styles.venueName} numberOfLines={1}>
             {venueName}
           </Text>
           {venueAddress.length > 0 && (
-            <Text
-              className="text-[11px] text-slate-500"
-              numberOfLines={1}
-            >
+            <Text style={styles.venueAddress} numberOfLines={1}>
               {venueAddress}
             </Text>
           )}
@@ -158,37 +145,185 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
           onPress={handleOpenNavigation}
           accessibilityLabel="Navigation starten"
           accessibilityRole="button"
-          className="bg-sky-600 active:bg-sky-700 px-3 py-2 rounded-xl flex-row items-center gap-1.5 shadow-sm"
+          style={({ pressed }) => [
+            styles.routeButton,
+            pressed && styles.routeButtonPressed,
+          ]}
         >
           <NavigateIcon size={13} color="#ffffff" />
-          <Text className="text-xs font-bold text-white">Route</Text>
+          <Text style={styles.routeButtonText}>Route</Text>
         </Pressable>
-
       </View>
     </View>
   );
 
   return (
-    <View
-      className="absolute bottom-6 left-4 right-4 z-20 shadow-xl"
-      testID="match-preview-card"
-    >
+    <View style={styles.container} testID="match-preview-card">
       {isWeb ? (
-        <View className="bg-white/95 backdrop-blur-md rounded-2xl border border-white/70 overflow-hidden shadow-md">
+        <View style={[styles.cardSurface, styles.webCardSurface]}>
           {cardContent}
         </View>
       ) : (
-        <BlurView
-          intensity={90}
-          tint="light"
-          className="rounded-2xl border border-white/80 overflow-hidden bg-white/75"
-        >
+        <BlurView intensity={95} tint="light" style={styles.cardSurface}>
           {cardContent}
         </BlurView>
       )}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    zIndex: 30,
+    elevation: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+  },
+  cardSurface: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.90)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    overflow: 'hidden',
+  },
+  webCardSurface: {
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+  },
+  cardPadding: {
+    padding: 18,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  metaChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  kickoffChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.28)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  kickoffText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284c7',
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  distanceText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  closeButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(226, 232, 240, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  matchupSection: {
+    marginBottom: 14,
+  },
+  teamHome: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  versusDivider: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#94a3b8',
+    letterSpacing: 1.2,
+    marginVertical: 2,
+  },
+  teamGuest: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  footerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(226, 232, 240, 0.8)',
+  },
+  venueInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  venueLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  venueName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    marginTop: 2,
+  },
+  venueAddress: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  routeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0284c7', // Sky-600
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  routeButtonPressed: {
+    backgroundColor: '#0369a1', // Sky-700
+    transform: [{ scale: 0.96 }],
+  },
+  routeButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+});
 
 // Backwards-compatible export
 export const MatchPreviewSheet = MatchPreviewCard;

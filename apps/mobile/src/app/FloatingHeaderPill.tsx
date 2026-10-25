@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 
 export interface FloatingHeaderPillProps {
@@ -18,17 +18,12 @@ export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
   const isWeb = Platform.OS === 'web';
 
   const content = (
-    <View
-      className="flex-row items-center justify-between px-4 py-2.5"
-      style={{ minHeight: 46 }}
-    >
-      <View className="flex-row items-center gap-2">
-        <View className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+    <View style={styles.contentRow}>
+      <View style={styles.brandingGroup}>
+        <View style={styles.statusDot} />
         <View>
-          <Text className="text-sm font-bold text-slate-900 tracking-tight">
-            HeimspielRadar
-          </Text>
-          <Text className="text-[11px] font-medium text-slate-500">
+          <Text style={styles.brandTitle}>HeimspielRadar</Text>
+          <Text style={styles.brandSubtitle}>
             {permissionDenied
               ? 'Stuttgart (Fallback)'
               : `${radiusKm} km Umkreis`}
@@ -36,12 +31,12 @@ export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
         </View>
       </View>
 
-      <View className="flex-row items-center gap-2">
+      <View style={styles.counterGroup}>
         {isLoading ? (
           <ActivityIndicator size="small" color="#0284c7" />
         ) : (
-          <View className="bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-full">
-            <Text className="text-xs font-semibold text-sky-700">
+          <View style={styles.counterBadge}>
+            <Text style={styles.counterText}>
               {matchCount} {matchCount === 1 ? 'Spiel' : 'Spiele'}
             </Text>
           </View>
@@ -51,23 +46,89 @@ export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
   );
 
   return (
-    <View
-      className="absolute top-12 left-4 right-4 z-20 shadow-lg"
-      testID="floating-header-pill"
-    >
+    <View style={styles.container} testID="floating-header-pill">
       {isWeb ? (
-        <View className="bg-white/90 backdrop-blur-md rounded-2xl border border-white/60 overflow-hidden shadow-sm">
+        <View style={[styles.pillCard, styles.webPillCard]}>
           {content}
         </View>
       ) : (
-        <BlurView
-          intensity={80}
-          tint="light"
-          className="rounded-2xl border border-white/60 overflow-hidden bg-white/70"
-        >
+        <BlurView intensity={85} tint="light" style={styles.pillCard}>
           {content}
         </BlurView>
       )}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+  },
+  pillCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+    overflow: 'hidden',
+  },
+  webPillCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 52,
+  },
+  brandingGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  statusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#10b981', // emerald-500
+  },
+  brandTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
+  },
+  brandSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 1,
+  },
+  counterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  counterBadge: {
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  counterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284c7', // sky-600
+  },
+});

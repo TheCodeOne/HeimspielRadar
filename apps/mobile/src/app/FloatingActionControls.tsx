@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, Platform, ActivityIndicator } from 'react-native';
+import { View, Pressable, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LocateIcon, RefreshIcon } from './Icons';
@@ -19,9 +19,7 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
 
   const triggerHaptic = () => {
     if (!isWeb) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {
-        // Haptics might fail on unsupported devices/simulators
-      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
   };
 
@@ -36,27 +34,20 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
   };
 
   return (
-    <View
-      className="absolute right-4 top-28 z-20 flex-col gap-2.5"
-      testID="floating-action-controls"
-    >
+    <View style={styles.container} testID="floating-action-controls">
       {/* Recenter Button */}
       <Pressable
         onPress={handleRecenter}
         accessibilityLabel="Auf aktuellen Standort zentrieren"
         accessibilityRole="button"
-        className="active:scale-95 shadow-md"
+        style={({ pressed }) => [styles.buttonWrapper, pressed && styles.pressed]}
       >
         {isWeb ? (
-          <View className="w-11 h-11 items-center justify-center bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
+          <View style={[styles.buttonCard, styles.webButtonCard]}>
             <LocateIcon size={20} color="#0f172a" />
           </View>
         ) : (
-          <BlurView
-            intensity={80}
-            tint="light"
-            className="w-11 h-11 items-center justify-center rounded-full border border-white/70 overflow-hidden bg-white/70"
-          >
+          <BlurView intensity={85} tint="light" style={styles.buttonCard}>
             <LocateIcon size={20} color="#0f172a" />
           </BlurView>
         )}
@@ -68,10 +59,10 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
         disabled={isRefreshing}
         accessibilityLabel="Spiele aktualisieren"
         accessibilityRole="button"
-        className="active:scale-95 shadow-md"
+        style={({ pressed }) => [styles.buttonWrapper, pressed && styles.pressed]}
       >
         {isWeb ? (
-          <View className="w-11 h-11 items-center justify-center bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
+          <View style={[styles.buttonCard, styles.webButtonCard]}>
             {isRefreshing ? (
               <ActivityIndicator size="small" color="#0284c7" />
             ) : (
@@ -79,11 +70,7 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
             )}
           </View>
         ) : (
-          <BlurView
-            intensity={80}
-            tint="light"
-            className="w-11 h-11 items-center justify-center rounded-full border border-white/70 overflow-hidden bg-white/70"
-          >
+          <BlurView intensity={85} tint="light" style={styles.buttonCard}>
             {isRefreshing ? (
               <ActivityIndicator size="small" color="#0284c7" />
             ) : (
@@ -96,3 +83,39 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
   );
 };
 
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    right: 16,
+    top: 84,
+    zIndex: 20,
+    flexDirection: 'column',
+    gap: 12,
+  },
+  buttonWrapper: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 6,
+    borderRadius: 24,
+  },
+  pressed: {
+    transform: [{ scale: 0.94 }],
+    opacity: 0.9,
+  },
+  buttonCard: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+    overflow: 'hidden',
+  },
+  webButtonCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+  },
+});
