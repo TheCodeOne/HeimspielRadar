@@ -100,6 +100,47 @@ export class ScraperService {
   ) {}
 
   /**
+   * Derives a non-empty name for a league, falling back to its metadata or ID when DBB returns null.
+   */
+  private resolveLeagueName(
+    ligaData: {
+      ligaId: number;
+      liganame?: string | null;
+      skName?: string | null;
+      akName?: string | null;
+      geschlecht?: string | null;
+      bezirkName?: string | null;
+      kreisname?: string | null;
+    },
+    fallbackName?: string | null
+  ): string {
+    const rawName = ligaData.liganame?.trim();
+
+    if (rawName) {
+      return rawName;
+    }
+
+    const passedFallback = fallbackName?.trim();
+
+    if (passedFallback) {
+      return passedFallback;
+    }
+
+    const segments = [
+      ligaData.akName?.trim(),
+      ligaData.skName?.trim(),
+      ligaData.geschlecht?.trim(),
+      ligaData.bezirkName?.trim() || ligaData.kreisname?.trim(),
+    ].filter((s): s is string => Boolean(s));
+
+    if (segments.length > 0) {
+      return segments.join(' ');
+    }
+
+    return `Liga ${ligaData.ligaId}`;
+  }
+
+  /**
    * Preview a league's schedule directly from DBB without saving to the database.
    */
   async previewLeague(ligaId: number) {
@@ -150,14 +191,14 @@ export class ScraperService {
         throw new Error(`Invalid response from DBB: No league data found for ID ${ligaId}`);
       }
 
-      leagueName = ligaData.liganame;
+      leagueName = this.resolveLeagueName(ligaData, options?.leagueName);
 
       // 1. Upsert League
       const [dbLeague] = await db
         .insert(leagues)
         .values({
           dbbId: ligaData.ligaId,
-          name: ligaData.liganame,
+          name: leagueName,
           seasonId: ligaData.seasonId,
           seasonName: ligaData.seasonName,
           verbandName: ligaData.verbandName || 'Baden-Württemberg',
@@ -170,7 +211,7 @@ export class ScraperService {
         .onConflictDoUpdate({
           target: leagues.dbbId,
           set: {
-            name: ligaData.liganame,
+            name: leagueName,
             seasonName: ligaData.seasonName,
             skName: ligaData.skName || null,
             akName: ligaData.akName || null,
@@ -418,14 +459,14 @@ export class ScraperService {
       await this.persistLastSyncedAt(completionDate);
 
       this.logger.log(
-        `Finished sync for league ${ligaId} ("${ligaData.liganame}"): ` +
+        `Finished sync for league ${ligaId} ("${leagueName}"): ` +
           `${syncedMatchesCount}/${rawMatches.length} matches, ` +
           `${syncedVenuesCount} new venues (${geocodedVenuesCount} geocoded) in ${durationMs}ms.`
       );
 
       return {
         leagueId: ligaData.ligaId,
-        leagueName: ligaData.liganame,
+        leagueName,
         totalMatches: rawMatches.length,
         syncedMatches: syncedMatchesCount,
         syncedVenues: syncedVenuesCount,
@@ -719,14 +760,14 @@ export class ScraperService {
 
       const { ligaData, matches: windowMatches = [], tabelle } = actualRes.data;
 
-      leagueName = ligaData.liganame;
+      leagueName = this.resolveLeagueName(ligaData, options?.leagueName);
 
       // 1. Upsert League with Standings
       const [dbLeague] = await db
         .insert(leagues)
         .values({
           dbbId: ligaData.ligaId,
-          name: ligaData.liganame,
+          name: leagueName,
           seasonId: ligaData.seasonId,
           seasonName: ligaData.seasonName,
           verbandName: ligaData.verbandName || 'Baden-Württemberg',
@@ -739,7 +780,7 @@ export class ScraperService {
         .onConflictDoUpdate({
           target: leagues.dbbId,
           set: {
-            name: ligaData.liganame,
+            name: leagueName,
             seasonName: ligaData.seasonName,
             skName: ligaData.skName || null,
             akName: ligaData.akName || null,
@@ -1106,7 +1147,7 @@ export class ScraperService {
       await this.persistLastSyncedAt(completionDate);
 
       this.logger.log(
-        `Delta-sync completed for league ${liganr} ("${ligaData.liganame}"): ` +
+        `Delta-sync completed for league ${liganr} ("${leagueName}"): ` +
           `${syncedMatchesCount}/${windowMatches.length} matches ` +
           `(${verifiedMatchesCount} verified, ${provisionalMatchesCount} provisional), ` +
           `${syncedVenuesCount} venues (${geocodedVenuesCount} geocoded) in ${durationMs}ms.`
@@ -1115,7 +1156,7 @@ export class ScraperService {
       return {
         success: true,
         leagueId: ligaData.ligaId,
-        leagueName: ligaData.liganame,
+        leagueName,
         totalMatches: windowMatches.length,
         syncedMatches: syncedMatchesCount,
         matchesCount: syncedMatchesCount,

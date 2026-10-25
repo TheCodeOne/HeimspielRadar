@@ -1718,5 +1718,57 @@ describe('ScraperService', () => {
       const recent = await service.getRecentSyncRuns(5);
       expect(recent).toHaveLength(1);
     });
+
+    it('resolves fallback league name when liganame is null (#112)', async () => {
+      mockDbbClient.fetchSpielplan.mockResolvedValue({
+        data: {
+          ligaData: {
+            ligaId: 56601,
+            liganame: null,
+            skName: 'Kreisliga',
+            akName: 'U8',
+            geschlecht: 'mix',
+            bezirkName: 'Kreis Bochum ',
+            verbandName: 'Nordrhein-Westfalen',
+          },
+          matches: [sampleMatch],
+        },
+      });
+
+      const res = await service.syncLeague(56601, { quickSync: true });
+      expect(res.leagueName).toBe('U8 Kreisliga mix Kreis Bochum');
+
+      const savedLeagues = fakeDb.existingLeagues;
+      const savedLeague = savedLeagues.find((l) => l.dbbId === 56601);
+      expect(savedLeague).toBeDefined();
+      expect(savedLeague?.name).toBe('U8 Kreisliga mix Kreis Bochum');
+    });
+
+    it('resolves fallback league name during delta sync when liganame is null (#112)', async () => {
+      mockDbbClient.fetchCompetitionActual.mockResolvedValue({
+        data: {
+          ligaData: {
+            ligaId: 56601,
+            liganame: null,
+            skName: 'Kreisliga',
+            akName: 'U8',
+            geschlecht: 'mix',
+            bezirkName: 'Kreis Bochum ',
+            verbandName: 'Nordrhein-Westfalen',
+          },
+          matches: [],
+          tabelle: { entries: [] },
+        },
+      });
+
+      const res = await service.syncLeagueDelta(56601);
+      expect(res.success).toBe(true);
+      expect(res.leagueName).toBe('U8 Kreisliga mix Kreis Bochum');
+
+      const savedLeagues = fakeDb.existingLeagues;
+      const savedLeague = savedLeagues.find((l) => l.dbbId === 56601);
+      expect(savedLeague).toBeDefined();
+      expect(savedLeague?.name).toBe('U8 Kreisliga mix Kreis Bochum');
+    });
   });
 });

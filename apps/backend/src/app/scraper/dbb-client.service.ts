@@ -26,13 +26,15 @@ export interface DbbLigaData {
   seasonId?: number;
   seasonName?: string;
   ligaId: number;
-  liganame: string;
+  liganame: string | null;
   liganr?: number;
   skName?: string;
   akName?: string;
   geschlecht?: string;
   verbandId?: number;
   verbandName?: string;
+  bezirkName?: string;
+  kreisname?: string;
 }
 
 export interface DbbVenue {
