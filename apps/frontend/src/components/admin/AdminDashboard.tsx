@@ -14,8 +14,9 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import type {
+import {
   AdminStatusResponse,
+  GERMAN_BASKETBALL_VERBAENDE,
   SyncFailure,
   SyncRun,
 } from '@sundayleague/shared-types';
@@ -74,6 +75,25 @@ function formatDuration(ms: number | null | undefined): string {
   }
 
   return `${seconds}s`;
+}
+
+function formatTargetLabel(target: string): string {
+  if (target === 'all') {
+    return 'Alle Verbände (bundesweit)';
+  }
+
+  if (target.startsWith('verband:')) {
+    const verbandId = parseInt(target.split(':')[1], 10);
+    const found = GERMAN_BASKETBALL_VERBAENDE.find((v) => v.id === verbandId);
+
+    if (found) {
+      return `${found.shortName} (${found.name})`;
+    }
+
+    return `Verband ${verbandId}`;
+  }
+
+  return target;
 }
 
 export function AdminDashboard() {
@@ -495,15 +515,27 @@ export function AdminDashboard() {
                   onChange={(e) => setSelectedTarget(e.target.value)}
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  <option value="verband:1">
-                    Verband 1 (Baden-Württemberg)
-                  </option>
-                  <option value="verband:31">
-                    Verband 31 (Regionalliga Südwest)
-                  </option>
                   <option value="all">
-                    Alle aktiven Verbände (1..35)
+                    Alle Verbände bundesweit (23 Verbände & Regionalligen)
                   </option>
+                  <optgroup label="Bundesligen & Regionalligen">
+                    {GERMAN_BASKETBALL_VERBAENDE.filter(
+                      (v) => v.type === 'national' || v.type === 'regional'
+                    ).map((v) => (
+                      <option key={v.id} value={`verband:${v.id}`}>
+                        {v.shortName} – {v.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="16 Landesverbände & DRS">
+                    {GERMAN_BASKETBALL_VERBAENDE.filter(
+                      (v) => v.type === 'state' || v.type === 'special'
+                    ).map((v) => (
+                      <option key={v.id} value={`verband:${v.id}`}>
+                        {v.shortName} – {v.name}
+                      </option>
+                    ))}
+                  </optgroup>
                   <option value="custom">
                     Einzelne DBB Liga-ID...
                   </option>
@@ -736,13 +768,7 @@ export function AdminDashboard() {
                           )}
                         </td>
                         <td className="py-2.5 pr-4 font-medium">
-                          {run.target === 'all'
-                            ? 'Alle Verbände (1..35)'
-                            : run.target === 'verband:1'
-                              ? 'Verband 1 (BaWü)'
-                              : run.target === 'verband:31'
-                                ? 'Verband 31 (Regio SW)'
-                                : run.target}
+                          {formatTargetLabel(run.target)}
                         </td>
                         <td className="py-2.5 pr-4 font-mono text-muted-foreground uppercase text-[10px]">
                           {run.syncType}

@@ -181,3 +181,44 @@ export interface SyncTriggerDto {
   type: 'delta' | 'deep';
   target: 'all' | 'verband:1' | 'verband:31' | string;
 }
+
+export interface VerbandInfo {
+  id: number;
+  name: string;
+  shortName: string;
+  type: 'national' | 'regional' | 'state' | 'special';
+  state?: string;
+}
+
+export const GERMAN_BASKETBALL_VERBAENDE: readonly VerbandInfo[] = [
+  // Bundesligen & Nationale Wettbewerbe
+  { id: 100, name: 'DBB Bundesligen', shortName: 'DBB', type: 'national' },
+  { id: 29, name: 'Deutsche Meisterschaften & Pokale', shortName: 'DBB-DM', type: 'national' },
+
+  // Regionalligen (4 Regionalverbände)
+  { id: 30, name: 'Regionalliga Nord', shortName: 'RLN', type: 'regional' },
+  { id: 31, name: 'Regionalliga Südwest', shortName: 'RLSW', type: 'regional' },
+  { id: 32, name: 'Regionalliga Südost', shortName: 'RLSO', type: 'regional' },
+  { id: 33, name: 'Regionalliga West', shortName: 'RLW', type: 'regional' },
+
+  // 16 Landesverbände
+  { id: 1, name: 'Basketballverband Baden-Württemberg', shortName: 'BBW', type: 'state', state: 'Baden-Württemberg' },
+  { id: 2, name: 'Bayerischer Basketball-Verband', shortName: 'BBV', type: 'state', state: 'Bayern' },
+  { id: 3, name: 'Berliner Basketball-Verband', shortName: 'BBV', type: 'state', state: 'Berlin' },
+  { id: 4, name: 'Bremer Basketball-Verband', shortName: 'BBM', type: 'state', state: 'Bremen' },
+  { id: 5, name: 'Hamburger Basketball-Verband', shortName: 'HBV', type: 'state', state: 'Hamburg' },
+  { id: 6, name: 'Hessischer Basketball-Verband', shortName: 'HBV', type: 'state', state: 'Hessen' },
+  { id: 7, name: 'Niedersächsischer Basketballverband', shortName: 'NBV', type: 'state', state: 'Niedersachsen' },
+  { id: 8, name: 'Basketballverband Rheinland-Pfalz', shortName: 'BVRP', type: 'state', state: 'Rheinland-Pfalz' },
+  { id: 9, name: 'Basketballverband Saar', shortName: 'BVS', type: 'state', state: 'Saarland' },
+  { id: 10, name: 'Basketball-Verband Schleswig-Holstein', shortName: 'BVSH', type: 'state', state: 'Schleswig-Holstein' },
+  { id: 11, name: 'Westdeutscher Basketball-Verband', shortName: 'WBV', type: 'state', state: 'Nordrhein-Westfalen' },
+  { id: 12, name: 'Basketball-Verband Mecklenburg-Vorpommern', shortName: 'BVMV', type: 'state', state: 'Mecklenburg-Vorpommern' },
+  { id: 13, name: 'Basketball-Verband Sachsen-Anhalt', shortName: 'BVSA', type: 'state', state: 'Sachsen-Anhalt' },
+  { id: 14, name: 'Brandenburger Basketball-Verband', shortName: 'BBV', type: 'state', state: 'Brandenburg' },
+  { id: 15, name: 'Basketball-Verband Sachsen', shortName: 'BVS', type: 'state', state: 'Sachsen' },
+  { id: 16, name: 'Thüringer Basketball-Verband', shortName: 'TBV', type: 'state', state: 'Thüringen' },
+
+  // Rollstuhlbasketball
+  { id: 40, name: 'Deutscher Rollstuhlsportverband', shortName: 'DRS', type: 'special' },
+] as const;

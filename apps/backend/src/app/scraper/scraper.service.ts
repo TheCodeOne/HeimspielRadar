@@ -8,9 +8,11 @@ import {
 import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   DeltaSyncResult,
+  GERMAN_BASKETBALL_VERBAENDE,
   RetryFailedResult,
   SyncResult,
   SyncVerbandDeltaResult,
+  VerbandInfo,
   VerbandSyncResult,
 } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
@@ -60,6 +62,27 @@ export interface SyncVerbandDeltaOptions {
   rangeDays?: number;
   concurrency?: number;
   throttleMs?: number;
+}
+
+export function getActiveVerbaende(): readonly VerbandInfo[] {
+  const customIds = process.env['ACTIVE_VERBAND_IDS'];
+
+  if (customIds) {
+    const ids = new Set(
+      customIds
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n))
+    );
+
+    const filtered = GERMAN_BASKETBALL_VERBAENDE.filter((v) => ids.has(v.id));
+
+    if (filtered.length > 0) {
+      return filtered;
+    }
+  }
+
+  return GERMAN_BASKETBALL_VERBAENDE;
 }
 
 @Injectable()
@@ -1869,35 +1892,65 @@ export class ScraperService {
 
     try {
       if (params.target === 'all') {
-        for (let verbandId = 1; verbandId <= 35; verbandId++) {
-          try {
-            const res = await this.syncVerbandLeagues(verbandId, {
-              quickSync: params.type === 'delta',
-            });
+        const verbaende = getActiveVerbaende();
 
-            totalLeagues += res.totalLeagues;
-            successfulLeagues += res.successfulLeagues;
-            syncedMatches += res.syncedMatches;
-            geocodedVenues += res.geocodedVenues;
-            failuresCount += res.failedLeagues;
+        for (const verband of verbaende) {
+          try {
+            if (params.type === 'delta') {
+              const res = await this.syncVerbandDelta(verband.id);
+
+              totalLeagues += res.totalLeagues;
+              successfulLeagues += res.successfulLeagues;
+              syncedMatches += res.syncedMatches;
+              failuresCount += res.errors.length;
+
+              if (res.errors.length > 0) {
+                failedLeagues.push(
+                  ...res.errors.map((e) => `Liga ${e.leagueId} (${verband.shortName})`)
+                );
+              }
+            } else {
+              const res = await this.syncVerbandLeagues(verband.id, {
+                quickSync: false,
+              });
+
+              totalLeagues += res.totalLeagues;
+              successfulLeagues += res.successfulLeagues;
+              syncedMatches += res.syncedMatches;
+              geocodedVenues += res.geocodedVenues;
+              failuresCount += res.failedLeagues;
+            }
           } catch (err) {
             this.logger.debug(
-              `Skipped or failed association ${verbandId}: ${err instanceof Error ? err.message : String(err)}`
+              `Skipped or failed association ${verband.id} (${verband.name}): ${err instanceof Error ? err.message : String(err)}`
             );
           }
         }
       } else if (params.target.startsWith('verband:')) {
         const verbandId = parseInt(params.target.split(':')[1], 10);
 
-        const res = await this.syncVerbandLeagues(verbandId, {
-          quickSync: params.type === 'delta',
-        });
+        if (params.type === 'delta') {
+          const res = await this.syncVerbandDelta(verbandId);
 
-        totalLeagues = res.totalLeagues;
-        successfulLeagues = res.successfulLeagues;
-        syncedMatches = res.syncedMatches;
-        geocodedVenues = res.geocodedVenues;
-        failuresCount = res.failedLeagues;
+          totalLeagues = res.totalLeagues;
+          successfulLeagues = res.successfulLeagues;
+          syncedMatches = res.syncedMatches;
+          failuresCount = res.errors.length;
+
+          if (res.errors.length > 0) {
+            failedLeagues.push(...res.errors.map((e) => `Liga ${e.leagueId}`));
+          }
+        } else {
+          const res = await this.syncVerbandLeagues(verbandId, {
+            quickSync: false,
+          });
+
+          totalLeagues = res.totalLeagues;
+          successfulLeagues = res.successfulLeagues;
+          syncedMatches = res.syncedMatches;
+          geocodedVenues = res.geocodedVenues;
+          failuresCount = res.failedLeagues;
+        }
       } else if (params.target.startsWith('league:')) {
         const leagueId = parseInt(params.target.split(':')[1], 10);
         totalLeagues = 1;
