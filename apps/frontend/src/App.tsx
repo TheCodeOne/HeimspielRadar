@@ -16,7 +16,7 @@ import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { FilterBar } from '@/components/filters';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
-import { MatchList } from '@/components/matches';
+import { MatchList, MatchQuickActions } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
@@ -28,23 +28,13 @@ import {
   formatLastSyncedAt,
 } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
+import { getMatchLinks } from '@/lib/match-links';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
 
 function buildGoogleMapsRouteUrl(match: Match): string {
-  const venue = match.venue;
-
-  if (!venue) {
-    return 'https://www.google.com/maps';
-  }
-
-  const destination =
-    venue.latitude != null && venue.longitude != null
-      ? `${venue.latitude},${venue.longitude}`
-      : `${venue.name}, ${venue.street}, ${venue.postalCode} ${venue.city}`;
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+  return getMatchLinks(match).navigationUrl ?? 'https://www.google.com/maps';
 }
 
 function MainView() {
@@ -430,6 +420,14 @@ function MainView() {
                               Endstand: {venueMatch.result}
                             </div>
                           )}
+
+                          <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-1.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              DBB Quick-Actions
+                            </span>
+
+                            <MatchQuickActions match={venueMatch} size="sm" />
+                          </div>
                         </div>
                       );
                     })}

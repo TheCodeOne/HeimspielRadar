@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/card';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
+import { MatchQuickActions } from './MatchQuickActions';
 
 export interface MatchCardProps {
   match: Match;
@@ -144,25 +145,35 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
           )}
         </CardContent>
 
-        <CardFooter className="pt-0 pb-3 flex items-center justify-between border-t border-border/30 mt-1">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
-            <Calendar className="h-3 w-3 text-muted-foreground" />
-            <span>{dateFormatted}</span>
+        <CardFooter className="pt-2 pb-2.5 flex flex-col gap-2 border-t border-border/30 mt-1">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              <span>{dateFormatted}</span>
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick?.();
+              }}
+              className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
+            >
+              <Compass className="mr-1 h-3 w-3" />
+              Auf Karte anzeigen
+            </Button>
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick?.();
-            }}
-            className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
-          >
-            <Compass className="mr-1 h-3 w-3" />
-            Auf Karte anzeigen
-          </Button>
+          <div className="w-full border-t border-border/20 pt-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              DBB Quick-Actions
+            </span>
+
+            <MatchQuickActions match={match} />
+          </div>
         </CardFooter>
       </Card>
     );
