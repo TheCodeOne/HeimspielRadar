@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Pressable, Platform, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
+import { LocateIcon, RefreshIcon } from './Icons';
 
 export interface FloatingActionControlsProps {
   onRecenter: () => void;
@@ -35,25 +35,6 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
     onRefresh();
   };
 
-  const renderButtonContent = (
-    iconName: keyof typeof Ionicons.glyphMap,
-    isLoading = false,
-  ) => {
-    if (isLoading) {
-      return (
-        <View className="w-11 h-11 items-center justify-center">
-          <ActivityIndicator size="small" color="#0284c7" />
-        </View>
-      );
-    }
-
-    return (
-      <View className="w-11 h-11 items-center justify-center">
-        <Ionicons name={iconName} size={20} color="#0f172a" />
-      </View>
-    );
-  };
-
   return (
     <View
       className="absolute right-4 top-28 z-20 flex-col gap-2.5"
@@ -67,16 +48,16 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
         className="active:scale-95 shadow-md"
       >
         {isWeb ? (
-          <View className="bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
-            {renderButtonContent('locate')}
+          <View className="w-11 h-11 items-center justify-center bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
+            <LocateIcon size={20} color="#0f172a" />
           </View>
         ) : (
           <BlurView
             intensity={80}
             tint="light"
-            className="rounded-full border border-white/70 overflow-hidden bg-white/70"
+            className="w-11 h-11 items-center justify-center rounded-full border border-white/70 overflow-hidden bg-white/70"
           >
-            {renderButtonContent('locate')}
+            <LocateIcon size={20} color="#0f172a" />
           </BlurView>
         )}
       </Pressable>
@@ -90,19 +71,28 @@ export const FloatingActionControls: React.FC<FloatingActionControlsProps> = ({
         className="active:scale-95 shadow-md"
       >
         {isWeb ? (
-          <View className="bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
-            {renderButtonContent('refresh', isRefreshing)}
+          <View className="w-11 h-11 items-center justify-center bg-white/90 backdrop-blur-md rounded-full border border-white/70 overflow-hidden">
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#0284c7" />
+            ) : (
+              <RefreshIcon size={20} color="#0f172a" />
+            )}
           </View>
         ) : (
           <BlurView
             intensity={80}
             tint="light"
-            className="rounded-full border border-white/70 overflow-hidden bg-white/70"
+            className="w-11 h-11 items-center justify-center rounded-full border border-white/70 overflow-hidden bg-white/70"
           >
-            {renderButtonContent('refresh', isRefreshing)}
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#0284c7" />
+            ) : (
+              <RefreshIcon size={20} color="#0f172a" />
+            )}
           </BlurView>
         )}
       </Pressable>
     </View>
   );
 };
+

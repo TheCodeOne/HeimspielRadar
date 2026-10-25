@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, StyleSheet, Text, Pressable, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import type { Match } from '@sundayleague/shared-types';
 import type { LocationCoordinates } from './data';
 import { calculateDistanceKm, formatKickoffTime } from './data';
+import { BasketballIcon, MapOutlineIcon } from './Icons';
+
 
 export interface NativeMapProps {
   initialRegion: LocationCoordinates;
@@ -26,12 +27,13 @@ export const NativeMap: React.FC<NativeMapProps> = ({
     <View style={styles.webMapContainer}>
       <ScrollView contentContainerStyle={styles.listContainer}>
         <View style={styles.webMapBanner}>
-          <Ionicons name="map-outline" size={24} color="#0284c7" />
+          <MapOutlineIcon size={24} color="#0284c7" />
           <Text style={styles.webMapBannerTitle}>Interaktive Spielübersicht (Web-Modus)</Text>
           <Text style={styles.webMapBannerSubtitle}>
             {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'} im {radiusKm} km Umkreis
           </Text>
         </View>
+
 
         {matches.map((match) => {
           const isSelected = selectedMatch?.id === match.id;
@@ -62,12 +64,12 @@ export const NativeMap: React.FC<NativeMapProps> = ({
                     isSelected ? styles.pinIconSelected : styles.pinIconDefault,
                   ]}
                 >
-                  <Ionicons
-                    name="basketball"
+                  <BasketballIcon
                     size={20}
                     color={isSelected ? '#ea580c' : '#0284c7'}
                   />
                 </View>
+
                 <View style={styles.pinTitleBox}>
                   <Text style={styles.matchTeams}>
                     {match.homeTeam?.name ?? 'Heim'} vs. {match.guestTeam?.name ?? 'Gast'}

@@ -4,10 +4,11 @@ import {
   View,
   Text,
   StatusBar,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type MapView from 'react-native-maps';
+
 import * as Location from 'expo-location';
 import type { Match } from '@sundayleague/shared-types';
 import { NativeMap } from './NativeMap';
@@ -147,57 +148,62 @@ export const App = () => {
 
   if (isLocating && !location) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#0284c7" />
-        <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.centerContainer}>
+          <StatusBar barStyle="dark-content" />
+          <ActivityIndicator size="large" color="#0284c7" />
+          <Text style={styles.loadingText}>Standort wird ermittelt...</Text>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
   const activeRegion = location ?? STUTTGART_FALLBACK;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" />
 
-      {/* Main Fullscreen Interactive Map */}
-      <View style={styles.mapContainer}>
-        <NativeMap
-          mapRef={mapRef}
-          initialRegion={activeRegion}
-          radiusKm={DEFAULT_RADIUS_KM}
-          matches={matches}
-          selectedMatch={selectedMatch}
-          onSelectMatch={(match) => setSelectedMatch(match)}
-        />
-
-        {/* Floating Safe-Area Header Pill */}
-        <FloatingHeaderPill
-          matchCount={matches.length}
-          radiusKm={DEFAULT_RADIUS_KM}
-          isLoading={isLoadingMatches}
-          permissionDenied={permissionDenied}
-        />
-
-        {/* Floating Action Controls (Recenter, Reload) */}
-        <FloatingActionControls
-          onRecenter={handleRecenter}
-          onRefresh={handleRefresh}
-          isRefreshing={isLoadingMatches}
-        />
-
-        {/* Floating Glassmorphism Match Preview Card */}
-        {selectedMatch && (
-          <MatchPreviewCard
-            match={selectedMatch}
-            distanceKm={selectedMatchDistance}
-            onClose={() => setSelectedMatch(null)}
+        {/* Main Fullscreen Interactive Map */}
+        <View style={styles.mapContainer}>
+          <NativeMap
+            mapRef={mapRef}
+            initialRegion={activeRegion}
+            radiusKm={DEFAULT_RADIUS_KM}
+            matches={matches}
+            selectedMatch={selectedMatch}
+            onSelectMatch={(match) => setSelectedMatch(match)}
           />
-        )}
-      </View>
-    </SafeAreaView>
+
+          {/* Floating Safe-Area Header Pill */}
+          <FloatingHeaderPill
+            matchCount={matches.length}
+            radiusKm={DEFAULT_RADIUS_KM}
+            isLoading={isLoadingMatches}
+            permissionDenied={permissionDenied}
+          />
+
+          {/* Floating Action Controls (Recenter, Reload) */}
+          <FloatingActionControls
+            onRecenter={handleRecenter}
+            onRefresh={handleRefresh}
+            isRefreshing={isLoadingMatches}
+          />
+
+          {/* Floating Glassmorphism Match Preview Card */}
+          {selectedMatch && (
+            <MatchPreviewCard
+              match={selectedMatch}
+              distanceKm={selectedMatchDistance}
+              onClose={() => setSelectedMatch(null)}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
+
 };
 
 const styles = StyleSheet.create({

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, Pressable, Platform, Linking } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import type { Match } from '@sundayleague/shared-types';
 import { formatKickoffTime } from './data';
+import { TimeIcon, NavigateIcon, NavigateOutlineIcon, CloseIcon } from './Icons';
+
 
 export interface MatchPreviewCardProps {
   match: Match;
@@ -77,7 +78,7 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
         <View className="flex-row items-center gap-2">
           {/* Kickoff Chip */}
           <View className="bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-full flex-row items-center gap-1.5">
-            <Ionicons name="time-outline" size={12} color="#0284c7" />
+            <TimeIcon size={12} color="#0284c7" />
             <Text className="text-xs font-bold text-sky-700">
               {formatKickoffTime(match.kickoffTime)}
             </Text>
@@ -86,7 +87,7 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
           {/* Distance Indicator */}
           {distanceKm !== undefined && (
             <View className="flex-row items-center gap-1">
-              <Ionicons name="navigate-outline" size={12} color="#64748b" />
+              <NavigateOutlineIcon size={12} color="#64748b" />
               <Text className="text-xs font-semibold text-slate-500">
                 {distanceKm.toFixed(1)} km
               </Text>
@@ -102,9 +103,10 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
           hitSlop={10}
           className="w-7 h-7 rounded-full bg-slate-200/60 items-center justify-center active:bg-slate-300"
         >
-          <Ionicons name="close" size={16} color="#475569" />
+          <CloseIcon size={14} color="#475569" />
         </Pressable>
       </View>
+
 
       {/* Team Matchup */}
       <View className="mb-3.5">
@@ -158,9 +160,10 @@ export const MatchPreviewCard: React.FC<MatchPreviewCardProps> = ({
           accessibilityRole="button"
           className="bg-sky-600 active:bg-sky-700 px-3 py-2 rounded-xl flex-row items-center gap-1.5 shadow-sm"
         >
-          <Ionicons name="navigate" size={14} color="#ffffff" />
+          <NavigateIcon size={13} color="#ffffff" />
           <Text className="text-xs font-bold text-white">Route</Text>
         </Pressable>
+
       </View>
     </View>
   );

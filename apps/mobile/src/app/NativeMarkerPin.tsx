@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { BasketballIcon } from './Icons';
 
 export interface NativeMarkerPinProps {
   isSelected: boolean;
@@ -21,8 +21,7 @@ export const NativeMarkerPin: React.FC<NativeMarkerPinProps> = ({
           isSelected ? styles.bubbleSelected : styles.bubbleDefault,
         ]}
       >
-        <Ionicons
-          name="basketball"
+        <BasketballIcon
           size={isSelected ? 18 : 15}
           color="#ffffff"
         />
@@ -46,6 +45,7 @@ export const NativeMarkerPin: React.FC<NativeMarkerPinProps> = ({
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
