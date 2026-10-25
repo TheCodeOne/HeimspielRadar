@@ -89,7 +89,7 @@ graph TD
     classDef opt fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#ecfdf5;
 
     A["POST /rest/wam/liga/list"]:::endpoint -->|"Discovers"| B["Leagues & liganr"]
-    B --> C["GET /rest/competition/number/{liganr}/actual?rangeDays=14"]:::endpoint
+    B --> C["GET /rest/competition/actual/id/{liganr}?rangeDays=14"]:::endpoint
     C -->|"1 Request Delivers"| D["Windowed Fixtures (Upcoming & Recent)"]:::opt
     C -->|"1 Request Delivers"| E["Official Standings Table (tabelle)"]:::opt
     C -->|"1 Request Delivers"| F["Cross-Table Matrix (kreuztabelle)"]:::opt
@@ -173,7 +173,7 @@ flowchart LR
 ```
 
 1. **Daily Delta Sync (`rangeDays=14`)**:
-   - Ingests active window fixtures and official federation standings table in **one single request** per league via `/rest/competition/number/{liganr}/actual`.
+   - Ingests active window fixtures and official federation standings table in **one single request** per league via `/rest/competition/actual/id/{liganr}`.
    - Runs verification calls only for matches with `isVenueVerified: false`.
 2. **Weekly Deep Sync (`fetchSpielplan`)**:
    - Ingests the broad season schedule during off-peak hours (Tuesday night).
@@ -218,7 +218,7 @@ export const matches = pgTable('matches', {
 
 ```typescript
 /**
- * Fast daily sync combining /competition/number/{liganr}/actual with
+ * Fast daily sync combining /competition/actual/id/{liganr} with
  * Two-Tier Venue Verification and Majority Voting.
  */
 async syncLeagueDailyFast(liganr: number): Promise<SyncResult> {
