@@ -7,6 +7,7 @@ export interface FloatingHeaderPillProps {
   radiusKm: number;
   isLoading?: boolean;
   permissionDenied?: boolean;
+  isOffline?: boolean;
 }
 
 export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
@@ -14,19 +15,36 @@ export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
   radiusKm,
   isLoading = false,
   permissionDenied = false,
+  isOffline = false,
 }) => {
   const isWeb = Platform.OS === 'web';
+
+  const subtitle = isOffline
+    ? 'Offline-Modus (Gespeicherte Spiele)'
+    : permissionDenied
+      ? 'Stuttgart (Fallback)'
+      : `${radiusKm} km Umkreis`;
 
   const content = (
     <View style={styles.contentRow}>
       <View style={styles.brandingGroup}>
-        <View style={styles.statusDot} />
+        <View
+          style={[
+            styles.statusDot,
+            isOffline ? styles.statusDotOffline : styles.statusDotOnline,
+          ]}
+          testID="header-status-dot"
+        />
         <View>
           <Text style={styles.brandTitle}>HeimspielRadar</Text>
-          <Text style={styles.brandSubtitle}>
-            {permissionDenied
-              ? 'Stuttgart (Fallback)'
-              : `${radiusKm} km Umkreis`}
+          <Text
+            style={[
+              styles.brandSubtitle,
+              isOffline && styles.brandSubtitleOffline,
+            ]}
+            numberOfLines={1}
+          >
+            {subtitle}
           </Text>
         </View>
       </View>
@@ -35,8 +53,18 @@ export const FloatingHeaderPill: React.FC<FloatingHeaderPillProps> = ({
         {isLoading ? (
           <ActivityIndicator size="small" color="#0284c7" />
         ) : (
-          <View style={styles.counterBadge}>
-            <Text style={styles.counterText}>
+          <View
+            style={[
+              styles.counterBadge,
+              isOffline && styles.counterBadgeOffline,
+            ]}
+          >
+            <Text
+              style={[
+                styles.counterText,
+                isOffline && styles.counterTextOffline,
+              ]}
+            >
               {matchCount} {matchCount === 1 ? 'Spiel' : 'Spiele'}
             </Text>
           </View>
@@ -95,12 +123,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
+    marginRight: 8,
   },
   statusDot: {
     width: 9,
     height: 9,
     borderRadius: 5,
+  },
+  statusDotOnline: {
     backgroundColor: '#10b981', // emerald-500
+  },
+  statusDotOffline: {
+    backgroundColor: '#f59e0b', // amber-500
   },
   brandTitle: {
     fontSize: 15,
@@ -114,9 +149,14 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 1,
   },
+  brandSubtitleOffline: {
+    color: '#d97706', // amber-600
+    fontWeight: '600',
+  },
   counterGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   counterBadge: {
     backgroundColor: 'rgba(2, 132, 199, 0.12)',
@@ -126,9 +166,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 16,
   },
+  counterBadgeOffline: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
   counterText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0284c7', // sky-600
+  },
+  counterTextOffline: {
+    color: '#d97706', // amber-600
   },
 });
