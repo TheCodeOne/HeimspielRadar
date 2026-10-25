@@ -186,7 +186,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     { page },
     testInfo,
   ) => {
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     const header = page.locator('header');
     const brandTitle = header.getByText('HeimspielRadar');
@@ -276,7 +276,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
   ) => {
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({ latitude: 48.7758, longitude: 9.1829 });
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     // 1. Locate the interactive summary chip button
     const summaryChip = page.getByRole('button', { name: 'Filter öffnen' });
@@ -330,7 +330,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     { page },
     testInfo,
   ) => {
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     // 1. Open Filter Drawer
     const filterButton = page.locator('header').getByRole('button', { name: /Filter/i });
@@ -418,7 +418,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
   test('club & team search filter with autocomplete, badge, summary chip, and persistence (#72)', async ({
     page,
   }, testInfo) => {
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     const header = page.locator('header');
 

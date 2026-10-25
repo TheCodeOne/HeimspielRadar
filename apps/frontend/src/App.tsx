@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
+import { FilterBar } from '@/components/filters/FilterBar';
 import {
   VariantA_QuickFilterBar,
   VariantB_AccordionDrawer,
@@ -52,6 +53,26 @@ export function App() {
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
+
+  // Fallback: Support legacy FilterBar if ?legacy=true is present in URL
+  const isLegacy = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return new URLSearchParams(window.location.search).get('legacy') === 'true';
+  }, []);
+
+  // Prototype Switcher pill: only display if ?prototypes, ?debug or ?switcher is in URL
+  const showPrototypeSwitcher = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    return params.has('prototypes') || params.has('debug') || params.has('switcher');
+  }, []);
 
   // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar), D (Hybrid Bottom-Bar + Sheet)
   const [currentVariant, setCurrentVariant] = React.useState<PrototypeVariant>(() => {
@@ -227,21 +248,8 @@ export function App() {
 
         {/* Right: Actions (Filter Trigger & Settings Gear Icon) */}
         <div className="flex items-center gap-2">
-          {/* Active filter count badge in header for Variant D */}
-          {currentVariant === 'D' && filters.activeFilterCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
-              title="Aktive Filter bearbeiten"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>{filters.activeFilterCount} aktiv</span>
-            </button>
-          )}
-
-          {/* Filter Drawer Trigger Button for Variants A, B, C */}
-          {currentVariant !== 'D' && (
+          {isLegacy ? (
+            /* Legacy Filter Trigger Button */
             <Button
               type="button"
               variant="outline"
@@ -257,20 +265,54 @@ export function App() {
                 </span>
               )}
             </Button>
-          )}
+          ) : (
+            <>
+              {/* Active filter count badge in header for Variant D */}
+              {currentVariant === 'D' && filters.activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsFilterDrawerOpen(true)}
+                  className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+                  title="Aktive Filter bearbeiten"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>{filters.activeFilterCount} aktiv</span>
+                </button>
+              )}
 
-          {/* Settings Gear Button (User requested: oben rechts ein gear icon fuer 'Einstellungen') */}
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => setIsSettingsOpen(true)}
-            className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Einstellungen"
-            title="Einstellungen & Karten-Optionen"
-          >
-            <Settings className="h-4 w-4 text-slate-300" />
-          </Button>
+              {/* Filter Drawer Trigger Button for Variants A, B, C */}
+              {currentVariant !== 'D' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFilterDrawerOpen(true)}
+                  className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                  <span>Filter</span>
+                  {filters.activeFilterCount > 0 && (
+                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                      {filters.activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+              )}
+
+              {/* Settings Gear Button (User requested: oben rechts ein gear icon fuer 'Einstellungen') */}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setIsSettingsOpen(true)}
+                className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Einstellungen"
+                title="Einstellungen & Karten-Optionen"
+              >
+                <Settings className="h-4 w-4 text-slate-300" />
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
@@ -314,7 +356,7 @@ export function App() {
         )}
 
         {/* Variant D: Hybrid Bottom-Bar + Bottom-Sheet + Desktop-Sidebar */}
-        {currentVariant === 'D' && (
+        {!isLegacy && currentVariant === 'D' && (
           <VariantD_BottomBarSheet
             isOpen={isFilterDrawerOpen}
             onClose={() => setIsFilterDrawerOpen(false)}
@@ -352,8 +394,8 @@ export function App() {
               />
             )}
 
-            {/* Floating Map Summary Chip (Active in Variants B & C) */}
-            {currentVariant !== 'A' && currentVariant !== 'D' && (
+            {/* Floating Map Summary Chip (Active in Legacy mode or Prototype Variants B & C) */}
+            {(isLegacy || (currentVariant !== 'A' && currentVariant !== 'D')) && (
               <button
                 type="button"
                 onClick={() => setIsFilterDrawerOpen(true)}
@@ -565,11 +607,31 @@ export function App() {
         />
       )}
 
-      {/* Interactive Prototype Switcher Floating Pill */}
-      <PrototypeSwitcher
-        currentVariant={currentVariant}
-        onSelectVariant={handleSelectVariant}
-      />
+      {/* Legacy FilterBar (Safety Fallback if ?legacy=true is requested) */}
+      {isLegacy && (
+        <FilterBar
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          filters={filters}
+          availableOptions={{
+            leagues,
+            genders: availableGenders,
+            ageClasses: availableAgeClasses,
+            skillLevels: availableSkillLevels,
+            matchCount: matches.length,
+            lastSyncedAt,
+          }}
+          actions={actions}
+        />
+      )}
+
+      {/* Interactive Prototype Switcher Floating Pill (Only when requested via ?prototypes, ?debug or ?switcher) */}
+      {showPrototypeSwitcher && (
+        <PrototypeSwitcher
+          currentVariant={currentVariant}
+          onSelectVariant={handleSelectVariant}
+        />
+      )}
 
       {/* Settings & System Options Modal (Triggered by Header Gear Icon) */}
       <SettingsDialog

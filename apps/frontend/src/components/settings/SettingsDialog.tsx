@@ -259,6 +259,37 @@ export function SettingsDialog({
             </div>
           </div>
 
+          {/* Section 4: Filter-Modus (Neu vs. Legacy Fallback) */}
+          <div className="space-y-2 border-t border-border/50 pt-3">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Filter-Modus
+            </label>
+            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3 text-xs">
+              <div>
+                <span className="font-medium text-foreground block">
+                  Klassischer Filter-Drawer (Fallback)
+                </span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Alte Ansicht als Ausweichoption aktivieren
+                </span>
+              </div>
+              <a
+                href={
+                  typeof window !== 'undefined' &&
+                  window.location.search.includes('legacy=true')
+                    ? '/'
+                    : '/?legacy=true'
+                }
+                className="rounded-lg border border-border bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                {typeof window !== 'undefined' &&
+                window.location.search.includes('legacy=true')
+                  ? 'Zurück zur neuen UI'
+                  : 'Aktivieren'}
+              </a>
+            </div>
+          </div>
+
           {/* Section 4: System & DBB-Datenstand */}
           <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs space-y-1.5">
             <div className="flex items-center justify-between text-muted-foreground">
