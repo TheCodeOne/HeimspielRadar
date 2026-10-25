@@ -48,7 +48,9 @@ export function PrototypeSwitcher({
   currentVariant,
   onSelectVariant,
 }: PrototypeSwitcherProps) {
-  const [isMinimized, setIsMinimized] = React.useState(false);
+  const [isMinimized, setIsMinimized] = React.useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768,
+  );
 
   const currentIndex = VARIANTS.findIndex((v) => v.id === currentVariant);
 

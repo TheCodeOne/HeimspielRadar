@@ -118,7 +118,10 @@ export function VariantA_QuickFilterBar({
         ref={barRef}
         className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-none"
       >
-        <div className="pointer-events-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar rounded-2xl border border-border/80 bg-background/95 p-1.5 shadow-xl backdrop-blur-md max-w-full">
+        <div
+          data-testid="quick-filter-bar-a"
+          className="pointer-events-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar rounded-2xl border border-border/80 bg-background/95 p-1.5 shadow-xl backdrop-blur-md max-w-full"
+        >
           {/* Quick Date Pill */}
           <div className="relative shrink-0">
             <button

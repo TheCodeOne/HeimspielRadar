@@ -4,13 +4,10 @@ import {
   Calendar,
   Clock,
   Coffee,
-  ExternalLink,
   MapPin,
   RotateCcw,
   Settings,
   SlidersHorizontal,
-  Trophy,
-  X,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import {
@@ -25,37 +22,19 @@ import {
   type PrototypeVariant,
 } from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
-import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
-import { MatchList } from '@/components/matches';
+import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
+import { MatchList, VenueModal } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   compareMatchesChronologically,
-  formatDisplayDate,
-  formatKickoffTime,
   formatLastSyncedAt,
 } from '@/lib/date-utils';
-import { formatDistance } from '@/lib/geo-utils';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
-
-function buildGoogleMapsRouteUrl(match: Match): string {
-  const venue = match.venue;
-
-  if (!venue) {
-    return 'https://www.google.com/maps';
-  }
-
-  const destination =
-    venue.latitude != null && venue.longitude != null
-      ? `${venue.latitude},${venue.longitude}`
-      : `${venue.name}, ${venue.street}, ${venue.postalCode} ${venue.city}`;
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
-}
 
 export function App() {
   // Fetch available leagues and distinct hierarchy options from /api/leagues
@@ -97,8 +76,20 @@ export function App() {
     }
   }, []);
 
-  // Selected match for map marker / multi-match venue overlay
-  const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
+  // Selected match for map marker / multi-match venue overlay (supports deep link ?matchId=)
+  const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('matchId');
+
+      if (param) {
+        const id = Number(param);
+
+        return Number.isFinite(id) ? id : null;
+      }
+    }
+
+    return null;
+  });
 
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
@@ -148,12 +139,17 @@ export function App() {
     debounceMs: 300,
   });
 
-  // Clear selectedMatchId if the selected match is no longer in the filtered results
+  // Clear selectedMatchId if the selected match is no longer in the filtered results (after loading completes)
   React.useEffect(() => {
-    if (selectedMatchId !== null && !matches.some((m) => m.id === selectedMatchId)) {
+    if (
+      selectedMatchId !== null &&
+      !isLoading &&
+      matches.length > 0 &&
+      !matches.some((m) => m.id === selectedMatchId)
+    ) {
       setSelectedMatchId(null);
     }
-  }, [matches, selectedMatchId]);
+  }, [matches, selectedMatchId, isLoading]);
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
 
@@ -332,6 +328,7 @@ export function App() {
               lastSyncedAt,
             }}
             actions={actions}
+            hasSelectedVenue={selectedMatch?.venue != null}
           />
         )}
 
@@ -424,138 +421,13 @@ export function App() {
               onDismiss={dismissColdStart}
             />
 
-            {/* Multi-Match Venue Overlay Card at Bottom of Full-Screen Map */}
-            {selectedMatch?.venue && (
-              <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 rounded-xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur-md">
-                {/* Venue Header */}
-                <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                      <h3 className="truncate text-sm font-bold text-foreground">
-                        {selectedMatch.venue.name}
-                      </h3>
-                      {selectedMatch.distanceKm != null && (
-                        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                          {formatDistance(selectedMatch.distanceKm)}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {selectedMatch.venue.street}, {selectedMatch.venue.postalCode}{' '}
-                      {selectedMatch.venue.city}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <a
-                      href={buildGoogleMapsRouteUrl(selectedMatch)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-                      title="Route in Google Maps öffnen"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      <span>Route</span>
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchId(null)}
-                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="Hallen-Details schließen"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Scrollable List of All Matches at This Venue */}
-                <div className="mt-2.5">
-                  <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                    <span>
-                      {selectedVenueMatches.length}{' '}
-                      {selectedVenueMatches.length === 1
-                        ? 'Heimspiel in dieser Halle'
-                        : 'Heimspiele in dieser Halle'}
-                    </span>
-                  </div>
-
-                  <div className="max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                    {selectedVenueMatches.map((venueMatch) => {
-                      const isActiveMatch = venueMatch.id === selectedMatch.id;
-
-                      const matchLeagueName = formatLeagueName(
-                        venueMatch.leagueId,
-                        venueMatch.league?.name,
-                      );
-
-                      const categoryBadge = [
-                        venueMatch.league?.akName,
-                        venueMatch.league?.geschlecht,
-                      ]
-                        .filter(Boolean)
-                        .join(' • ');
-
-                      return (
-                        <div
-                          key={venueMatch.id}
-                          onClick={() => setSelectedMatchId(venueMatch.id)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setSelectedMatchId(venueMatch.id);
-                            }
-                          }}
-                          className={`cursor-pointer rounded-lg border p-2.5 text-xs transition-colors ${
-                            isActiveMatch
-                              ? 'border-primary/60 bg-primary/10'
-                              : 'border-border/60 bg-card/60 hover:border-primary/40'
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              <Badge variant="league" className="text-[10px]">
-                                <Trophy className="mr-1 h-2.5 w-2.5" />
-                                {matchLeagueName}
-                              </Badge>
-                              {categoryBadge && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  {categoryBadge}
-                                </Badge>
-                              )}
-                            </div>
-
-                            <span className="font-mono text-[11px] font-medium text-foreground">
-                              {formatDisplayDate(venueMatch.kickoffDate)} •{' '}
-                              {formatKickoffTime(venueMatch.kickoffTime)}
-                            </span>
-                          </div>
-
-                          <div className="mt-1.5 flex items-center justify-between gap-2 font-semibold text-foreground">
-                            <span className="truncate">{venueMatch.homeTeam.name}</span>
-                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                              vs.
-                            </span>
-                            <span className="truncate text-right">
-                              {venueMatch.guestTeam.name}
-                            </span>
-                          </div>
-
-                          {venueMatch.result && (
-                            <div className="mt-1 text-right font-mono text-[11px] font-bold text-primary">
-                              Endstand: {venueMatch.result}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Venue Details Modal / Bottom Sheet (Zero overlap with bottom bar) */}
+            <VenueModal
+              selectedMatch={selectedMatch}
+              venueMatches={selectedVenueMatches}
+              onSelectMatch={(matchId) => setSelectedMatchId(matchId)}
+              onClose={() => setSelectedMatchId(null)}
+            />
           </div>
         ) : (
           /* Full-Screen Scrollable List View */

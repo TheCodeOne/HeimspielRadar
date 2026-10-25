@@ -35,13 +35,18 @@ const DATE_PRESETS: DatePreset[] = [
   { id: 'all', label: 'Alle' },
 ];
 
+export interface VariantDProps extends FilterBarProps {
+  hasSelectedVenue?: boolean;
+}
+
 export function VariantD_BottomBarSheet({
   isOpen,
   onClose,
   filters,
   availableOptions,
   actions,
-}: FilterBarProps) {
+  hasSelectedVenue = false,
+}: VariantDProps) {
   // Mobile Bottom Sheet open state
   const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
 
@@ -346,15 +351,15 @@ export function VariantD_BottomBarSheet({
         )}
       </aside>
 
-      {/* 2. BOTTOM QUICK-FILTER AREA: Style 1 (Docked Bottom Sheet Peek) OR Style 2 (Floating Capsule) */}
-      {bottomBarStyle === 'docked' ? (
-        /* STYLE 1: DOCKED BOTTOM SHEET PEEK (Apple Maps / Google Maps standard) */
+      {/* 2. BOTTOM QUICK-FILTER AREA (Hidden when a venue/match modal is active to prevent any overlap) */}
+      {!hasSelectedVenue && (bottomBarStyle === 'docked' ? (
+        /* STYLE 1: NATIVE DOCKED BOTTOM SHEET PEEK (Apple Maps standard) */
         <div
           data-testid="bottom-filter-bar"
           className="fixed md:absolute bottom-0 inset-x-0 md:bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 flex flex-col items-center w-full md:max-w-xl pointer-events-none"
         >
-          <div className="pointer-events-auto w-full md:rounded-2xl rounded-t-3xl border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-4 pt-2.5 pb-4 md:py-2 ring-1 ring-white/10 transition-all">
-            {/* Subtle Drag Handle for Mobile */}
+          <div className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-white/10 transition-all">
+            {/* Native Drag Handle for Mobile */}
             <button
               type="button"
               onClick={() => setIsMobileSheetOpen(true)}
@@ -364,10 +369,10 @@ export function VariantD_BottomBarSheet({
               <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
             </button>
 
-            {/* Row 1: Primary Search Input Trigger & Main Filter Button */}
+            {/* Row 1: Native Search Capsule & Filter Trigger */}
             <div className="flex items-center gap-2">
               {teamQuery ? (
-                <div className="flex flex-1 items-center justify-between rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary shadow-xs">
+                <div className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <Trophy className="h-4 w-4 shrink-0 text-primary" />
                     <span className="truncate">{teamQuery}</span>
@@ -385,12 +390,19 @@ export function VariantD_BottomBarSheet({
                 <button
                   type="button"
                   onClick={() => setIsMobileSheetOpen(true)}
-                  className="flex flex-1 items-center gap-2.5 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition shadow-inner"
+                  className="flex flex-1 items-center gap-2.5 rounded-2xl border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition shadow-inner group"
                 >
-                  <Search className="h-4 w-4 text-primary shrink-0" />
-                  <span className="truncate font-medium">
-                    Verein oder Team suchen...
-                  </span>
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                    <Search className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <span className="block truncate font-medium text-slate-200 group-hover:text-primary transition leading-tight">
+                      Verein oder Team suchen...
+                    </span>
+                    <span className="block truncate text-[10px] text-slate-400 font-mono">
+                      {dateLabel} • {radiusKm} km • {effectiveMatchCount} Spiele
+                    </span>
+                  </div>
                 </button>
               )}
 
@@ -404,7 +416,7 @@ export function VariantD_BottomBarSheet({
                     setIsSidebarCollapsed(false);
                   }
                 }}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
+                className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span>Filter</span>
@@ -488,7 +500,7 @@ export function VariantD_BottomBarSheet({
                 );
               })}
 
-              {/* Style Switcher Toggle (Lets User Compare Docked vs. Capsule) */}
+              {/* Style Switcher Toggle */}
               <button
                 type="button"
                 onClick={() => setBottomBarStyle('capsule')}
@@ -586,7 +598,7 @@ export function VariantD_BottomBarSheet({
             <span>📱 Zu Dock-Ansicht wechseln</span>
           </button>
         </div>
-      )}
+      ))}
 
         {/* Desktop Quick Date Popover */}
         {desktopPopover === 'date' && (

@@ -1,16 +1,19 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/health', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'ok', lastSyncedAt: '2026-10-25T10:00:00Z' }),
+      });
+    });
+  });
+
   test('Variant D (Favorit Hybrid): Bottom-Bar, Mobile Bottom-Sheet & Gear Settings', async ({ page }) => {
     await page.goto('/?variant=D');
     await page.waitForLoadState('networkidle');
-
-    // Dismiss cold start overlay if present
-    const coldStartBtn = page.getByRole('button', { name: /Im Hintergrund warten/i });
-
-    if (await coldStartBtn.isVisible()) {
-      await coldStartBtn.click();
-    }
 
     // 1. Verify Header Gear Icon is present
     const settingsBtn = page.getByRole('button', { name: /Einstellungen/i });
@@ -19,9 +22,9 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     // 2. Verify Bottom Quick-Filter Bar is visible
     const bottomBar = page.getByTestId('bottom-filter-bar');
     await expect(bottomBar).toBeVisible();
-    await expect(bottomBar.getByText(/Heute|Termin/i)).toBeVisible();
-    await expect(bottomBar.getByText(/30 km/i)).toBeVisible();
-    await expect(bottomBar.getByText(/Verein.*suchen/i)).toBeVisible();
+    await expect(bottomBar.getByText(/Heute|Termin/i).first()).toBeVisible();
+    await expect(bottomBar.getByText(/30 km/i).first()).toBeVisible();
+    await expect(bottomBar.getByText(/Verein.*suchen/i).first()).toBeVisible();
 
     if (test.info().project.name === 'desktop-chromium') {
       // On desktop, the split-sidebar is visible beside the map
@@ -53,13 +56,6 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       fullPage: true,
     });
 
-    // Dismiss cold start overlay if present
-    const dismissBtn = page.getByRole('button', { name: /Im Hintergrund warten/i });
-
-    if (await dismissBtn.isVisible()) {
-      await dismissBtn.click();
-    }
-
     // 3. Test Settings Dialog (Verify header and footer are NOT cut off on any screen)
     await settingsBtn.click();
     const settingsModal = page.getByRole('dialog', { name: /Einstellungen/i });
@@ -81,9 +77,10 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify Quick Filter Bar Pills are visible
-    await expect(page.getByText(/Heute|Termin/i).first()).toBeVisible();
-    await expect(page.getByText('30 km')).toBeVisible();
-    await expect(page.getByPlaceholder(/Verein \/ Team/i)).toBeVisible();
+    const barA = page.getByTestId('quick-filter-bar-a');
+    await expect(barA.getByText(/Heute|Termin/i)).toBeVisible();
+    await expect(barA.getByText('30 km')).toBeVisible();
+    await expect(barA.getByPlaceholder(/Verein \/ Team/i)).toBeVisible();
 
     await page.screenshot({
       path: `test-results/variant-a-${test.info().project.name}.png`,
@@ -128,5 +125,29 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       path: `test-results/variant-c-${test.info().project.name}.png`,
       fullPage: true,
     });
+  });
+
+  test('VenueModal: Opens when match is selected, hides bottom bar to prevent overlap', async ({ page }) => {
+    // Navigate with a selected upcoming match (Sample match 102: Remigiussporthalle)
+    await page.goto('/?variant=D&matchId=102');
+    await page.waitForLoadState('networkidle');
+
+    // Verify VenueModal is visible
+    const venueModalTitle = page.locator('#venue-modal-title');
+    await expect(venueModalTitle).toBeVisible();
+
+    // Verify bottom filter bar is HIDDEN while VenueModal is active (zero overlap!)
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar).not.toBeVisible();
+
+    // Take screenshot of VenueModal
+    await page.screenshot({
+      path: `test-results/venue-modal-${test.info().project.name}.png`,
+      fullPage: true,
+    });
+
+    // Close VenueModal and verify bottom bar returns
+    await page.getByRole('button', { name: /Zurück zur Karte/i }).click();
+    await expect(bottomBar).toBeVisible();
   });
 });
