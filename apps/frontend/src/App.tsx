@@ -12,7 +12,15 @@ import {
   X,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
-import { FilterBar } from '@/components/filters';
+import {
+  VariantA_QuickFilterBar,
+  VariantB_AccordionDrawer,
+  VariantC_DesktopSidebar,
+} from '@/components/filters/prototypes';
+import {
+  PrototypeSwitcher,
+  type PrototypeVariant,
+} from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
 import { MatchList } from '@/components/matches';
@@ -61,6 +69,29 @@ export function App() {
   });
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
+
+  // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar)
+  const [currentVariant, setCurrentVariant] = React.useState<PrototypeVariant>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('variant');
+
+      if (param === 'A' || param === 'B' || param === 'C') {
+        return param;
+      }
+    }
+
+    return 'A';
+  });
+
+  const handleSelectVariant = React.useCallback((v: PrototypeVariant) => {
+    setCurrentVariant(v);
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('variant', v);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   // Selected match for map marker / multi-match venue overlay
   const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
@@ -234,48 +265,86 @@ export function App() {
       )}
 
       {/* Main Content Area: Full-Screen Map View OR Full-Screen List View */}
-      <main className="relative flex flex-1 min-h-0 w-full flex-col overflow-hidden">
+      <main className="relative flex flex-1 min-h-0 w-full flex-col md:flex-row overflow-hidden">
+        {/* Variant C: Split-Sidebar on Desktop & Bottom-Sheet on Mobile */}
+        {currentVariant === 'C' && (
+          <VariantC_DesktopSidebar
+            isOpen={isFilterDrawerOpen}
+            onClose={() => setIsFilterDrawerOpen(false)}
+            filters={filters}
+            availableOptions={{
+              leagues,
+              genders: availableGenders,
+              ageClasses: availableAgeClasses,
+              skillLevels: availableSkillLevels,
+              matchCount: matches.length,
+              lastSyncedAt,
+            }}
+            actions={actions}
+          />
+        )}
+
         {filters.viewMode === 'map' ? (
           <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
-            {/* Floating Map Summary Chip (Interactive, Responsive & High-Contrast) */}
-            <button
-              type="button"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              aria-label="Filter öffnen"
-              title="Filter und Standort anpassen"
-              className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            >
-              {filters.teamQuery ? (
-                <>
-                  <span className="shrink-0 text-sm leading-none">🏀</span>
-                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                    {filters.teamQuery}
-                  </span>
-                  <span className="font-mono text-slate-400 shrink-0">
-                    • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                    {filters.location.name}
-                  </span>
-                  <span className="font-mono text-slate-400 shrink-0">
-                    • {filters.radiusKm} km
-                  </span>
-                  <span className="hidden text-slate-400 sm:inline shrink-0">
-                    • {filters.dateRangeDisplay}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
-                  >
-                    {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                  </Badge>
-                </>
-              )}
-            </button>
+            {/* Variant A: Floating Quick-Filter Pill Bar on Map */}
+            {currentVariant === 'A' && (
+              <VariantA_QuickFilterBar
+                isOpen={isFilterDrawerOpen}
+                onClose={() => setIsFilterDrawerOpen(false)}
+                filters={filters}
+                availableOptions={{
+                  leagues,
+                  genders: availableGenders,
+                  ageClasses: availableAgeClasses,
+                  skillLevels: availableSkillLevels,
+                  matchCount: matches.length,
+                  lastSyncedAt,
+                }}
+                actions={actions}
+              />
+            )}
+
+            {/* Floating Map Summary Chip (Active in Variants B & C) */}
+            {currentVariant !== 'A' && (
+              <button
+                type="button"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                aria-label="Filter öffnen"
+                title="Filter und Standort anpassen"
+                className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                {filters.teamQuery ? (
+                  <>
+                    <span className="shrink-0 text-sm leading-none">🏀</span>
+                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                      {filters.teamQuery}
+                    </span>
+                    <span className="font-mono text-slate-400 shrink-0">
+                      • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                      {filters.location.name}
+                    </span>
+                    <span className="font-mono text-slate-400 shrink-0">
+                      • {filters.radiusKm} km
+                    </span>
+                    <span className="hidden text-slate-400 sm:inline shrink-0">
+                      • {filters.dateRangeDisplay}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
+                    >
+                      {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                    </Badge>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Full-Bleed MapContainer */}
             <MapContainer
@@ -555,20 +624,28 @@ export function App() {
         )}
       </main>
 
-      {/* Slide-Over Filter Drawer */}
-      <FilterBar
-        isOpen={isFilterDrawerOpen}
-        onClose={() => setIsFilterDrawerOpen(false)}
-        filters={filters}
-        availableOptions={{
-          leagues,
-          genders: availableGenders,
-          ageClasses: availableAgeClasses,
-          skillLevels: availableSkillLevels,
-          matchCount: matches.length,
-          lastSyncedAt,
-        }}
-        actions={actions}
+      {/* Variant B: Accordion Drawer (when isOpen) */}
+      {currentVariant === 'B' && (
+        <VariantB_AccordionDrawer
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          filters={filters}
+          availableOptions={{
+            leagues,
+            genders: availableGenders,
+            ageClasses: availableAgeClasses,
+            skillLevels: availableSkillLevels,
+            matchCount: matches.length,
+            lastSyncedAt,
+          }}
+          actions={actions}
+        />
+      )}
+
+      {/* Interactive Prototype Switcher Floating Pill */}
+      <PrototypeSwitcher
+        currentVariant={currentVariant}
+        onSelectVariant={handleSelectVariant}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}
