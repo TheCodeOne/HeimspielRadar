@@ -5,6 +5,13 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await page.goto('/?variant=D');
     await page.waitForLoadState('networkidle');
 
+    // Dismiss cold start overlay if present
+    const coldStartBtn = page.getByRole('button', { name: /Im Hintergrund warten/i });
+
+    if (await coldStartBtn.isVisible()) {
+      await coldStartBtn.click();
+    }
+
     // 1. Verify Header Gear Icon is present
     const settingsBtn = page.getByRole('button', { name: /Einstellungen/i });
     await expect(settingsBtn).toBeVisible();
@@ -14,7 +21,7 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(bottomBar).toBeVisible();
     await expect(bottomBar.getByText(/Heute|Termin/i)).toBeVisible();
     await expect(bottomBar.getByText(/30 km/i)).toBeVisible();
-    await expect(bottomBar.getByText(/Verein suchen.../i)).toBeVisible();
+    await expect(bottomBar.getByText(/Verein.*suchen/i)).toBeVisible();
 
     if (test.info().project.name === 'desktop-chromium') {
       // On desktop, the split-sidebar is visible beside the map
@@ -27,30 +34,46 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       // Mobile Bottom Sheet should be open
       await expect(page.getByRole('dialog')).toBeVisible();
       await expect(page.getByRole('button', { name: /Spiele anzeigen/i })).toBeVisible();
+
+      // Close sheet to take docked screenshot
+      await page.getByRole('button', { name: /Spiele anzeigen/i }).click();
     }
 
     await page.screenshot({
-      path: `test-results/variant-d-${test.info().project.name}.png`,
+      path: `test-results/variant-d-docked-${test.info().project.name}.png`,
       fullPage: true,
     });
 
-    // 3. Test Settings Dialog
-    if (test.info().project.name === 'desktop-chromium') {
-      await settingsBtn.click();
-      const settingsModal = page.getByRole('dialog');
-      await expect(settingsModal.getByRole('heading', { name: /Einstellungen & Optionen/i })).toBeVisible();
-      await expect(settingsModal.getByText(/Karten-Engine/i)).toBeVisible();
-      await expect(settingsModal.getByText(/OpenLayers/i).first()).toBeVisible();
-      await expect(settingsModal.getByText(/MapLibre GL/i)).toBeVisible();
+    // Test switching to Capsule style
+    await bottomBar.getByText(/Kapsel-Style/i).click();
+    await expect(bottomBar.getByText(/Zu Dock-Ansicht/i)).toBeVisible();
 
-      await page.screenshot({
-        path: `test-results/settings-dialog-${test.info().project.name}.png`,
-        fullPage: true,
-      });
+    await page.screenshot({
+      path: `test-results/variant-d-capsule-${test.info().project.name}.png`,
+      fullPage: true,
+    });
 
-      // Close settings modal
-      await settingsModal.getByRole('button', { name: /Fertig/i }).click();
+    // Dismiss cold start overlay if present
+    const dismissBtn = page.getByRole('button', { name: /Im Hintergrund warten/i });
+
+    if (await dismissBtn.isVisible()) {
+      await dismissBtn.click();
     }
+
+    // 3. Test Settings Dialog (Verify header and footer are NOT cut off on any screen)
+    await settingsBtn.click();
+    const settingsModal = page.getByRole('dialog', { name: /Einstellungen/i });
+    await expect(settingsModal.getByRole('heading', { name: /Einstellungen & Optionen/i })).toBeVisible();
+    await expect(settingsModal.getByText(/Karten-Engine/i)).toBeVisible();
+    await expect(settingsModal.getByRole('button', { name: /Fertig/i })).toBeVisible();
+
+    await page.screenshot({
+      path: `test-results/settings-dialog-${test.info().project.name}.png`,
+      fullPage: true,
+    });
+
+    // Close settings modal
+    await settingsModal.getByRole('button', { name: /Fertig/i }).click();
   });
 
   test('Variant A: Quick-Filter Pill Bar on Map renders cleanly', async ({ page }) => {

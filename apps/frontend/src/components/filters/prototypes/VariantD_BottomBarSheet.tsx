@@ -8,7 +8,9 @@ import {
   Layers,
   LocateFixed,
   RotateCcw,
+  Search,
   SlidersHorizontal,
+  Sparkles,
   Trophy,
   Users,
   X,
@@ -42,6 +44,19 @@ export function VariantD_BottomBarSheet({
 }: FilterBarProps) {
   // Mobile Bottom Sheet open state
   const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
+
+  // Bottom Bar Style: 'docked' (Apple Maps Peek) vs 'capsule' (Airbnb Floating Pill)
+  const [bottomBarStyle, setBottomBarStyle] = React.useState<'docked' | 'capsule'>(() => {
+    if (typeof window !== 'undefined') {
+      const s = new URLSearchParams(window.location.search).get('style');
+
+      if (s === 'capsule') {
+        return 'capsule';
+      }
+    }
+
+    return 'docked';
+  });
 
   // Desktop Sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
@@ -331,84 +346,55 @@ export function VariantD_BottomBarSheet({
         )}
       </aside>
 
-      {/* 2. REFINED BOTTOM QUICK-FILTER BAR (Mobile-First, thumb-friendly at bottom edge) */}
-      <div
-        data-testid="bottom-filter-bar"
-        className="fixed md:absolute bottom-4 inset-x-3 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 pointer-events-none flex flex-col items-center"
-      >
-        <div className="pointer-events-auto flex max-w-full flex-col items-center rounded-2xl border border-slate-700/80 bg-slate-950/90 shadow-2xl backdrop-blur-xl p-1.5 ring-1 ring-white/10 transition-all">
-          {/* Subtle Pull-up Handle for Mobile */}
-          <button
-            type="button"
-            onClick={() => setIsMobileSheetOpen(true)}
-            className="md:hidden flex w-full items-center justify-center pt-0.5 pb-1 text-slate-400 hover:text-slate-200 transition"
-            aria-label="Filter-Menü nach oben ziehen"
-          >
-            <div className="h-1 w-10 rounded-full bg-slate-500/60" />
-          </button>
-
-          {/* Quick-Filter Buttons Row */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full px-0.5">
-            {/* Date Quick Pill */}
+      {/* 2. BOTTOM QUICK-FILTER AREA: Style 1 (Docked Bottom Sheet Peek) OR Style 2 (Floating Capsule) */}
+      {bottomBarStyle === 'docked' ? (
+        /* STYLE 1: DOCKED BOTTOM SHEET PEEK (Apple Maps / Google Maps standard) */
+        <div
+          data-testid="bottom-filter-bar"
+          className="fixed md:absolute bottom-0 inset-x-0 md:bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 flex flex-col items-center w-full md:max-w-xl pointer-events-none"
+        >
+          <div className="pointer-events-auto w-full md:rounded-2xl rounded-t-3xl border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-4 pt-2.5 pb-4 md:py-2 ring-1 ring-white/10 transition-all">
+            {/* Subtle Drag Handle for Mobile */}
             <button
               type="button"
-              onClick={() => {
-                if (window.innerWidth < 768) {
-                  setIsMobileSheetOpen(true);
-                } else {
-                  setDesktopPopover(desktopPopover === 'date' ? null : 'date');
-                }
-              }}
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                dateMode !== 'all'
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700'
-              }`}
+              onClick={() => setIsMobileSheetOpen(true)}
+              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-slate-400 hover:text-slate-200 transition"
+              aria-label="Filter & Suche öffnen"
             >
-              <Calendar className="h-3.5 w-3.5" />
-              <span>{dateLabel}</span>
-              <ChevronDown className="h-3 w-3 opacity-70" />
+              <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
             </button>
 
-            {/* Radius Quick Pill */}
-            <button
-              type="button"
-              onClick={() => {
-                if (window.innerWidth < 768) {
-                  setIsMobileSheetOpen(true);
-                } else {
-                  setDesktopPopover(desktopPopover === 'radius' ? null : 'radius');
-                }
-              }}
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                teamQuery
-                  ? 'bg-slate-800/40 text-slate-500 line-through'
-                  : radiusKm !== 30
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700'
-              }`}
-            >
-              <Compass className="h-3.5 w-3.5" />
-              <span>{teamQuery ? 'Alle Hallen' : `${radiusKm} km`}</span>
-              {!teamQuery && <ChevronDown className="h-3 w-3 opacity-70" />}
-            </button>
-
-            {/* Team Search Pill / Input */}
-            {teamQuery ? (
-              <div className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary/20 border border-primary/40 px-2.5 py-1 text-xs font-medium text-primary">
-                <span className="truncate max-w-[120px] sm:max-w-[180px]">
-                  🏀 {teamQuery}
-                </span>
+            {/* Row 1: Primary Search Input Trigger & Main Filter Button */}
+            <div className="flex items-center gap-2">
+              {teamQuery ? (
+                <div className="flex flex-1 items-center justify-between rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary shadow-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Trophy className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate">{teamQuery}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTeamQuery(undefined)}
+                    className="rounded-full p-1 hover:bg-primary/20 text-primary transition"
+                    aria-label="Vereinsfilter aufheben"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setTeamQuery(undefined)}
-                  className="rounded-full p-0.5 hover:bg-primary/20 text-primary"
-                  aria-label="Vereinsfilter aufheben"
+                  onClick={() => setIsMobileSheetOpen(true)}
+                  className="flex flex-1 items-center gap-2.5 rounded-xl border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition shadow-inner"
                 >
-                  <X className="h-3 w-3" />
+                  <Search className="h-4 w-4 text-primary shrink-0" />
+                  <span className="truncate font-medium">
+                    Verein oder Team suchen...
+                  </span>
                 </button>
-              </div>
-            ) : (
+              )}
+
+              {/* Primary Filter Button */}
               <button
                 type="button"
                 onClick={() => {
@@ -418,16 +404,155 @@ export function VariantD_BottomBarSheet({
                     setIsSidebarCollapsed(false);
                   }
                 }}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-700/60 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition"
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
               >
-                <Trophy className="h-3.5 w-3.5 text-primary" />
-                <span className="truncate max-w-[110px] sm:max-w-[140px]">
-                  Verein suchen...
-                </span>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[10px] font-bold text-primary">
+                    {activeFilterCount}
+                  </span>
+                )}
               </button>
-            )}
+            </div>
 
-            {/* Primary Filter Button (Opens Bottom Sheet / Expands Sidebar) */}
+            {/* Row 2: Horizontal Quick Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 px-0.5">
+              {/* Date Chip */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setDesktopPopover(desktopPopover === 'date' ? null : 'date');
+                  }
+                }}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+                  dateMode !== 'all'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border border-slate-700/60'
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                <span>{dateLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </button>
+
+              {/* Radius Chip */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setDesktopPopover(desktopPopover === 'radius' ? null : 'radius');
+                  }
+                }}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+                  teamQuery
+                    ? 'bg-slate-800/40 text-slate-500 line-through'
+                    : radiusKm !== 30
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border border-slate-700/60'
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span>{teamQuery ? 'Alle Hallen' : `${radiusKm} km`}</span>
+                {!teamQuery && <ChevronDown className="h-3 w-3 opacity-70" />}
+              </button>
+
+              {/* Quick Gender Chips */}
+              {['männlich', 'weiblich'].map((g) => {
+                const isSelected = genders.includes(g);
+
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() =>
+                      setGenders(
+                        isSelected
+                          ? genders.filter((x) => x !== g)
+                          : [...genders, g]
+                      )
+                    }
+                    className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-medium border transition ${
+                      isSelected
+                        ? 'border-primary bg-primary text-primary-foreground font-semibold'
+                        : 'border-slate-700/60 bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {g === 'männlich' ? 'Herren' : 'Damen'}
+                  </button>
+                );
+              })}
+
+              {/* Style Switcher Toggle (Lets User Compare Docked vs. Capsule) */}
+              <button
+                type="button"
+                onClick={() => setBottomBarStyle('capsule')}
+                className="shrink-0 flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-mono text-slate-400 hover:text-slate-200 border border-dashed border-slate-700 hover:border-slate-500 transition ml-auto"
+                title="Zur schwebenden Kapsel-Ansicht wechseln"
+              >
+                <Sparkles className="h-3 w-3 text-amber-400" />
+                <span>Kapsel-Style</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* STYLE 2: FLOATING SEARCH CAPSULE (Airbnb / Google Explore Style) */
+        <div
+          data-testid="bottom-filter-bar"
+          className="fixed md:absolute bottom-4 inset-x-3 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1.5"
+        >
+          <div className="pointer-events-auto flex items-center divide-x divide-slate-700/80 rounded-full border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-white/10 transition hover:border-slate-500">
+            {/* Segment 1: Team Search Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsMobileSheetOpen(true)}
+              className="flex items-center gap-2 px-3 py-1 text-left text-xs font-semibold text-slate-200 hover:text-primary transition"
+            >
+              <Search className="h-4 w-4 text-primary shrink-0" />
+              <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                {teamQuery ? teamQuery : 'Verein suchen...'}
+              </span>
+            </button>
+
+            {/* Segment 2: Date Trigger */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileSheetOpen(true);
+                } else {
+                  setDesktopPopover(desktopPopover === 'date' ? null : 'date');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-slate-300 hover:text-foreground transition"
+            >
+              <Calendar className="h-3.5 w-3.5 text-primary/80" />
+              <span>{dateLabel}</span>
+            </button>
+
+            {/* Segment 3: Radius Trigger */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileSheetOpen(true);
+                } else {
+                  setDesktopPopover(desktopPopover === 'radius' ? null : 'radius');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-slate-300 hover:text-foreground transition"
+            >
+              <Compass className="h-3.5 w-3.5 text-primary/80" />
+              <span>{teamQuery ? 'Alle' : `${radiusKm}km`}</span>
+            </button>
+
+            {/* Segment 4: Primary Filter Button */}
             <button
               type="button"
               onClick={() => {
@@ -437,18 +562,31 @@ export function VariantD_BottomBarSheet({
                   setIsSidebarCollapsed(false);
                 }
               }}
-              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
+              className="flex items-center gap-1.5 pl-3 pr-2 py-1 text-xs font-bold text-primary-foreground"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>Filter</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition hover:scale-105 active:scale-95">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </div>
+              <span className="hidden sm:inline">Filter</span>
               {activeFilterCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[10px] font-bold text-primary">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 font-mono text-[10px] font-bold text-slate-950">
                   {activeFilterCount}
                 </span>
               )}
             </button>
           </div>
+
+          {/* Style Switcher Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setBottomBarStyle('docked')}
+            className="pointer-events-auto flex items-center gap-1 rounded-full bg-slate-900/80 px-2.5 py-0.5 text-[10px] font-mono text-slate-400 hover:text-slate-200 border border-slate-700/60 shadow-sm backdrop-blur-md"
+            title="Zur angedockten Apple Maps Ansicht wechseln"
+          >
+            <span>📱 Zu Dock-Ansicht wechseln</span>
+          </button>
         </div>
+      )}
 
         {/* Desktop Quick Date Popover */}
         {desktopPopover === 'date' && (
@@ -518,7 +656,6 @@ export function VariantD_BottomBarSheet({
             </Button>
           </div>
         )}
-      </div>
 
       {/* 3. MOBILE BOTTOM SHEET (Sliding up from bottom, thumb-reachable) */}
       {isMobileSheetOpen && (

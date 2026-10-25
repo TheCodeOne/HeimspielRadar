@@ -91,7 +91,7 @@ export function SettingsDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overscroll-contain"
     >
       {/* Backdrop */}
       <div
@@ -100,9 +100,9 @@ export function SettingsDialog({
       />
 
       {/* Modal Dialog Card */}
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-border/80 bg-background/95 p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+      <div className="relative z-10 flex w-full max-w-md max-h-[calc(100dvh-2rem)] flex-col rounded-2xl border border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-150 overflow-hidden">
+        {/* Sticky Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-border/60 p-4 sm:p-5 pb-3 bg-card/40">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card">
               <Settings className="h-4 w-4 text-primary" />
@@ -130,8 +130,8 @@ export function SettingsDialog({
           </button>
         </div>
 
-        {/* Dialog Body */}
-        <div className="mt-4 space-y-5">
+        {/* Scrollable Dialog Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 pt-3 space-y-4 overscroll-contain">
           {/* Section 1: Ansichtsmodus (Karte vs. Liste) */}
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -284,8 +284,8 @@ export function SettingsDialog({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-5 border-t border-border/60 pt-3">
+        {/* Sticky Footer */}
+        <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-background/95">
           <Button
             type="button"
             variant="default"
