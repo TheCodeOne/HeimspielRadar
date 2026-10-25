@@ -15,13 +15,22 @@ import { NativeMap } from './NativeMap';
 import { MatchPreviewCard } from './MatchPreviewCard';
 import { FloatingHeaderPill } from './FloatingHeaderPill';
 import { FloatingActionControls } from './FloatingActionControls';
+import { FilterChips } from './FilterChips';
 import {
   LocationCoordinates,
   STUTTGART_FALLBACK,
-  DEFAULT_RADIUS_KM,
+  RadiusOption,
+  DateFilterOption,
+  DEFAULT_FILTER_PREFERENCES,
+  getBerlinDateString,
+  getWeekendBerlinDates,
   getSampleMatchesMobile,
   calculateDistanceKm,
 } from './data';
+import {
+  loadFilterPreferences,
+  saveFilterPreferences,
+} from './storage';
 
 export const App = () => {
   const [location, setLocation] = useState<LocationCoordinates | null>(null);
@@ -31,9 +40,41 @@ export const App = () => {
   const [isLoadingMatches, setIsLoadingMatches] = useState<boolean>(true);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+  // Filter state with defaults
+  const [radiusKm, setRadiusKm] = useState<RadiusOption>(
+    DEFAULT_FILTER_PREFERENCES.radiusKm,
+  );
+
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>(
+    DEFAULT_FILTER_PREFERENCES.dateFilter,
+  );
+
+  const [isStorageLoaded, setIsStorageLoaded] = useState<boolean>(false);
+
   const mapRef = useRef<MapView | null>(null);
 
-  // 1. Geolocation Request
+  // 1. Load persisted filter preferences on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initFilters() {
+      const prefs = await loadFilterPreferences();
+
+      if (isMounted) {
+        setRadiusKm(prefs.radiusKm);
+        setDateFilter(prefs.dateFilter);
+        setIsStorageLoaded(true);
+      }
+    }
+
+    initFilters();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2. Geolocation Request
   const requestLocation = useCallback(async () => {
     setIsLocating(true);
 
@@ -47,7 +88,6 @@ export const App = () => {
 
         return;
       }
-
 
       const currentPosition = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -69,13 +109,79 @@ export const App = () => {
     requestLocation();
   }, [requestLocation]);
 
-  // 2. Fetch matches (API or sample fallback)
+  // 3. Fallback filtering for sample matches
+  const filterSampleMatches = useCallback(
+    (
+      samples: Match[],
+      coords: LocationCoordinates,
+      radius: number,
+      dateMode: DateFilterOption,
+    ): Match[] => {
+      const todayStr = getBerlinDateString(0);
+      const tomorrowStr = getBerlinDateString(1);
+      const { saturdayStr, sundayStr } = getWeekendBerlinDates();
+
+      return samples.filter((match) => {
+        // Distance check
+        if (match.venue?.latitude && match.venue?.longitude) {
+          const dist = calculateDistanceKm(
+            coords.latitude,
+            coords.longitude,
+            match.venue.latitude,
+            match.venue.longitude,
+          );
+
+          if (dist > radius) {
+            return false;
+          }
+        }
+
+        // Date check (Europe/Berlin kickoffDate)
+        if (dateMode === 'today') {
+          return match.kickoffDate === todayStr;
+        }
+
+        if (dateMode === 'tomorrow') {
+          return match.kickoffDate === tomorrowStr;
+        }
+
+        if (dateMode === 'weekend') {
+          return (
+            match.kickoffDate === saturdayStr || match.kickoffDate === sundayStr
+          );
+        }
+
+        return true;
+      });
+    },
+    [],
+  );
+
+  // 4. Fetch matches (API or sample fallback)
   const fetchMatchesForLocation = useCallback(
-    async (coords: LocationCoordinates) => {
+    async (
+      coords: LocationCoordinates,
+      radius: RadiusOption,
+      dateMode: DateFilterOption,
+    ) => {
       setIsLoadingMatches(true);
 
+      const todayStr = getBerlinDateString(0);
+      const tomorrowStr = getBerlinDateString(1);
+      const { saturdayStr, sundayStr } = getWeekendBerlinDates();
+
+      let queryParams = `lat=${coords.latitude}&lng=${coords.longitude}&radiusKm=${radius}`;
+
+      if (dateMode === 'today') {
+        queryParams += `&date=${todayStr}`;
+      } else if (dateMode === 'tomorrow') {
+        queryParams += `&date=${tomorrowStr}`;
+      } else if (dateMode === 'weekend') {
+        queryParams += `&dateFrom=${saturdayStr}&dateTo=${sundayStr}`;
+      }
+
       try {
-        const apiUrl = `http://localhost:3000/api/matches?lat=${coords.latitude}&lng=${coords.longitude}&radiusKm=${DEFAULT_RADIUS_KM}`;
+        const apiUrl = `http://localhost:3000/api/matches?${queryParams}`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
 
@@ -89,22 +195,42 @@ export const App = () => {
           const data: Match[] = await response.json();
           setMatches(data);
         } else {
-          setMatches(getSampleMatchesMobile());
+          const samples = getSampleMatchesMobile();
+          setMatches(filterSampleMatches(samples, coords, radius, dateMode));
         }
       } catch {
-        setMatches(getSampleMatchesMobile());
+        const samples = getSampleMatchesMobile();
+        setMatches(filterSampleMatches(samples, coords, radius, dateMode));
       } finally {
         setIsLoadingMatches(false);
       }
     },
-    [],
+    [filterSampleMatches],
   );
 
   useEffect(() => {
-    if (location) {
-      fetchMatchesForLocation(location);
+    if (location && isStorageLoaded) {
+      fetchMatchesForLocation(location, radiusKm, dateFilter);
     }
-  }, [location, fetchMatchesForLocation]);
+  }, [location, isStorageLoaded, radiusKm, dateFilter, fetchMatchesForLocation]);
+
+  // Handle radius selection & persist
+  const handleSelectRadius = useCallback(
+    (newRadius: RadiusOption) => {
+      setRadiusKm(newRadius);
+      saveFilterPreferences({ radiusKm: newRadius, dateFilter });
+    },
+    [dateFilter],
+  );
+
+  // Handle date filter selection & persist
+  const handleSelectDate = useCallback(
+    (newDate: DateFilterOption) => {
+      setDateFilter(newDate);
+      saveFilterPreferences({ radiusKm, dateFilter: newDate });
+    },
+    [radiusKm],
+  );
 
   // Recenter Map Handler
   const handleRecenter = useCallback(() => {
@@ -114,19 +240,18 @@ export const App = () => {
       mapRef.current.animateToRegion({
         latitude: target.latitude,
         longitude: target.longitude,
-        latitudeDelta: 0.25,
-        longitudeDelta: 0.25,
+        latitudeDelta: radiusKm > 25 ? 0.6 : 0.25,
+        longitudeDelta: radiusKm > 25 ? 0.6 : 0.25,
       });
     }
-  }, [location]);
-
+  }, [location, radiusKm]);
 
   // Refresh Matches Handler
   const handleRefresh = useCallback(() => {
     if (location) {
-      fetchMatchesForLocation(location);
+      fetchMatchesForLocation(location, radiusKm, dateFilter);
     }
-  }, [location, fetchMatchesForLocation]);
+  }, [location, radiusKm, dateFilter, fetchMatchesForLocation]);
 
   // Selected match distance
   const selectedMatchDistance = useMemo(() => {
@@ -170,7 +295,7 @@ export const App = () => {
           <NativeMap
             mapRef={mapRef}
             initialRegion={activeRegion}
-            radiusKm={DEFAULT_RADIUS_KM}
+            radiusKm={radiusKm}
             matches={matches}
             selectedMatch={selectedMatch}
             onSelectMatch={(match) => setSelectedMatch(match)}
@@ -179,9 +304,17 @@ export const App = () => {
           {/* Floating Safe-Area Header Pill */}
           <FloatingHeaderPill
             matchCount={matches.length}
-            radiusKm={DEFAULT_RADIUS_KM}
+            radiusKm={radiusKm}
             isLoading={isLoadingMatches}
             permissionDenied={permissionDenied}
+          />
+
+          {/* Floating Filter Bar (Radius & Date Chips) */}
+          <FilterChips
+            selectedRadius={radiusKm}
+            onSelectRadius={handleSelectRadius}
+            selectedDate={dateFilter}
+            onSelectDate={handleSelectDate}
           />
 
           {/* Floating Action Controls (Recenter, Reload) */}
@@ -203,7 +336,6 @@ export const App = () => {
       </SafeAreaView>
     </SafeAreaProvider>
   );
-
 };
 
 const styles = StyleSheet.create({
