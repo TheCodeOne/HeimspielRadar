@@ -19,6 +19,8 @@ import {
   LocationCoordinates,
   calculateDistanceKm,
   formatKickoffTime,
+  formatDisplayDate,
+  formatLeagueName,
 } from './data';
 import {
   TimeIcon,
@@ -31,6 +33,8 @@ import {
   ShareIcon,
   CalendarIcon,
   FileTextIcon,
+  CheckCircleIcon,
+  MapPinIcon,
 } from './Icons';
 import { getMatchLinks } from './matchLinks';
 
@@ -304,6 +308,18 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
       const venueName = selectedMatch.venue?.name ?? 'Unbekannte Spielstätte';
       const matchLinks = getMatchLinks(selectedMatch);
 
+      const leagueName = formatLeagueName(
+        selectedMatch.leagueId,
+        selectedMatch.league?.name,
+      );
+
+      const categoryParts = [
+        selectedMatch.league?.akName,
+        selectedMatch.league?.geschlecht,
+      ].filter(Boolean);
+
+      const isFinished = Boolean(selectedMatch.result);
+
       const venueAddress = [
         selectedMatch.venue?.street,
         selectedMatch.venue?.postalCode,
@@ -316,21 +332,24 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
         <View style={styles.webContainer}>
           <View style={styles.detailContainer}>
             <View style={styles.detailHeader}>
-              <View style={styles.kickoffChip}>
-                <TimeIcon size={13} color="#0284c7" />
-                <Text style={styles.kickoffText}>
-                  {formatKickoffTime(selectedMatch.kickoffTime)}
-                </Text>
-              </View>
-
-              {selectedMatchDistance !== undefined && (
-                <View style={styles.distanceBadge}>
-                  <NavigateOutlineIcon size={12} color="#64748b" />
-                  <Text style={styles.distanceText}>
-                    {selectedMatchDistance.toFixed(1)} km
+              <View style={styles.metaRow}>
+                <View style={styles.kickoffChip}>
+                  <TimeIcon size={13} color="#0284c7" />
+                  <Text style={styles.kickoffText}>
+                    {formatDisplayDate(selectedMatch.kickoffDate)} •{' '}
+                    {formatKickoffTime(selectedMatch.kickoffTime)}
                   </Text>
                 </View>
-              )}
+
+                {selectedMatchDistance !== undefined && (
+                  <View style={styles.distanceBadge}>
+                    <NavigateOutlineIcon size={12} color="#64748b" />
+                    <Text style={styles.distanceText}>
+                      {selectedMatchDistance.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
+              </View>
 
               <Pressable
                 onPress={handleCloseDetail}
@@ -342,15 +361,62 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
               </Pressable>
             </View>
 
+            {/* Badges Row: League, Category, MatchDay, Status */}
+            <View style={styles.badgesWrapRow}>
+              <View style={styles.leagueChip}>
+                <TrophyIcon size={12} color="#d97706" />
+                <Text style={styles.leagueChipText}>{leagueName}</Text>
+              </View>
+
+              {categoryParts.length > 0 && (
+                <View style={styles.categoryChip}>
+                  <Text style={styles.categoryChipText}>
+                    {categoryParts.join(' • ')}
+                  </Text>
+                </View>
+              )}
+
+              {selectedMatch.matchDay && (
+                <View style={styles.matchDayChip}>
+                  <Text style={styles.matchDayChipText}>
+                    {selectedMatch.matchDay}. Spieltag
+                  </Text>
+                </View>
+              )}
+
+              {isFinished ? (
+                <View style={styles.resultChip}>
+                  <Text style={styles.resultChipText}>
+                    {selectedMatch.result}{' '}
+                    {selectedMatch.confirmed ? '(bestätigt)' : '(vorläufig)'}
+                  </Text>
+                </View>
+              ) : selectedMatch.confirmed ? (
+                <View style={styles.statusSuccessChip}>
+                  <CheckCircleIcon size={11} color="#166534" />
+                  <Text style={styles.statusSuccessText}>Bestätigt</Text>
+                </View>
+              ) : (
+                <View style={styles.statusWarningChip}>
+                  <Text style={styles.statusWarningText}>Vorläufig</Text>
+                </View>
+              )}
+            </View>
+
             <View style={styles.detailMatchup}>
               <Text style={styles.detailTeamHome}>{homeName}</Text>
-              <Text style={styles.detailVs}>VS.</Text>
+              <View style={styles.vsBadge}>
+                <Text style={styles.detailVs}>VS.</Text>
+              </View>
               <Text style={styles.detailTeamGuest}>{guestName}</Text>
             </View>
 
             <View style={styles.detailVenueSection}>
               <Text style={styles.venueSectionTitle}>SPIELORT & HALLE</Text>
-              <Text style={styles.detailVenueName}>{venueName}</Text>
+              <View style={styles.venueRow}>
+                <MapPinIcon size={14} color="#0284c7" />
+                <Text style={styles.detailVenueName}>{venueName}</Text>
+              </View>
               {venueAddress.length > 0 && (
                 <Text style={styles.detailVenueAddress}>{venueAddress}</Text>
               )}
@@ -456,6 +522,7 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
               <View style={styles.kickoffChip}>
                 <TimeIcon size={13} color="#0284c7" />
                 <Text style={styles.kickoffText}>
+                  {formatDisplayDate(selectedMatch.kickoffDate)} •{' '}
                   {formatKickoffTime(selectedMatch.kickoffTime)}
                 </Text>
               </View>
@@ -484,6 +551,61 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
             </Pressable>
           </View>
 
+          {/* Badges Row: League, Category, MatchDay, Status */}
+          <View style={styles.badgesWrapRow}>
+            <View style={styles.leagueChip}>
+              <TrophyIcon size={12} color="#d97706" />
+              <Text style={styles.leagueChipText}>
+                {formatLeagueName(
+                  selectedMatch.leagueId,
+                  selectedMatch.league?.name,
+                )}
+              </Text>
+            </View>
+
+            {[
+              selectedMatch.league?.akName,
+              selectedMatch.league?.geschlecht,
+            ].filter(Boolean).length > 0 && (
+              <View style={styles.categoryChip}>
+                <Text style={styles.categoryChipText}>
+                  {[
+                    selectedMatch.league?.akName,
+                    selectedMatch.league?.geschlecht,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ')}
+                </Text>
+              </View>
+            )}
+
+            {selectedMatch.matchDay && (
+              <View style={styles.matchDayChip}>
+                <Text style={styles.matchDayChipText}>
+                  {selectedMatch.matchDay}. Spieltag
+                </Text>
+              </View>
+            )}
+
+            {selectedMatch.result ? (
+              <View style={styles.resultChip}>
+                <Text style={styles.resultChipText}>
+                  {selectedMatch.result}{' '}
+                  {selectedMatch.confirmed ? '(bestätigt)' : '(vorläufig)'}
+                </Text>
+              </View>
+            ) : selectedMatch.confirmed ? (
+              <View style={styles.statusSuccessChip}>
+                <CheckCircleIcon size={11} color="#166534" />
+                <Text style={styles.statusSuccessText}>Bestätigt</Text>
+              </View>
+            ) : (
+              <View style={styles.statusWarningChip}>
+                <Text style={styles.statusWarningText}>Vorläufig</Text>
+              </View>
+            )}
+          </View>
+
           {/* Teams Matchup */}
           <View style={styles.detailMatchup}>
             <Text style={styles.detailTeamHome} numberOfLines={2}>
@@ -499,21 +621,15 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
             </Text>
           </View>
 
-          {/* League & Matchday Info */}
-          <View style={styles.leagueRow}>
-            <TrophyIcon size={15} color="#d97706" />
-            <Text style={styles.leagueText}>
-              Spieltag {selectedMatch.matchDay ?? '-'} •{' '}
-              {selectedMatch.confirmed ? 'Bestätigt' : 'Vorläufig'}
-            </Text>
-          </View>
-
           {/* Venue & Facilities Section */}
           <View style={styles.detailVenueSection}>
             <Text style={styles.venueSectionTitle}>SPIELORT & HALLE</Text>
-            <Text style={styles.detailVenueName}>
-              {selectedMatch.venue?.name ?? 'Spielort unbekannt'}
-            </Text>
+            <View style={styles.venueRow}>
+              <MapPinIcon size={14} color="#0284c7" />
+              <Text style={styles.detailVenueName}>
+                {selectedMatch.venue?.name ?? 'Spielort unbekannt'}
+              </Text>
+            </View>
 
             {[
               selectedMatch.venue?.street,
@@ -658,6 +774,18 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
                     )
                   : undefined;
 
+              const leagueName = formatLeagueName(
+                item.leagueId,
+                item.league?.name,
+              );
+
+              const categoryParts = [
+                item.league?.akName,
+                item.league?.geschlecht,
+              ].filter(Boolean);
+
+              const isFinished = Boolean(item.result);
+
               return (
                 <Pressable
                   onPress={() => handleSelectMatchItem(item)}
@@ -668,24 +796,58 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel={`${item.homeTeam?.name ?? 'Heim'} gegen ${item.guestTeam?.name ?? 'Gast'}`}
                 >
+                  {/* Badges / Header: League, Category, Kickoff Time, MatchDay, Status */}
                   <View style={styles.cardHeader}>
-                    <View style={styles.timeBadge}>
-                      <TimeIcon size={11} color="#0284c7" />
-                      <Text style={styles.timeBadgeText}>
-                        {formatKickoffTime(item.kickoffTime)}
-                      </Text>
+                    <View style={styles.cardBadgesGroup}>
+                      <View style={styles.leagueChipCompact}>
+                        <TrophyIcon size={11} color="#d97706" />
+                        <Text style={styles.leagueChipCompactText} numberOfLines={1}>
+                          {leagueName}
+                        </Text>
+                      </View>
+
+                      {categoryParts.length > 0 && (
+                        <View style={styles.categoryChipCompact}>
+                          <Text style={styles.categoryChipCompactText} numberOfLines={1}>
+                            {categoryParts.join(' • ')}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.timeBadge}>
+                        <TimeIcon size={11} color="#0284c7" />
+                        <Text style={styles.timeBadgeText}>
+                          {formatKickoffTime(item.kickoffTime)}
+                        </Text>
+                      </View>
+
+                      {item.matchDay && (
+                        <Text style={styles.matchDayInlineText}>
+                          {item.matchDay}. ST
+                        </Text>
+                      )}
                     </View>
 
-                    {dist !== undefined && (
-                      <View style={styles.distanceBadgeCompact}>
-                        <NavigateOutlineIcon size={11} color="#64748b" />
-                        <Text style={styles.distanceBadgeCompactText}>
-                          {dist.toFixed(1)} km
+                    {/* Status / Score Badge */}
+                    {isFinished ? (
+                      <View style={styles.scoreBadgeCompact}>
+                        <Text style={styles.scoreBadgeText}>
+                          {item.result}
                         </Text>
+                      </View>
+                    ) : item.confirmed ? (
+                      <View style={styles.statusSuccessChipCompact}>
+                        <CheckCircleIcon size={10} color="#166534" />
+                        <Text style={styles.statusSuccessTextCompact}>Bestätigt</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.statusWarningChipCompact}>
+                        <Text style={styles.statusWarningTextCompact}>Vorläufig</Text>
                       </View>
                     )}
                   </View>
 
+                  {/* Matchup */}
                   <View style={styles.cardTeams}>
                     <Text style={styles.teamText} numberOfLines={1}>
                       {item.homeTeam?.name ?? 'Heim'}
@@ -698,10 +860,30 @@ export const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
                     </Text>
                   </View>
 
-                  <View style={styles.cardVenue}>
-                    <Text style={styles.cardVenueText} numberOfLines={1}>
-                      {item.venue?.name ?? 'Spielstätte unbekannt'}
-                    </Text>
+                  {/* Venue & Distance & Date Footer */}
+                  <View style={styles.cardFooter}>
+                    <View style={styles.cardVenue}>
+                      <MapPinIcon size={12} color="#0284c7" />
+                      <Text style={styles.cardVenueText} numberOfLines={1}>
+                        {item.venue?.name ?? 'Spielstätte unbekannt'}
+                        {item.venue?.city ? ` • ${item.venue.city}` : ''}
+                      </Text>
+                    </View>
+
+                    <View style={styles.cardFooterRight}>
+                      {dist !== undefined && (
+                        <View style={styles.distanceBadgeCompact}>
+                          <NavigateOutlineIcon size={11} color="#64748b" />
+                          <Text style={styles.distanceBadgeCompactText}>
+                            {dist.toFixed(1)} km
+                          </Text>
+                        </View>
+                      )}
+
+                      <Text style={styles.cardDateText}>
+                        {formatDisplayDate(item.kickoffDate)}
+                      </Text>
+                    </View>
                   </View>
                 </Pressable>
               );
@@ -806,19 +988,107 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 6,
     marginBottom: 8,
+  },
+  cardBadgesGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  leagueChipCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    maxWidth: 130,
+  },
+  leagueChipCompactText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  categoryChipCompact: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    maxWidth: 110,
+  },
+  categoryChipCompactText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  matchDayInlineText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94a3b8',
+    fontVariant: ['tabular-nums'],
+  },
+  scoreBadgeCompact: {
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(2, 132, 199, 0.25)',
+  },
+  scoreBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284c7',
+    fontVariant: ['tabular-nums'],
+  },
+  statusSuccessChipCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusSuccessTextCompact: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  statusWarningChipCompact: {
+    backgroundColor: '#fef9c3',
+    borderWidth: 1,
+    borderColor: '#fef08a',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusWarningTextCompact: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#854d0e',
   },
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(2, 132, 199, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   timeBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: '#0284c7',
   },
@@ -836,7 +1106,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    marginVertical: 4,
   },
   teamText: {
     fontSize: 14,
@@ -850,12 +1120,37 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textTransform: 'uppercase',
   },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e2e8f0',
+    gap: 8,
+  },
   cardVenue: {
-    paddingTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
   },
   cardVenueText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748b',
+    flex: 1,
+  },
+  cardFooterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  cardDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
   },
   emptyContainer: {
     padding: 30,
@@ -877,7 +1172,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   metaRow: {
     flexDirection: 'row',
@@ -921,6 +1216,97 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
+  badgesWrapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+  },
+  leagueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  leagueChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  categoryChip: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  categoryChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  matchDayChip: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  matchDayChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  resultChip: {
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  resultChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284c7',
+  },
+  statusSuccessChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  statusSuccessText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  statusWarningChip: {
+    backgroundColor: '#fef9c3',
+    borderWidth: 1,
+    borderColor: '#fef08a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  statusWarningText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#854d0e',
+  },
   detailMatchup: {
     alignItems: 'center',
     paddingVertical: 12,
@@ -952,22 +1338,6 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     textAlign: 'center',
   },
-  leagueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: '#fef3c7',
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  leagueText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400e',
-  },
   detailVenueSection: {
     paddingTop: 8,
   },
@@ -976,7 +1346,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#94a3b8',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  venueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   detailVenueName: {
     fontSize: 15,

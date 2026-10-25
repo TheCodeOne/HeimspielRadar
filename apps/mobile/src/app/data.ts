@@ -275,3 +275,42 @@ export function formatKickoffTimeBerlin(
 }
 
 export const formatKickoffTime = formatKickoffTimeBerlin;
+
+export function formatDisplayDate(dateStr?: string | null): string {
+  if (!dateStr) {
+    return 'Termin offen';
+  }
+
+  try {
+    const parts = dateStr.split('-');
+
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const date = new Date(year, month, day);
+
+      return new Intl.DateTimeFormat('de-DE', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+      }).format(date);
+    }
+  } catch {
+    // fallback if parsing fails
+  }
+
+  return dateStr;
+}
+
+export function formatLeagueName(
+  leagueId: number,
+  leagueName?: string | null,
+): string {
+  if (leagueName && leagueName.trim().length > 0) {
+    return leagueName.trim();
+  }
+
+  return `Liga ${leagueId}`;
+}
+

@@ -136,4 +136,19 @@ export const FileTextIcon: React.FC<IconProps> = ({ size = 16, color = '#0284c7'
   </Svg>
 );
 
+export const CheckCircleIcon: React.FC<IconProps> = ({ size = 14, color = '#10b981' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2" />
+    <Path d="m9 12 2 2 4-4" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+export const MapPinIcon: React.FC<IconProps> = ({ size = 14, color = '#0284c7' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <Circle cx="12" cy="10" r="3" stroke={color} strokeWidth="2" />
+  </Svg>
+);
+
+
 

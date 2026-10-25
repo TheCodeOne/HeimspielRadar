@@ -408,14 +408,8 @@ export const App = () => {
               onSelectMatch={handleSelectMatch}
             />
 
-            {/* Floating Controls Overlay Container: Fades out and disables pointer events when sheet is expanded */}
-            <View
-              style={[
-                styles.floatingControlsLayer,
-                sheetIndex > 0 && styles.floatingControlsHidden,
-              ]}
-              pointerEvents={sheetIndex > 0 ? 'none' : 'box-none'}
-            >
+            {/* Floating Controls Overlay: Remains naturally visible on the map; bottom sheet slides over it smoothly with zIndex: 40 */}
+            <View style={styles.floatingControlsLayer} pointerEvents="box-none">
               {/* Floating Safe-Area Header Pill */}
               <FloatingHeaderPill
                 matchCount={matches.length}
@@ -490,11 +484,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 20,
-    opacity: 1,
-  },
-  floatingControlsHidden: {
-    opacity: 0,
+    zIndex: 10,
   },
 });
 
