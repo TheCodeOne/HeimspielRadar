@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   DeltaSyncResult,
@@ -13,6 +19,7 @@ import {
   leagues,
   matches,
   syncFailures,
+  syncRuns,
   systemSettings,
   teams,
   venues,
@@ -24,6 +31,7 @@ import {
   DbbVenue,
 } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
+import { TelegramNotifierService } from './telegram-notifier.service';
 
 export interface SyncLeagueOptions {
   quickSync?: boolean;
@@ -58,11 +66,14 @@ export interface SyncVerbandDeltaOptions {
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
   private lastSyncedAt: Date | null = null;
+  private isSyncRunning = false;
+  private activeSyncRunId: number | null = null;
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null,
     private readonly dbbClient: DbbClientService,
-    private readonly geocoder: GeocoderService
+    private readonly geocoder: GeocoderService,
+    @Optional() private readonly telegramNotifier?: TelegramNotifierService
   ) {}
 
   /**
@@ -1710,5 +1721,281 @@ export class ScraperService {
     } catch (err) {
       this.logger.warn(`Failed to clear match failure for match ${dbbMatchId}:`, err);
     }
+  }
+
+  isSyncActive(): boolean {
+    return this.isSyncRunning;
+  }
+
+  setSyncActiveForTesting(isActive: boolean, runId: number | null = null): void {
+    this.isSyncRunning = isActive;
+    this.activeSyncRunId = runId;
+  }
+
+  async getActiveSyncRun(): Promise<typeof syncRuns.$inferSelect | null> {
+    if (!this.db) {
+      return null;
+    }
+
+    try {
+      const [active] = await this.db
+        .select()
+        .from(syncRuns)
+        .where(eq(syncRuns.status, 'running'))
+        .orderBy(desc(syncRuns.startedAt))
+        .limit(1);
+
+      return active ?? null;
+    } catch (err) {
+      this.logger.warn('Failed to query active sync run:', err);
+
+      return null;
+    }
+  }
+
+  async getRecentSyncRuns(
+    limit = 20
+  ): Promise<Array<typeof syncRuns.$inferSelect>> {
+    if (!this.db) {
+      return [];
+    }
+
+    try {
+      return await this.db
+        .select()
+        .from(syncRuns)
+        .orderBy(desc(syncRuns.startedAt))
+        .limit(limit);
+    } catch (err) {
+      this.logger.warn('Failed to query recent sync runs:', err);
+
+      return [];
+    }
+  }
+
+  async executeAuditedSync(params: {
+    type: 'delta' | 'deep' | 'manual';
+    target: string;
+  }): Promise<typeof syncRuns.$inferSelect> {
+    if (this.isSyncRunning) {
+      throw new ConflictException(
+        `A sync run is already in progress (ID: #${this.activeSyncRunId ?? 'unknown'})`
+      );
+    }
+
+    let runId = 0;
+    const startedAt = new Date();
+
+    if (this.db) {
+      const [inserted] = await this.db
+        .insert(syncRuns)
+        .values({
+          syncType: params.type,
+          target: params.target,
+          startedAt,
+          status: 'running',
+        })
+        .returning();
+
+      if (inserted) {
+        runId = inserted.id;
+      }
+    }
+
+    this.isSyncRunning = true;
+    this.activeSyncRunId = runId;
+
+    return this.runAuditedSyncInternal(runId, startedAt, params);
+  }
+
+  async triggerAuditedSync(params: {
+    type: 'delta' | 'deep';
+    target: string;
+  }): Promise<{ success: boolean; runId: number; status: string }> {
+    if (this.isSyncRunning) {
+      throw new ConflictException(
+        `A sync run is already in progress (ID: #${this.activeSyncRunId ?? 'unknown'})`
+      );
+    }
+
+    let runId = 0;
+    const startedAt = new Date();
+
+    if (this.db) {
+      const [inserted] = await this.db
+        .insert(syncRuns)
+        .values({
+          syncType: params.type,
+          target: params.target,
+          startedAt,
+          status: 'running',
+        })
+        .returning();
+
+      if (inserted) {
+        runId = inserted.id;
+      }
+    }
+
+    this.isSyncRunning = true;
+    this.activeSyncRunId = runId;
+
+    // Run asynchronously in the background
+    this.runAuditedSyncInternal(runId, startedAt, params).catch((err) => {
+      this.logger.error(`Background sync run ${runId} encountered an error:`, err);
+    });
+
+    return {
+      success: true,
+      runId,
+      status: 'running',
+    };
+  }
+
+  private async runAuditedSyncInternal(
+    runId: number,
+    startedAt: Date,
+    params: { type: 'delta' | 'deep' | 'manual'; target: string }
+  ): Promise<typeof syncRuns.$inferSelect> {
+    const startTime = startedAt.getTime();
+    let totalLeagues = 0;
+    let successfulLeagues = 0;
+    let syncedMatches = 0;
+    let geocodedVenues = 0;
+    let failuresCount = 0;
+    const failedLeagues: string[] = [];
+    let errorMessage: string | null = null;
+    let status: 'success' | 'partial' | 'error' = 'success';
+
+    try {
+      if (params.target === 'all') {
+        for (let verbandId = 1; verbandId <= 35; verbandId++) {
+          try {
+            const res = await this.syncVerbandLeagues(verbandId, {
+              quickSync: params.type === 'delta',
+            });
+
+            totalLeagues += res.totalLeagues;
+            successfulLeagues += res.successfulLeagues;
+            syncedMatches += res.syncedMatches;
+            geocodedVenues += res.geocodedVenues;
+            failuresCount += res.failedLeagues;
+          } catch (err) {
+            this.logger.debug(
+              `Skipped or failed association ${verbandId}: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
+      } else if (params.target.startsWith('verband:')) {
+        const verbandId = parseInt(params.target.split(':')[1], 10);
+
+        const res = await this.syncVerbandLeagues(verbandId, {
+          quickSync: params.type === 'delta',
+        });
+
+        totalLeagues = res.totalLeagues;
+        successfulLeagues = res.successfulLeagues;
+        syncedMatches = res.syncedMatches;
+        geocodedVenues = res.geocodedVenues;
+        failuresCount = res.failedLeagues;
+      } else if (params.target.startsWith('league:')) {
+        const leagueId = parseInt(params.target.split(':')[1], 10);
+        totalLeagues = 1;
+
+        try {
+          const res = await this.syncLeague(leagueId, {
+            quickSync: params.type === 'delta',
+          });
+
+          successfulLeagues = 1;
+          syncedMatches = res.syncedMatches;
+          geocodedVenues = res.geocodedVenues;
+          failuresCount =
+            res.totalMatches > res.syncedMatches
+              ? res.totalMatches - res.syncedMatches
+              : 0;
+        } catch (leagueErr) {
+          failuresCount = 1;
+          failedLeagues.push(`Liga ${leagueId}`);
+          errorMessage =
+            leagueErr instanceof Error ? leagueErr.message : String(leagueErr);
+        }
+      } else {
+        throw new Error(`Unsupported sync target: "${params.target}"`);
+      }
+
+      if (failuresCount > 0) {
+        if (successfulLeagues > 0 || syncedMatches > 0) {
+          status = 'partial';
+        } else {
+          status = 'error';
+        }
+      }
+    } catch (err) {
+      status = 'error';
+      errorMessage = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Error during audited sync (run ${runId}):`, err);
+    } finally {
+      this.isSyncRunning = false;
+      this.activeSyncRunId = null;
+    }
+
+    const durationMs = Date.now() - startTime;
+    const finishedAt = new Date();
+
+    if (this.db && runId > 0) {
+      try {
+        await this.db
+          .update(syncRuns)
+          .set({
+            finishedAt,
+            durationMs,
+            totalLeagues,
+            successfulLeagues,
+            syncedMatches,
+            geocodedVenues,
+            failuresCount,
+            status,
+            errorMessage,
+          })
+          .where(eq(syncRuns.id, runId));
+      } catch (dbErr) {
+        this.logger.warn(`Failed to update sync_runs row ${runId}:`, dbErr);
+      }
+    }
+
+    if (this.telegramNotifier) {
+      try {
+        await this.telegramNotifier.updateLiveStatus({
+          status,
+          startedAt,
+          finishedAt,
+          durationMs,
+          syncedMatches,
+          failuresCount,
+          failedLeagues,
+          errorMessage,
+        });
+      } catch (tgErr) {
+        this.logger.warn('Failed to send Telegram notification:', tgErr);
+      }
+    }
+
+    return {
+      id: runId,
+      syncType: params.type,
+      target: params.target,
+      startedAt,
+      finishedAt,
+      durationMs,
+      totalLeagues,
+      successfulLeagues,
+      syncedMatches,
+      geocodedVenues,
+      failuresCount,
+      status,
+      errorMessage,
+      createdAt: startedAt,
+    };
   }
 }

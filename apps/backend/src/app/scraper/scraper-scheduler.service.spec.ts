@@ -1,26 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { VerbandSyncResult } from '@sundayleague/shared-types';
 import { ScraperSchedulerService } from './scraper-scheduler.service';
-import { ScraperService, SyncVerbandOptions } from './scraper.service';
+import { ScraperService } from './scraper.service';
 
 class FakeScraperService {
-  syncAllBawueLeaguesCallCount = 0;
-  lastOptions?: SyncVerbandOptions;
+  executeAuditedSyncCallCount = 0;
+  lastAuditedParams?: { type: string; target: string };
+  isSyncRunning = false;
 
-  async syncAllBawueLeagues(options?: SyncVerbandOptions): Promise<VerbandSyncResult> {
-    this.syncAllBawueLeaguesCallCount++;
-    this.lastOptions = options;
+  isSyncActive(): boolean {
+    return this.isSyncRunning;
+  }
+
+  async executeAuditedSync(params: {
+    type: 'delta' | 'deep' | 'manual';
+    target: string;
+  }): Promise<any> {
+    this.executeAuditedSyncCallCount++;
+    this.lastAuditedParams = params;
 
     return {
-      verbandId: 1,
+      id: 1,
+      syncType: params.type,
+      target: params.target,
+      startedAt: new Date(),
+      finishedAt: new Date(),
+      durationMs: 120,
       totalLeagues: 10,
       successfulLeagues: 10,
-      failedLeagues: 0,
-      totalMatches: 100,
       syncedMatches: 100,
-      syncedVenues: 20,
       geocodedVenues: 5,
-      durationMs: 120,
+      failuresCount: 0,
+      status: 'success',
+      errorMessage: null,
+      createdAt: new Date(),
     };
   }
 }
@@ -61,8 +73,11 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeeklyFullSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(1);
-      expect(fakeScraperService.lastOptions).toEqual({ quickSync: false });
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'deep',
+        target: 'verband:1',
+      });
     });
 
     it('should skip sync when DISABLE_CRON is true', async () => {
@@ -70,7 +85,7 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeeklyFullSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
     it('should skip sync when ENABLE_CRON_SYNC is false', async () => {
@@ -78,39 +93,38 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeeklyFullSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
     it('should not allow overlapping syncs', async () => {
       delete process.env['DISABLE_CRON'];
 
-      let resolveSync: ((val: VerbandSyncResult) => void) | undefined;
+      let resolveSync: ((val: any) => void) | undefined;
 
-      const delayedPromise = new Promise<VerbandSyncResult>((resolve) => {
+      const delayedPromise = new Promise<any>((resolve) => {
         resolveSync = resolve;
       });
 
-      fakeScraperService.syncAllBawueLeagues = jest.fn().mockImplementation(() => delayedPromise);
+      fakeScraperService.executeAuditedSync = jest.fn().mockImplementation(() => delayedPromise);
 
       const firstSync = scheduler.handleWeeklyFullSync();
       const secondSync = scheduler.handleWeeklyFullSync();
 
       // Complete the first sync
       resolveSync!({
-        verbandId: 1,
+        id: 1,
+        syncType: 'deep',
+        target: 'verband:1',
         totalLeagues: 1,
         successfulLeagues: 1,
-        failedLeagues: 0,
-        totalMatches: 10,
         syncedMatches: 10,
-        syncedVenues: 2,
         geocodedVenues: 1,
         durationMs: 50,
       });
 
       await Promise.all([firstSync, secondSync]);
 
-      expect(fakeScraperService.syncAllBawueLeagues).toHaveBeenCalledTimes(1);
+      expect(fakeScraperService.executeAuditedSync).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -120,8 +134,11 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeekendMatchSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(1);
-      expect(fakeScraperService.lastOptions).toEqual({ quickSync: true });
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(1);
+      expect(fakeScraperService.lastAuditedParams).toEqual({
+        type: 'delta',
+        target: 'verband:1',
+      });
     });
 
     it('should skip quick sync when DISABLE_CRON is true', async () => {
@@ -129,7 +146,7 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeekendMatchSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
 
     it('should skip quick sync when ENABLE_CRON_SYNC is false', async () => {
@@ -137,7 +154,7 @@ describe('ScraperSchedulerService', () => {
 
       await scheduler.handleWeekendMatchSync();
 
-      expect(fakeScraperService.syncAllBawueLeaguesCallCount).toBe(0);
+      expect(fakeScraperService.executeAuditedSyncCallCount).toBe(0);
     });
   });
 });
