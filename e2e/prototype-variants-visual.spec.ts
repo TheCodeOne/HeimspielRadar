@@ -150,4 +150,62 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await page.getByRole('button', { name: /Zurück zur Karte/i }).click();
     await expect(bottomBar).toBeVisible();
   });
+
+  test('Mobile Gestures: Swipe-up opens Bottom-Sheet and Swipe-down dismisses', async ({ page }) => {
+    if (test.info().project.name !== 'mobile-chromium') {
+      return;
+    }
+
+    await page.goto('/?variant=D');
+    await page.waitForLoadState('networkidle');
+
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar).toBeVisible();
+
+    // 1. Swipe UP on the bottom bar grab handle
+    const grabHandle = bottomBar.getByRole('button', { name: /Filter & Suche nach oben ziehen/i });
+    await expect(grabHandle).toBeVisible();
+
+    await page.evaluate(() => {
+      const handle = document.querySelector('button[aria-label*="Filter & Suche nach oben ziehen"]');
+
+      if (!handle) {
+        return;
+      }
+
+      const touchStart = new Touch({ identifier: 1, target: handle, clientX: 200, clientY: 700 });
+      handle.dispatchEvent(new TouchEvent('touchstart', { touches: [touchStart], changedTouches: [touchStart], bubbles: true }));
+
+      const touchMove = new Touch({ identifier: 1, target: handle, clientX: 200, clientY: 620 });
+      handle.dispatchEvent(new TouchEvent('touchmove', { touches: [touchMove], changedTouches: [touchMove], bubbles: true }));
+
+      handle.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [touchMove], bubbles: true }));
+    });
+
+    // Mobile Bottom Sheet should now be OPEN from the swipe gesture!
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('button', { name: /Spiele anzeigen/i })).toBeVisible();
+
+    // 2. Swipe DOWN on the sheet header to dismiss
+    await page.evaluate(() => {
+      const sheetHeader = document.querySelector('[role="dialog"] .cursor-grab');
+
+      if (!sheetHeader) {
+        return;
+      }
+
+      const touchStart = new Touch({ identifier: 2, target: sheetHeader, clientX: 200, clientY: 100 });
+      sheetHeader.dispatchEvent(new TouchEvent('touchstart', { touches: [touchStart], changedTouches: [touchStart], bubbles: true }));
+
+      const touchMove = new Touch({ identifier: 2, target: sheetHeader, clientX: 200, clientY: 260 });
+      sheetHeader.dispatchEvent(new TouchEvent('touchmove', { touches: [touchMove], changedTouches: [touchMove], bubbles: true }));
+
+      sheetHeader.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [touchMove], bubbles: true }));
+    });
+
+    // Sheet should smoothly dismiss
+    await expect(sheet).not.toBeVisible();
+    await expect(bottomBar).toBeVisible();
+  });
 });

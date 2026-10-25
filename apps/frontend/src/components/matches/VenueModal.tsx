@@ -9,6 +9,7 @@ import {
 } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
 import { formatLeagueName } from '@/components/map/map-utils';
+import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
 export interface VenueModalProps {
   selectedMatch: Match | null;
@@ -38,18 +39,28 @@ export function VenueModal({
   onSelectMatch,
   onClose,
 }: VenueModalProps) {
+  const {
+    isAnimatingOut,
+    dragY,
+    isDragging,
+    closeWithAnimation,
+    touchHandlers,
+  } = useBottomSheetDrag({
+    onClose,
+  });
+
   // ESC key to close
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        closeWithAnimation();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [closeWithAnimation]);
 
   if (!selectedMatch?.venue) {
     return null;
@@ -67,19 +78,41 @@ export function VenueModal({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-        onClick={onClose}
+        className={`fixed inset-0 bg-black/60 backdrop-blur-xs ${
+          isAnimatingOut ? 'animate-backdrop-out' : 'animate-backdrop-in'
+        }`}
+        onClick={closeWithAnimation}
       />
 
-      {/* Modal / Bottom Sheet Card */}
-      <div className="relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-        {/* Subtle iOS Grab Handle for Mobile */}
-        <div className="md:hidden flex justify-center pt-2.5 pb-1">
+      {/* Modal / Bottom Sheet Card with iOS Spring & Drag Gestures */}
+      <div
+        style={
+          dragY > 0
+            ? {
+                transform: `translateY(${dragY}px)`,
+                transition: isDragging
+                  ? 'none'
+                  : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+              }
+            : undefined
+        }
+        className={`relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl overflow-hidden ${
+          isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
+        }`}
+      >
+        {/* Subtle iOS Grab Handle for Mobile (Touch gesture zone) */}
+        <div
+          {...touchHandlers}
+          className="md:hidden flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none"
+        >
           <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
         </div>
 
         {/* Venue Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-border/60 p-4 sm:p-5 pb-3 bg-card/40">
+        <div
+          {...touchHandlers}
+          className="flex items-start justify-between gap-3 border-b border-border/60 p-4 sm:p-5 pb-3 bg-card/40 cursor-grab active:cursor-grabbing touch-none select-none"
+        >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
@@ -116,7 +149,7 @@ export function VenueModal({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeWithAnimation}
               className="flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
               aria-label="Schließen"
             >
@@ -214,7 +247,7 @@ export function VenueModal({
         <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-slate-950/95">
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeWithAnimation}
             className="w-full rounded-xl bg-slate-800/80 py-2.5 text-xs font-bold text-foreground hover:bg-slate-700 transition"
           >
             Zurück zur Karte

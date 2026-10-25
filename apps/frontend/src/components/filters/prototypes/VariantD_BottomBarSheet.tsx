@@ -21,6 +21,7 @@ import { Slider } from '@/components/ui/slider';
 import type { FilterBarProps } from '@/components/filters/FilterBar';
 import { TeamSearchInput } from '@/components/filters/shared/TeamSearchInput';
 import type { MatchFiltersState } from '@/lib/use-match-filters';
+import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
 interface DatePreset {
   id: MatchFiltersState['dateMode'];
@@ -50,6 +51,49 @@ export function VariantD_BottomBarSheet({
   // Mobile Bottom Sheet open state
   const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
 
+  // Gesture drag & spring animation hook for mobile bottom sheet
+  const {
+    isAnimatingOut,
+    dragY,
+    isDragging,
+    closeWithAnimation,
+    touchHandlers: sheetTouchHandlers,
+  } = useBottomSheetDrag({
+    onClose: () => {
+      setIsMobileSheetOpen(false);
+      onClose();
+    },
+  });
+
+  // Swipe-up detection on the collapsed bottom bar
+  const barTouchStartYRef = React.useRef(0);
+
+  const handleBarTouchStart = React.useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+
+    if (touch) {
+      barTouchStartYRef.current = touch.clientY;
+    }
+  }, []);
+
+  const handleBarTouchMove = React.useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      const deltaY = touch.clientY - barTouchStartYRef.current;
+
+      // Swipe up gesture (drag up >= 15px) opens sheet smoothly
+      if (deltaY < -15 && !isMobileSheetOpen) {
+        setIsMobileSheetOpen(true);
+      }
+    },
+    [isMobileSheetOpen]
+  );
+
   // Bottom Bar Style: 'docked' (Apple Maps Peek) vs 'capsule' (Airbnb Floating Pill)
   const [bottomBarStyle, setBottomBarStyle] = React.useState<'docked' | 'capsule'>(() => {
     if (typeof window !== 'undefined') {
@@ -76,11 +120,6 @@ export function VariantD_BottomBarSheet({
       setIsSidebarCollapsed(false);
     }
   }, [isOpen]);
-
-  const handleCloseMobileSheet = () => {
-    setIsMobileSheetOpen(false);
-    onClose();
-  };
 
   const {
     dateMode,
@@ -358,13 +397,19 @@ export function VariantD_BottomBarSheet({
           data-testid="bottom-filter-bar"
           className="fixed md:absolute bottom-0 inset-x-0 md:bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 flex flex-col items-center w-full md:max-w-xl pointer-events-none"
         >
-          <div className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-white/10 transition-all">
+          <div
+            onTouchStart={handleBarTouchStart}
+            onTouchMove={handleBarTouchMove}
+            className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-white/10 transition-all"
+          >
             {/* Native Drag Handle for Mobile */}
             <button
               type="button"
+              onTouchStart={handleBarTouchStart}
+              onTouchMove={handleBarTouchMove}
               onClick={() => setIsMobileSheetOpen(true)}
-              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-slate-400 hover:text-slate-200 transition"
-              aria-label="Filter & Suche öffnen"
+              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-slate-400 hover:text-slate-200 transition touch-none cursor-grab active:cursor-grabbing"
+              aria-label="Filter & Suche nach oben ziehen oder öffnen"
             >
               <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
             </button>
@@ -519,7 +564,11 @@ export function VariantD_BottomBarSheet({
           data-testid="bottom-filter-bar"
           className="fixed md:absolute bottom-4 inset-x-3 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1.5"
         >
-          <div className="pointer-events-auto flex items-center divide-x divide-slate-700/80 rounded-full border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-white/10 transition hover:border-slate-500">
+          <div
+            onTouchStart={handleBarTouchStart}
+            onTouchMove={handleBarTouchMove}
+            className="pointer-events-auto flex items-center divide-x divide-slate-700/80 rounded-full border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-white/10 transition hover:border-slate-500"
+          >
             {/* Segment 1: Team Search Trigger */}
             <button
               type="button"
@@ -678,15 +727,34 @@ export function VariantD_BottomBarSheet({
         >
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200"
-            onClick={handleCloseMobileSheet}
+            className={`fixed inset-0 bg-black/70 backdrop-blur-xs ${
+              isAnimatingOut ? 'animate-backdrop-out' : 'animate-backdrop-in'
+            }`}
+            onClick={closeWithAnimation}
           />
 
-          {/* Bottom Sheet Container */}
-          <div className="relative z-10 flex max-h-[85dvh] flex-col rounded-t-3xl border-t border-slate-700/80 bg-slate-950 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-            {/* Drag Handle Bar & Header */}
-            <div className="flex flex-col items-center pt-3 pb-2 border-b border-border/60">
-              <div className="h-1.5 w-12 rounded-full bg-slate-600/60 mb-2" />
+          {/* Bottom Sheet Container with iOS Spring Animation & Drag Gesture */}
+          <div
+            style={
+              dragY > 0
+                ? {
+                    transform: `translateY(${dragY}px)`,
+                    transition: isDragging
+                      ? 'none'
+                      : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+                  }
+                : undefined
+            }
+            className={`relative z-10 flex max-h-[85dvh] flex-col rounded-t-[28px] border-t border-slate-700/80 bg-slate-950 shadow-2xl overflow-hidden ${
+              isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
+            }`}
+          >
+            {/* Drag Handle Bar & Header (Touch gesture zone) */}
+            <div
+              {...sheetTouchHandlers}
+              className="flex flex-col items-center pt-3 pb-2 border-b border-border/60 cursor-grab active:cursor-grabbing touch-none select-none"
+            >
+              <div className="h-1.5 w-12 rounded-full bg-slate-600/70 mb-2" />
               <div className="flex w-full items-center justify-between px-5">
                 <div className="flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -696,7 +764,7 @@ export function VariantD_BottomBarSheet({
                 </div>
                 <button
                   type="button"
-                  onClick={handleCloseMobileSheet}
+                  onClick={closeWithAnimation}
                   className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="Schließen"
                 >
@@ -724,7 +792,7 @@ export function VariantD_BottomBarSheet({
                 type="button"
                 variant="default"
                 size="sm"
-                onClick={handleCloseMobileSheet}
+                onClick={closeWithAnimation}
                 className="flex-1 font-bold"
               >
                 {effectiveMatchCount} Spiele anzeigen
