@@ -13,11 +13,15 @@ export const STUTTGART_FALLBACK: LocationCoordinates = {
 export const DEFAULT_RADIUS_KM = 25;
 
 export function getSampleMatchesMobile(): Match[] {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${day}`;
+  // Use Europe/Berlin for current date calculation
+  const berlinParts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  const todayStr = berlinParts; // YYYY-MM-DD
 
   return [
     {
@@ -123,10 +127,14 @@ export function calculateDistanceKm(
   return Math.round(R * c * 10) / 10;
 }
 
-export function formatKickoffTime(timeStr?: string | null): string {
+export function formatKickoffTimeBerlin(
+  timeStr?: string | null,
+): string {
   if (!timeStr || timeStr === '00:00') {
     return 'Uhrzeit offen';
   }
 
   return `${timeStr} Uhr`;
 }
+
+export const formatKickoffTime = formatKickoffTimeBerlin;
