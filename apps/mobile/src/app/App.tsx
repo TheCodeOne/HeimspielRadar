@@ -34,6 +34,7 @@ import {
   getWeekendBerlinDates,
   getSampleMatchesMobile,
   calculateDistanceKm,
+  getApiBaseUrl,
 } from './data';
 import {
   loadFilterPreferences,
@@ -223,9 +224,10 @@ export const App = () => {
       }
 
       try {
-        const apiUrl = `http://localhost:3000/api/matches?${queryParams}`;
+        const baseUrl = getApiBaseUrl();
+        const apiUrl = `${baseUrl}/api/matches?${queryParams}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const response = await fetch(apiUrl, {
           signal: controller.signal,
