@@ -48,6 +48,9 @@ export function VariantB_AccordionDrawer({
 
   const {
     dateMode,
+    dateFrom,
+    dateTo,
+    dateRangeDisplay,
     radiusKm,
     teamQuery,
     genders,
@@ -59,6 +62,7 @@ export function VariantB_AccordionDrawer({
 
   const {
     setDateMode,
+    setDateRange,
     setRadius: setRadiusKm,
     setTeamQuery,
     setGenders,
@@ -205,6 +209,50 @@ export function VariantB_AccordionDrawer({
                     {item.label}
                   </button>
                 ))}
+              </div>
+
+              {/* Manuelle Zeitspanne */}
+              <div className="rounded-xl border border-border/70 bg-card/60 p-2.5 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>Manuelle Zeitspanne</span>
+                  {dateMode === 'custom' && (
+                    <span className="font-mono text-[10px] text-primary lowercase">
+                      {dateRangeDisplay}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-[10px] font-medium text-muted-foreground">Von</span>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => {
+                        const nextFrom = e.target.value;
+                        const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                        setDateRange(nextFrom, nextTo);
+                      }}
+                      className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      aria-label="Startdatum (Von)"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-[10px] font-medium text-muted-foreground">Bis</span>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => {
+                        const nextTo = e.target.value;
+                        const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                        setDateRange(nextFrom, nextTo);
+                      }}
+                      className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      aria-label="Enddatum (Bis)"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 

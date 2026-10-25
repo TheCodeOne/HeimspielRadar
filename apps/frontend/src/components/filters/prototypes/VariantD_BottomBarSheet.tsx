@@ -123,6 +123,10 @@ export function VariantD_BottomBarSheet({
 
   const {
     dateMode,
+    dateFrom,
+    dateTo,
+    dateRangeDisplay,
+    onlyUpcoming,
     radiusKm,
     teamQuery,
     genders,
@@ -132,6 +136,8 @@ export function VariantD_BottomBarSheet({
 
   const {
     setDateMode,
+    setDateRange,
+    setOnlyUpcoming,
     setRadius: setRadiusKm,
     setTeamQuery,
     setGenders,
@@ -153,11 +159,11 @@ export function VariantD_BottomBarSheet({
       case 'next-weekend':
         return 'Nächstes WE';
       case 'custom':
-        return 'Zeitraum';
+        return dateRangeDisplay || 'Zeitraum';
       default:
         return 'Termin';
     }
-  }, [dateMode]);
+  }, [dateMode, dateRangeDisplay]);
 
   // Shared Filter Form Body (Rendered in Desktop Sidebar & Mobile Bottom Sheet)
   const filterFormContent = (
@@ -182,12 +188,21 @@ export function VariantD_BottomBarSheet({
         )}
       </div>
 
-      {/* 2. Spieltermin */}
-      <div className="space-y-2">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Calendar className="h-3.5 w-3.5 text-primary" />
-          Spieltermin
-        </span>
+      {/* 2. Spieltermin & Manuelle Zeitspanne */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5 text-primary" />
+            Spieltermin
+          </span>
+          {dateMode === 'custom' && (
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 text-primary bg-primary/5">
+              Eigener Zeitraum
+            </Badge>
+          )}
+        </div>
+
+        {/* Quick Date Presets */}
         <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/40 p-1">
           {DATE_PRESETS.map((item) => (
             <button
@@ -203,6 +218,78 @@ export function VariantD_BottomBarSheet({
               {item.label}
             </button>
           ))}
+        </div>
+
+        {/* Manuelle Zeitspanne (Datum Von – Bis) */}
+        <div className="rounded-xl border border-border/70 bg-card/60 p-2.5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase">
+            <span>Manuelle Zeitspanne</span>
+            {dateMode === 'custom' && (
+              <span className="font-mono text-[10px] text-primary lowercase">
+                {dateRangeDisplay}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Von</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  const nextFrom = e.target.value;
+                  const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                  setDateRange(nextFrom, nextTo);
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                aria-label="Startdatum (Von)"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Bis</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  const nextTo = e.target.value;
+                  const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                  setDateRange(nextFrom, nextTo);
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                aria-label="Enddatum (Bis)"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Toggle: Nur anstehende Spiele */}
+        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-2.5">
+          <div className="space-y-0.5">
+            <span className="text-xs font-medium text-foreground block">
+              Nur anstehende Spiele
+            </span>
+            <span className="text-[10px] text-muted-foreground block">
+              Beendete Spiele mit Endergebnis ausblenden
+            </span>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={onlyUpcoming}
+            onClick={() => setOnlyUpcoming(!onlyUpcoming)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              onlyUpcoming ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                onlyUpcoming ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -654,7 +741,7 @@ export function VariantD_BottomBarSheet({
 
         {/* Desktop Quick Date Popover */}
         {desktopPopover === 'date' && (
-          <div className="hidden md:block absolute bottom-full mb-2 left-0 z-40 w-52 rounded-xl border border-border bg-popover/95 p-2 shadow-2xl backdrop-blur-md">
+          <div className="hidden md:block absolute bottom-full mb-2 left-0 z-40 w-64 rounded-xl border border-border bg-popover/95 p-2.5 shadow-2xl backdrop-blur-md">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase px-2 py-1">
               Spieltermin wählen
             </div>
@@ -676,6 +763,46 @@ export function VariantD_BottomBarSheet({
                   <span>{preset.label}</span>
                 </button>
               ))}
+            </div>
+
+            {/* Custom Date Range in Desktop Popover */}
+            <div className="pt-2 mt-2 border-t border-border/60">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase px-1 mb-1.5 flex items-center justify-between">
+                <span>Eigener Zeitraum</span>
+                {dateMode === 'custom' && (
+                  <span className="text-[10px] text-primary lowercase">{dateRangeDisplay}</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 px-1">
+                <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                  <span>Von</span>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      const nextFrom = e.target.value;
+                      const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                      setDateRange(nextFrom, nextTo);
+                    }}
+                    className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    aria-label="Desktop Startdatum (Von)"
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                  <span>Bis</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      const nextTo = e.target.value;
+                      const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                      setDateRange(nextFrom, nextTo);
+                    }}
+                    className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    aria-label="Desktop Enddatum (Bis)"
+                  />
+                </label>
+              </div>
             </div>
           </div>
         )}

@@ -251,4 +251,51 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     // Verify Damen is no longer selected after reset
     await expect(damenBtn).not.toHaveClass(/border-primary/);
   });
+
+  test('Variant D: Manual date range selection updates filter state and label', async ({ page }) => {
+    await page.goto('/?variant=D');
+    await page.waitForLoadState('networkidle');
+
+    if (test.info().project.name === 'mobile-chromium') {
+      const bottomBar = page.getByTestId('bottom-filter-bar');
+      await bottomBar.getByRole('button', { name: /Filter/i }).first().click();
+
+      const sheet = page.getByRole('dialog');
+      await expect(sheet).toBeVisible();
+
+      // Fill in custom date range
+      const vonInput = sheet.getByLabel('Startdatum (Von)');
+      const bisInput = sheet.getByLabel('Enddatum (Bis)');
+      await expect(vonInput).toBeVisible();
+      await expect(bisInput).toBeVisible();
+
+      await vonInput.fill('2026-11-01');
+      await bisInput.fill('2026-11-05');
+
+      // Verify custom badge or display appears
+      await expect(sheet.getByText('Eigener Zeitraum')).toBeVisible();
+
+      // Close sheet
+      await sheet.getByRole('button', { name: /Spiele anzeigen/i }).click();
+      await expect(sheet).not.toBeVisible();
+
+      // Bottom bar date chip should show the formatted date range
+      await expect(bottomBar.getByRole('button', { name: /Nov/ }).last()).toBeVisible();
+    } else {
+      // On desktop, find the inputs in the sidebar
+      const vonInput = page.getByLabel('Startdatum (Von)');
+      const bisInput = page.getByLabel('Enddatum (Bis)');
+      await expect(vonInput).toBeVisible();
+      await expect(bisInput).toBeVisible();
+
+      await vonInput.fill('2026-11-01');
+      await bisInput.fill('2026-11-05');
+
+      await expect(page.getByText('Eigener Zeitraum')).toBeVisible();
+
+      // Docked bottom bar date chip should also reflect the range
+      const bottomBar = page.getByTestId('bottom-filter-bar');
+      await expect(bottomBar.getByRole('button', { name: /Nov/ }).last()).toBeVisible();
+    }
+  });
 });

@@ -41,6 +41,9 @@ export function VariantA_QuickFilterBar({
 
   const {
     dateMode,
+    dateFrom,
+    dateTo,
+    dateRangeDisplay,
     radiusKm,
     teamQuery,
     genders,
@@ -50,6 +53,7 @@ export function VariantA_QuickFilterBar({
 
   const {
     setDateMode,
+    setDateRange,
     setRadius: setRadiusKm,
     setTeamQuery,
     setGenders,
@@ -90,11 +94,11 @@ export function VariantA_QuickFilterBar({
       case 'next-weekend':
         return 'Nächstes WE';
       case 'custom':
-        return 'Zeitraum';
+        return dateRangeDisplay || 'Zeitraum';
       default:
         return 'Termin';
     }
-  }, [dateMode]);
+  }, [dateMode, dateRangeDisplay]);
 
   const categoryLabel = React.useMemo(() => {
     const parts: string[] = [];
@@ -144,7 +148,7 @@ export function VariantA_QuickFilterBar({
             </button>
 
             {openPopover === 'date' && (
-              <div className="absolute left-0 top-full mt-2 z-30 w-52 rounded-xl border border-border bg-popover/95 p-2 shadow-2xl backdrop-blur-md">
+              <div className="absolute left-0 top-full mt-2 z-30 w-64 rounded-xl border border-border bg-popover/95 p-2.5 shadow-2xl backdrop-blur-md">
                 <div className="text-[11px] font-semibold text-muted-foreground uppercase px-2 py-1">
                   Spieltermin wählen
                 </div>
@@ -166,6 +170,46 @@ export function VariantA_QuickFilterBar({
                       <span>{preset.label}</span>
                     </button>
                   ))}
+                </div>
+
+                {/* Custom Date Range */}
+                <div className="pt-2 mt-2 border-t border-border/60">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase px-1 mb-1.5 flex items-center justify-between">
+                    <span>Eigener Zeitraum</span>
+                    {dateMode === 'custom' && (
+                      <span className="text-[10px] text-primary lowercase">{dateRangeDisplay}</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 px-1">
+                    <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                      <span>Von</span>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => {
+                          const nextFrom = e.target.value;
+                          const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                          setDateRange(nextFrom, nextTo);
+                        }}
+                        className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        aria-label="Startdatum (Von)"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                      <span>Bis</span>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => {
+                          const nextTo = e.target.value;
+                          const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                          setDateRange(nextFrom, nextTo);
+                        }}
+                        className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        aria-label="Enddatum (Bis)"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

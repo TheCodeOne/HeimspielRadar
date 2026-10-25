@@ -42,6 +42,9 @@ export function VariantC_DesktopSidebar({
 
   const {
     dateMode,
+    dateFrom,
+    dateTo,
+    dateRangeDisplay,
     radiusKm,
     teamQuery,
     genders,
@@ -51,6 +54,7 @@ export function VariantC_DesktopSidebar({
 
   const {
     setDateMode,
+    setDateRange,
     setRadius: setRadiusKm,
     setTeamQuery,
     setGenders,
@@ -86,10 +90,17 @@ export function VariantC_DesktopSidebar({
 
       {/* 2. Spieltermin */}
       <div className="space-y-2">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Calendar className="h-3.5 w-3.5 text-primary" />
-          Termin
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5 text-primary" />
+            Termin
+          </span>
+          {dateMode === 'custom' && (
+            <span className="font-mono text-[10px] text-primary lowercase">
+              {dateRangeDisplay}
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/40 p-1">
           {DATE_PRESETS.map((item) => (
             <button
@@ -105,6 +116,44 @@ export function VariantC_DesktopSidebar({
               {item.label}
             </button>
           ))}
+        </div>
+
+        {/* Manuelle Zeitspanne */}
+        <div className="rounded-xl border border-border/70 bg-card/60 p-2.5 space-y-2">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase block">
+            Manuelle Zeitspanne
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Von</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  const nextFrom = e.target.value;
+                  const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                  setDateRange(nextFrom, nextTo);
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                aria-label="Startdatum (Von)"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Bis</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  const nextTo = e.target.value;
+                  const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                  setDateRange(nextFrom, nextTo);
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                aria-label="Enddatum (Bis)"
+              />
+            </label>
+          </div>
         </div>
       </div>
 
