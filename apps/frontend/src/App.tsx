@@ -4,48 +4,39 @@ import {
   Calendar,
   Clock,
   Coffee,
-  ExternalLink,
   MapPin,
   RotateCcw,
+  Settings,
   SlidersHorizontal,
-  Trophy,
-  X,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
-import { FilterBar } from '@/components/filters';
+import { FilterBar } from '@/components/filters/FilterBar';
+import {
+  VariantA_QuickFilterBar,
+  VariantB_AccordionDrawer,
+  VariantC_DesktopSidebar,
+  VariantD_BottomBarSheet,
+} from '@/components/filters/prototypes';
+import { SettingsDialog } from '@/components/settings';
+import {
+  PrototypeSwitcher,
+  type PrototypeVariant,
+} from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
-import { formatLeagueName, groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
-import { MatchList } from '@/components/matches';
+import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
+import { MatchList, VenueModal } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   compareMatchesChronologically,
-  formatDisplayDate,
-  formatKickoffTime,
   formatLastSyncedAt,
 } from '@/lib/date-utils';
-import { formatDistance } from '@/lib/geo-utils';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
-
-function buildGoogleMapsRouteUrl(match: Match): string {
-  const venue = match.venue;
-
-  if (!venue) {
-    return 'https://www.google.com/maps';
-  }
-
-  const destination =
-    venue.latitude != null && venue.longitude != null
-      ? `${venue.latitude},${venue.longitude}`
-      : `${venue.name}, ${venue.street}, ${venue.postalCode} ${venue.city}`;
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
-}
 
 function MainView() {
   // Fetch available leagues and distinct hierarchy options from /api/leagues
@@ -62,9 +53,65 @@ function MainView() {
   });
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
 
-  // Selected match for map marker / multi-match venue overlay
-  const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(null);
+  // Fallback: Support legacy FilterBar if ?legacy=true is present in URL
+  const isLegacy = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return new URLSearchParams(window.location.search).get('legacy') === 'true';
+  }, []);
+
+  // Prototype Switcher pill: only display if ?prototypes, ?debug or ?switcher is in URL
+  const showPrototypeSwitcher = React.useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    return params.has('prototypes') || params.has('debug') || params.has('switcher');
+  }, []);
+
+  // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar), D (Hybrid Bottom-Bar + Sheet)
+  const [currentVariant, setCurrentVariant] = React.useState<PrototypeVariant>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('variant');
+
+      if (param === 'A' || param === 'B' || param === 'C' || param === 'D') {
+        return param;
+      }
+    }
+
+    return 'D';
+  });
+
+  const handleSelectVariant = React.useCallback((v: PrototypeVariant) => {
+    setCurrentVariant(v);
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('variant', v);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  // Selected match for map marker / multi-match venue overlay (supports deep link ?matchId=)
+  const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('matchId');
+
+      if (param) {
+        const id = Number(param);
+
+        return Number.isFinite(id) ? id : null;
+      }
+    }
+
+    return null;
+  });
 
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
@@ -114,12 +161,17 @@ function MainView() {
     debounceMs: 300,
   });
 
-  // Clear selectedMatchId if the selected match is no longer in the filtered results
+  // Clear selectedMatchId if the selected match is no longer in the filtered results (after loading completes)
   React.useEffect(() => {
-    if (selectedMatchId !== null && !matches.some((m) => m.id === selectedMatchId)) {
+    if (
+      selectedMatchId !== null &&
+      !isLoading &&
+      matches.length > 0 &&
+      !matches.some((m) => m.id === selectedMatchId)
+    ) {
       setSelectedMatchId(null);
     }
-  }, [matches, selectedMatchId]);
+  }, [matches, selectedMatchId, isLoading]);
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
 
@@ -195,23 +247,73 @@ function MainView() {
           </div>
         </div>
 
-        {/* Right: Filter Drawer Trigger Button with Active Count Badge */}
+        {/* Right: Actions (Filter Trigger & Settings Gear Icon) */}
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFilterDrawerOpen(true)}
-            className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-            <span>Filter</span>
-            {filters.activeFilterCount > 0 && (
-              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                {filters.activeFilterCount}
-              </span>
-            )}
-          </Button>
+          {isLegacy ? (
+            /* Legacy Filter Trigger Button */
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              <span>Filter</span>
+              {filters.activeFilterCount > 0 && (
+                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                  {filters.activeFilterCount}
+                </span>
+              )}
+            </Button>
+          ) : (
+            <>
+              {/* Active filter count badge in header for Variant D */}
+              {currentVariant === 'D' && filters.activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsFilterDrawerOpen(true)}
+                  className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+                  title="Aktive Filter bearbeiten"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>{filters.activeFilterCount} aktiv</span>
+                </button>
+              )}
+
+              {/* Filter Drawer Trigger Button for Variants A, B, C */}
+              {currentVariant !== 'D' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFilterDrawerOpen(true)}
+                  className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                  <span>Filter</span>
+                  {filters.activeFilterCount > 0 && (
+                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                      {filters.activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+              )}
+
+              {/* Settings Gear Button (User requested: oben rechts ein gear icon fuer 'Einstellungen') */}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setIsSettingsOpen(true)}
+                className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Einstellungen"
+                title="Einstellungen & Karten-Optionen"
+              >
+                <Settings className="h-4 w-4 text-slate-300" />
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
@@ -235,48 +337,105 @@ function MainView() {
       )}
 
       {/* Main Content Area: Full-Screen Map View OR Full-Screen List View */}
-      <main className="relative flex flex-1 min-h-0 w-full flex-col overflow-hidden">
+      <main className="relative flex flex-1 min-h-0 w-full flex-col md:flex-row overflow-hidden">
+        {/* Variant C: Split-Sidebar on Desktop & Bottom-Sheet on Mobile */}
+        {currentVariant === 'C' && (
+          <VariantC_DesktopSidebar
+            isOpen={isFilterDrawerOpen}
+            onClose={() => setIsFilterDrawerOpen(false)}
+            filters={filters}
+            availableOptions={{
+              leagues,
+              genders: availableGenders,
+              ageClasses: availableAgeClasses,
+              skillLevels: availableSkillLevels,
+              matchCount: matches.length,
+              lastSyncedAt,
+            }}
+            actions={actions}
+          />
+        )}
+
+        {/* Variant D: Hybrid Bottom-Bar + Bottom-Sheet + Desktop-Sidebar */}
+        {!isLegacy && currentVariant === 'D' && (
+          <VariantD_BottomBarSheet
+            isOpen={isFilterDrawerOpen}
+            onClose={() => setIsFilterDrawerOpen(false)}
+            filters={filters}
+            availableOptions={{
+              leagues,
+              genders: availableGenders,
+              ageClasses: availableAgeClasses,
+              skillLevels: availableSkillLevels,
+              matchCount: matches.length,
+              lastSyncedAt,
+            }}
+            actions={actions}
+            hasSelectedVenue={selectedMatch?.venue != null}
+          />
+        )}
+
         {filters.viewMode === 'map' ? (
           <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
-            {/* Floating Map Summary Chip (Interactive, Responsive & High-Contrast) */}
-            <button
-              type="button"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              aria-label="Filter öffnen"
-              title="Filter und Standort anpassen"
-              className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            >
-              {filters.teamQuery ? (
-                <>
-                  <span className="shrink-0 text-sm leading-none">🏀</span>
-                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                    {filters.teamQuery}
-                  </span>
-                  <span className="font-mono text-slate-400 shrink-0">
-                    • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                    {filters.location.name}
-                  </span>
-                  <span className="font-mono text-slate-400 shrink-0">
-                    • {filters.radiusKm} km
-                  </span>
-                  <span className="hidden text-slate-400 sm:inline shrink-0">
-                    • {filters.dateRangeDisplay}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
-                  >
-                    {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                  </Badge>
-                </>
-              )}
-            </button>
+            {/* Variant A: Floating Quick-Filter Pill Bar on Map */}
+            {currentVariant === 'A' && (
+              <VariantA_QuickFilterBar
+                isOpen={isFilterDrawerOpen}
+                onClose={() => setIsFilterDrawerOpen(false)}
+                filters={filters}
+                availableOptions={{
+                  leagues,
+                  genders: availableGenders,
+                  ageClasses: availableAgeClasses,
+                  skillLevels: availableSkillLevels,
+                  matchCount: matches.length,
+                  lastSyncedAt,
+                }}
+                actions={actions}
+              />
+            )}
+
+            {/* Floating Map Summary Chip (Active in Legacy mode or Prototype Variants B & C) */}
+            {(isLegacy || (currentVariant !== 'A' && currentVariant !== 'D')) && (
+              <button
+                type="button"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                aria-label="Filter öffnen"
+                title="Filter und Standort anpassen"
+                className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                {filters.teamQuery ? (
+                  <>
+                    <span className="shrink-0 text-sm leading-none">🏀</span>
+                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                      {filters.teamQuery}
+                    </span>
+                    <span className="font-mono text-slate-400 shrink-0">
+                      • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
+                      {filters.location.name}
+                    </span>
+                    <span className="font-mono text-slate-400 shrink-0">
+                      • {filters.radiusKm} km
+                    </span>
+                    <span className="hidden text-slate-400 sm:inline shrink-0">
+                      • {filters.dateRangeDisplay}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
+                    >
+                      {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                    </Badge>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Full-Bleed MapContainer */}
             <MapContainer
@@ -305,138 +464,13 @@ function MainView() {
               onDismiss={dismissColdStart}
             />
 
-            {/* Multi-Match Venue Overlay Card at Bottom of Full-Screen Map */}
-            {selectedMatch?.venue && (
-              <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 rounded-xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur-md">
-                {/* Venue Header */}
-                <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                      <h3 className="truncate text-sm font-bold text-foreground">
-                        {selectedMatch.venue.name}
-                      </h3>
-                      {selectedMatch.distanceKm != null && (
-                        <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                          {formatDistance(selectedMatch.distanceKm)}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {selectedMatch.venue.street}, {selectedMatch.venue.postalCode}{' '}
-                      {selectedMatch.venue.city}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <a
-                      href={buildGoogleMapsRouteUrl(selectedMatch)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-                      title="Route in Google Maps öffnen"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      <span>Route</span>
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchId(null)}
-                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="Hallen-Details schließen"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Scrollable List of All Matches at This Venue */}
-                <div className="mt-2.5">
-                  <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                    <span>
-                      {selectedVenueMatches.length}{' '}
-                      {selectedVenueMatches.length === 1
-                        ? 'Heimspiel in dieser Halle'
-                        : 'Heimspiele in dieser Halle'}
-                    </span>
-                  </div>
-
-                  <div className="max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                    {selectedVenueMatches.map((venueMatch) => {
-                      const isActiveMatch = venueMatch.id === selectedMatch.id;
-
-                      const matchLeagueName = formatLeagueName(
-                        venueMatch.leagueId,
-                        venueMatch.league?.name,
-                      );
-
-                      const categoryBadge = [
-                        venueMatch.league?.akName,
-                        venueMatch.league?.geschlecht,
-                      ]
-                        .filter(Boolean)
-                        .join(' • ');
-
-                      return (
-                        <div
-                          key={venueMatch.id}
-                          onClick={() => setSelectedMatchId(venueMatch.id)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setSelectedMatchId(venueMatch.id);
-                            }
-                          }}
-                          className={`cursor-pointer rounded-lg border p-2.5 text-xs transition-colors ${
-                            isActiveMatch
-                              ? 'border-primary/60 bg-primary/10'
-                              : 'border-border/60 bg-card/60 hover:border-primary/40'
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              <Badge variant="league" className="text-[10px]">
-                                <Trophy className="mr-1 h-2.5 w-2.5" />
-                                {matchLeagueName}
-                              </Badge>
-                              {categoryBadge && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  {categoryBadge}
-                                </Badge>
-                              )}
-                            </div>
-
-                            <span className="font-mono text-[11px] font-medium text-foreground">
-                              {formatDisplayDate(venueMatch.kickoffDate)} •{' '}
-                              {formatKickoffTime(venueMatch.kickoffTime)}
-                            </span>
-                          </div>
-
-                          <div className="mt-1.5 flex items-center justify-between gap-2 font-semibold text-foreground">
-                            <span className="truncate">{venueMatch.homeTeam.name}</span>
-                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                              vs.
-                            </span>
-                            <span className="truncate text-right">
-                              {venueMatch.guestTeam.name}
-                            </span>
-                          </div>
-
-                          {venueMatch.result && (
-                            <div className="mt-1 text-right font-mono text-[11px] font-bold text-primary">
-                              Endstand: {venueMatch.result}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Venue Details Modal / Bottom Sheet (Zero overlap with bottom bar) */}
+            <VenueModal
+              selectedMatch={selectedMatch}
+              venueMatches={selectedVenueMatches}
+              onSelectMatch={(matchId) => setSelectedMatchId(matchId)}
+              onClose={() => setSelectedMatchId(null)}
+            />
           </div>
         ) : (
           /* Full-Screen Scrollable List View */
@@ -556,20 +590,62 @@ function MainView() {
         )}
       </main>
 
-      {/* Slide-Over Filter Drawer */}
-      <FilterBar
-        isOpen={isFilterDrawerOpen}
-        onClose={() => setIsFilterDrawerOpen(false)}
-        filters={filters}
-        availableOptions={{
-          leagues,
-          genders: availableGenders,
-          ageClasses: availableAgeClasses,
-          skillLevels: availableSkillLevels,
-          matchCount: matches.length,
-          lastSyncedAt,
-        }}
-        actions={actions}
+      {/* Variant B: Accordion Drawer (when isOpen) */}
+      {currentVariant === 'B' && (
+        <VariantB_AccordionDrawer
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          filters={filters}
+          availableOptions={{
+            leagues,
+            genders: availableGenders,
+            ageClasses: availableAgeClasses,
+            skillLevels: availableSkillLevels,
+            matchCount: matches.length,
+            lastSyncedAt,
+          }}
+          actions={actions}
+        />
+      )}
+
+      {/* Legacy FilterBar (Safety Fallback if ?legacy=true is requested) */}
+      {isLegacy && (
+        <FilterBar
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          filters={filters}
+          availableOptions={{
+            leagues,
+            genders: availableGenders,
+            ageClasses: availableAgeClasses,
+            skillLevels: availableSkillLevels,
+            matchCount: matches.length,
+            lastSyncedAt,
+          }}
+          actions={actions}
+        />
+      )}
+
+      {/* Interactive Prototype Switcher Floating Pill (Only when requested via ?prototypes, ?debug or ?switcher) */}
+      {showPrototypeSwitcher && (
+        <PrototypeSwitcher
+          currentVariant={currentVariant}
+          onSelectVariant={handleSelectVariant}
+        />
+      )}
+
+      {/* Settings & System Options Modal (Triggered by Header Gear Icon) */}
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        mapEngine={filters.mapEngine}
+        onEngineChange={actions.setMapEngine}
+        showRadiusCircle={filters.showRadiusCircle}
+        onToggleRadiusCircle={actions.setShowRadiusCircle}
+        viewMode={filters.viewMode}
+        onViewModeChange={actions.setViewMode}
+        lastSyncedAt={lastSyncedAt}
+        matchCount={matches.length}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}
