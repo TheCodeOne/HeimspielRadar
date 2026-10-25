@@ -7,6 +7,7 @@ function getFetchMock(): jest.Mock {
 
 describe('TelegramNotifierService', () => {
   const originalEnv = process.env;
+  const originalFetch = global.fetch;
   let mockDb: any;
   let settingsMap: Map<string, string>;
 
@@ -51,6 +52,7 @@ describe('TelegramNotifierService', () => {
 
   afterEach(() => {
     process.env = originalEnv;
+    global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 

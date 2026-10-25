@@ -1,4 +1,4 @@
-CREATE TABLE "sync_runs" (
+CREATE TABLE IF NOT EXISTS "sync_runs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"sync_type" text NOT NULL,
 	"target" text NOT NULL,

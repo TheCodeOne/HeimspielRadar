@@ -697,11 +697,27 @@ export class ScraperService {
 
     try {
       const actualRes = await this.dbbClient.fetchCompetitionActual(liganr, rangeDays);
-      const { ligaData, matches: windowMatches = [], tabelle } = actualRes.data;
 
-      if (!ligaData) {
-        throw new Error(`Invalid response from DBB: No league data found for liganr ${liganr}`);
+      if (!actualRes.data || !actualRes.data.ligaData) {
+        this.logger.debug(
+          `No active competition data returned for league ${liganr}, skipping delta sync.`
+        );
+
+        return {
+          success: true,
+          leagueId: liganr,
+          leagueName: leagueName ?? `Liga ${liganr}`,
+          totalMatches: 0,
+          syncedMatches: 0,
+          verifiedMatches: 0,
+          provisionalMatches: 0,
+          syncedVenues: 0,
+          geocodedVenues: 0,
+          durationMs: Date.now() - startTime,
+        };
       }
+
+      const { ligaData, matches: windowMatches = [], tabelle } = actualRes.data;
 
       leagueName = ligaData.liganame;
 
