@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type { Match } from '@sundayleague/shared-types';
 
 export interface LocationCoordinates {
@@ -275,3 +277,75 @@ export function formatKickoffTimeBerlin(
 }
 
 export const formatKickoffTime = formatKickoffTimeBerlin;
+
+export function formatDisplayDate(dateStr?: string | null): string {
+  if (!dateStr) {
+    return 'Termin offen';
+  }
+
+  try {
+    const parts = dateStr.split('-');
+
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const date = new Date(year, month, day);
+
+      return new Intl.DateTimeFormat('de-DE', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+      }).format(date);
+    }
+  } catch {
+    // fallback if parsing fails
+  }
+
+  return dateStr;
+}
+
+export function formatLeagueName(
+  leagueId: number,
+  leagueName?: string | null,
+): string {
+  if (leagueName && leagueName.trim().length > 0) {
+    return leagueName.trim();
+  }
+
+  return `Liga ${leagueId}`;
+}
+
+/**
+ * Dynamically resolves the backend API base URL:
+ * 1. Explicit EXPO_PUBLIC_API_URL environment variable if provided.
+ * 2. On Web: http://localhost:3000 (or origin).
+ * 3. On Native: extracts host IP from Constants.expoConfig.hostUri (e.g. "10.10.10.69:8081" -> "http://10.10.10.69:3000")
+ *    so a physical device on the same local network connects to the development machine backend.
+ * 4. Fallback: http://localhost:3000.
+ */
+export function getApiBaseUrl(): string {
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+
+  if (envApiUrl && envApiUrl.trim().length > 0) {
+    return envApiUrl.trim().replace(/\/+$/, '');
+  }
+
+  if (Platform.OS === 'web') {
+    return 'http://localhost:3000';
+  }
+
+  const hostUri = Constants.expoConfig?.hostUri;
+
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+
+    if (host) {
+      return `http://${host}:3000`;
+    }
+  }
+
+  return 'http://localhost:3000';
+}
+
+
