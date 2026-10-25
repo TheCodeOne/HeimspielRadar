@@ -257,3 +257,92 @@
   transform: scale(1.08) !important;
 }
 
+/* =========================================================================
+   Native iOS-Style Bottom Sheet, Modal Animations & Gesture Springs
+   ========================================================================= */
+
+@keyframes native-sheet-slide-up {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes native-sheet-slide-down {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes native-backdrop-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes native-backdrop-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-zoom-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes modal-zoom-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.animate-backdrop-in {
+  animation: native-backdrop-fade-in 240ms ease-out forwards;
+}
+
+.animate-backdrop-out {
+  animation: native-backdrop-fade-out 220ms ease-in forwards;
+}
+
+@media (max-width: 767px) {
+  .modal-mobile-sheet-in {
+    animation: native-sheet-slide-up 340ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+  .modal-mobile-sheet-out {
+    animation: native-sheet-slide-down 260ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+}
+
+@media (min-width: 768px) {
+  .modal-mobile-sheet-in {
+    animation: modal-zoom-in 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .modal-mobile-sheet-out {
+    animation: modal-zoom-out 160ms ease-in forwards;
+  }
+}
+
+
