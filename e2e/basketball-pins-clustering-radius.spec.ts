@@ -205,7 +205,7 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
   });
 
   test('3. Search Center marker renders when a city is selected', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     // Search Center pin is visible for Stuttgart fallback center
     const searchMarker = page.locator('.search-center-marker').first();
@@ -234,7 +234,7 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
   });
 
   test('4. Radius circle toggle in Filter drawer toggles visibility and persists', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?legacy=true');
 
     // Open filter drawer
     await page.locator('header').getByRole('button', { name: /Filter/i }).click();
