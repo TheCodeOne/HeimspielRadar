@@ -135,126 +135,37 @@ function drawRoundedRect(
 }
 
 /**
- * Draws authentic FIBA basketball court markings (Key lane, Free-Throw circle with dashed half,
- * rebound hash marks, 3-Point arcs, and Center jump circle).
+ * Draws basketball court texture lines (court markings).
  */
 function drawBasketballCourtLines(
   ctx: CanvasRenderingContext2D,
   theme: StoryTheme
 ) {
-  const width = 1080;
-  const height = 1920;
-  const keyWidth = 340;
-  const keyHeight = 440;
-  const keyX = (width - keyWidth) / 2;
-  const centerY = height / 2;
-
   ctx.save();
-
-  // Subtle stained paint inside the top & bottom key lanes
-  ctx.fillStyle =
-    theme === 'halloween'
-      ? 'rgba(234, 88, 12, 0.14)'
-      : 'rgba(180, 83, 9, 0.18)';
-
-  ctx.fillRect(keyX, 0, keyWidth, keyHeight);
-  ctx.fillRect(keyX, height - keyHeight, keyWidth, keyHeight);
-
-  // Crisp court enamel lines
   ctx.strokeStyle =
     theme === 'halloween'
-      ? 'rgba(255, 237, 213, 0.28)'
-      : 'rgba(255, 255, 255, 0.32)';
-  ctx.lineWidth = 4.5;
+      ? 'rgba(249, 115, 22, 0.07)'
+      : 'rgba(255, 255, 255, 0.04)';
+  ctx.lineWidth = 4;
 
-  // A. Center Court Line & Jump Circles
+  // Center circle
   ctx.beginPath();
-  ctx.moveTo(0, centerY);
-  ctx.lineTo(width, centerY);
+  ctx.arc(540, 820, 240, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center line
+  ctx.beginPath();
+  ctx.moveTo(0, 820);
+  ctx.lineTo(1080, 820);
+  ctx.stroke();
+
+  // Free-throw key / 3-point arcs (top and bottom)
+  ctx.beginPath();
+  ctx.arc(540, 0, 480, 0, Math.PI);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(width / 2, centerY, 180, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(width / 2, centerY, 60, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // B. Top Key Box & Free-Throw Circle
-  ctx.beginPath();
-  ctx.moveTo(keyX, 0);
-  ctx.lineTo(keyX, keyHeight);
-  ctx.lineTo(keyX + keyWidth, keyHeight);
-  ctx.lineTo(keyX + keyWidth, 0);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(width / 2, keyHeight, 170, 0, Math.PI);
-  ctx.stroke();
-
-  ctx.setLineDash([16, 12]);
-  ctx.beginPath();
-  ctx.arc(width / 2, keyHeight, 170, Math.PI, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Top Key rebound hash marks
-  const hashLength = 18;
-
-  for (const hashY of [120, 200, 280, 360]) {
-    ctx.beginPath();
-    ctx.moveTo(keyX - hashLength, hashY);
-    ctx.lineTo(keyX, hashY);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(keyX + keyWidth, hashY);
-    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
-    ctx.stroke();
-  }
-
-  // Top 3-Point Arc
-  ctx.beginPath();
-  ctx.arc(width / 2, 0, 490, 0.22 * Math.PI, 0.78 * Math.PI);
-  ctx.stroke();
-
-  // C. Bottom Key Box & Free-Throw Circle
-  const bottomKeyY = height - keyHeight;
-  ctx.beginPath();
-  ctx.moveTo(keyX, height);
-  ctx.lineTo(keyX, bottomKeyY);
-  ctx.lineTo(keyX + keyWidth, bottomKeyY);
-  ctx.lineTo(keyX + keyWidth, height);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(width / 2, bottomKeyY, 170, Math.PI, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.setLineDash([16, 12]);
-  ctx.beginPath();
-  ctx.arc(width / 2, bottomKeyY, 170, 0, Math.PI);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Bottom Key rebound hash marks
-  for (const offsetY of [120, 200, 280, 360]) {
-    const hashY = height - offsetY;
-    ctx.beginPath();
-    ctx.moveTo(keyX - hashLength, hashY);
-    ctx.lineTo(keyX, hashY);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(keyX + keyWidth, hashY);
-    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
-    ctx.stroke();
-  }
-
-  // Bottom 3-Point Arc
-  ctx.beginPath();
-  ctx.arc(width / 2, height, 490, 1.22 * Math.PI, 1.78 * Math.PI);
+  ctx.arc(540, 1920, 480, Math.PI, 0);
   ctx.stroke();
 
   ctx.restore();
