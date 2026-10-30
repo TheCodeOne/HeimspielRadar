@@ -13,11 +13,11 @@ import { TeamSearchInput } from '@/components/filters/shared/TeamSearchInput';
 import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { getSampleMatches } from '@/lib/sample-matches';
-import { shareMatchStory } from '@/lib/share-utils';
 import {
   isHalloweenSeason,
   type StoryTheme,
 } from '@/lib/story-image-generator';
+import { StoryEditorView } from './StoryEditorView';
 
 export interface ClubStoryHubProps {
   onNavigateHome: () => void;
@@ -27,12 +27,12 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
   const [selectedClub, setSelectedClub] = React.useState<string>('');
   const [allMatches, setAllMatches] = React.useState<Match[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [editingMatch, setEditingMatch] = React.useState<Match | null>(null);
 
   const [themePreference, setThemePreference] = React.useState<StoryTheme>(() => {
     return isHalloweenSeason() ? 'halloween' : 'classic';
   });
 
-  const [generatingMatchId, setGeneratingMatchId] = React.useState<number | null>(null);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const showToast = React.useCallback((message: string) => {
@@ -99,31 +99,30 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
     setSelectedClub('');
   };
 
-  const handleCreateStory = async (match: Match) => {
-    if (generatingMatchId !== null) {
-      return;
+  const handleOpenEditor = (match: Match) => {
+    // Update browser URL if supported for shareable link /story/:id
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/story/${match.id}`);
     }
 
-    setGeneratingMatchId(match.id);
-    showToast('Story-Bild wird in 1080×1920 px gerendert...');
-
-    await shareMatchStory(match, {
-      theme: themePreference,
-      onSuccess: (type) => {
-        setGeneratingMatchId(null);
-
-        if (type === 'shared') {
-          showToast('📸 Story geöffnet & Link-Sticker in Zwischenablage kopiert!');
-        } else {
-          showToast('📸 Story-Bild heruntergeladen & Link kopiert!');
-        }
-      },
-      onError: () => {
-        setGeneratingMatchId(null);
-        showToast('Erstellung der Story fehlgeschlagen');
-      },
-    });
+    setEditingMatch(match);
   };
+
+  if (editingMatch) {
+    return (
+      <StoryEditorView
+        match={editingMatch}
+        onBack={() => {
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', '/story');
+          }
+
+          setEditingMatch(null);
+        }}
+        onShareFeedback={showToast}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 h-dvh w-full flex flex-col overflow-y-auto bg-background text-foreground">
@@ -237,7 +236,6 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {filteredMatches.map((match) => {
               const isFinished = Boolean(match.result);
-              const isCurrentGenerating = generatingMatchId === match.id;
               const dateStr = formatDisplayDate(match.kickoffDate);
               const timeStr = formatKickoffTime(match.kickoffTime);
 
@@ -311,20 +309,15 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
                       <Button
                         type="button"
                         size="sm"
-                        disabled={isCurrentGenerating}
-                        onClick={() => handleCreateStory(match)}
+                        onClick={() => handleOpenEditor(match)}
                         className={`h-8 px-3 text-xs font-bold gap-1.5 ${
                           themePreference === 'halloween'
                             ? 'bg-orange-600 hover:bg-orange-500 text-white'
                             : 'bg-primary hover:bg-primary/90 text-primary-foreground'
                         }`}
                       >
-                        {isCurrentGenerating ? (
-                          <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent animate-spin rounded-full" />
-                        ) : (
-                          <Camera className="h-3.5 w-3.5" />
-                        )}
-                        <span>{themePreference === 'halloween' ? '🎃 Story' : '📸 Story'}</span>
+                        <Camera className="h-3.5 w-3.5" />
+                        <span>📸 Story anpassen</span>
                       </Button>
                     </div>
                   </div>

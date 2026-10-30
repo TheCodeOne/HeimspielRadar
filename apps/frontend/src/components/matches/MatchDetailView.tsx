@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
   Calendar,
+  Camera,
   Clock,
   ExternalLink,
   MapPin,
@@ -351,6 +352,22 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                 >
                   <Share2 className="h-3 w-3 text-primary" />
                   <span>Teilen</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.history.pushState({}, '', `/story/${match.id}`);
+                      window.dispatchEvent(new PopStateEvent('popstate'));
+                    }
+                  }}
+                  className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                >
+                  <Camera className="h-3 w-3" />
+                  <span>📸 Story</span>
                 </Button>
               </div>
 

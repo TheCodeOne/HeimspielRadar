@@ -26,7 +26,10 @@ import {
 import { MapContainer } from '@/components/map';
 import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
 import { MatchDetailView, MatchList, VenueModal } from '@/components/matches';
-import { ClubStoryHub } from '@/components/story';
+import {
+  ClubStoryHub,
+  StoryMatchRouteContainer,
+} from '@/components/story';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
@@ -685,6 +688,18 @@ function getMatchDetailIdFromPath(pathname: string): number | null {
   return Number.isFinite(id) ? id : null;
 }
 
+function getStoryMatchIdFromPath(pathname: string): number | null {
+  const match = pathname.match(/^\/story\/(\d+)(?:\/)?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const id = parseInt(match[1], 10);
+
+  return Number.isFinite(id) ? id : null;
+}
+
 export function App() {
   const [currentPath, setCurrentPath] = React.useState<string>(() => {
     return typeof window !== 'undefined' ? window.location.pathname : '/';
@@ -708,7 +723,8 @@ export function App() {
   }, []);
 
   const isAdminRoute = currentPath.startsWith('/admin');
-  const isStoryRoute = currentPath.startsWith('/story') || currentPath.startsWith('/creator');
+  const storyMatchId = getStoryMatchIdFromPath(currentPath);
+  const isStoryHubRoute = currentPath.startsWith('/story') || currentPath.startsWith('/creator');
   const matchDetailId = getMatchDetailIdFromPath(currentPath);
 
   if (isAdminRoute) {
@@ -728,7 +744,22 @@ export function App() {
     return <AdminDashboard />;
   }
 
-  if (isStoryRoute) {
+  if (storyMatchId !== null) {
+    return (
+      <StoryMatchRouteContainer
+        matchId={storyMatchId}
+        onBack={() => {
+          if (typeof window !== 'undefined' && window.history.length > 1) {
+            window.history.back();
+          } else {
+            navigateTo('/story');
+          }
+        }}
+      />
+    );
+  }
+
+  if (isStoryHubRoute) {
     return <ClubStoryHub onNavigateHome={() => navigateTo('/')} />;
   }
 

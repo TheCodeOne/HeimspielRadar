@@ -69,6 +69,7 @@ export interface ShareMatchOptions {
 
 export interface ShareStoryOptions {
   theme?: StoryTheme | 'auto';
+  customNote?: string;
   onSuccess?: (type: 'shared' | 'downloaded') => void;
   onError?: (error: Error) => void;
 }
@@ -233,6 +234,7 @@ export async function shareMatchStory(
 
     const imageBlob = await generateStoryImageBlob(match, {
       theme: options?.theme,
+      customNote: options?.customNote,
       origin,
     });
 

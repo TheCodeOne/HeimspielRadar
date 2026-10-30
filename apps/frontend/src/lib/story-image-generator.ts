@@ -49,6 +49,7 @@ export function resolveStoryTheme(theme?: StoryTheme | 'auto'): StoryTheme {
 export interface StoryImageOptions {
   theme?: StoryTheme | 'auto';
   origin?: string;
+  customNote?: string;
 }
 
 /**
@@ -466,9 +467,9 @@ export async function generateStoryImageBlob(
   );
 
   // 4. Kickoff & Venue Info Card
-  const infoY = 1226;
+  const infoY = 1215;
   const infoW = cardW;
-  const infoH = 200;
+  const infoH = 190;
   const infoX = cardX;
 
   ctx.save();
@@ -484,28 +485,72 @@ export async function generateStoryImageBlob(
   const kickoffStr = formatGamedayDateTime(match.kickoffDate, match.kickoffTime);
   ctx.font = '800 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(`⏰  ${kickoffStr}`, 540, infoY + 68);
+  ctx.fillText(`⏰  ${kickoffStr}`, 540, infoY + 64);
 
   // Venue & City (Bold venue, subtle city/address)
   const venueTitle = match.venue?.name || 'Sporthalle';
   const venueCity = match.venue?.city ? `📍 ${venueTitle} • ${match.venue.city}` : `📍 ${venueTitle}`;
   ctx.font = '700 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = accentLight;
-  ctx.fillText(venueCity, 540, infoY + 125);
+  ctx.fillText(venueCity, 540, infoY + 120);
 
   if (match.venue?.street) {
     ctx.font = '500 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.fillText(match.venue.street, 540, infoY + 162);
+    ctx.fillText(match.venue.street, 540, infoY + 158);
   }
 
   ctx.restore();
 
+  // 4b. Custom Fan Note Badge / Banner (optional)
+  const trimmedNote = options?.customNote?.trim();
+
+  if (trimmedNote) {
+    const badgeY = 1422;
+    const badgeH = 58;
+    const maxBadgeW = cardW;
+
+    ctx.save();
+    ctx.font = '800 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    
+    // Add megaphone emoji if user didn't start with an emoji
+    const displayNote = trimmedNote.startsWith('📣') ? trimmedNote : `📣  ${trimmedNote}`;
+    
+    // Auto-scale font if needed to fit comfortably within maxBadgeW
+    let noteFontSize = 26;
+    let textMetrics = ctx.measureText(displayNote);
+
+    while (textMetrics.width > maxBadgeW - 60 && noteFontSize > 18) {
+      noteFontSize -= 1;
+      ctx.font = `800 ${noteFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      textMetrics = ctx.measureText(displayNote);
+    }
+
+    const badgeW = Math.min(textMetrics.width + 56, maxBadgeW);
+    const badgeX = (width - badgeW) / 2;
+
+    // Glowing badge pill
+    ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(245, 158, 11, 0.35)';
+    ctx.shadowBlur = 18;
+    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 29);
+    ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(245, 158, 11, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = theme === 'halloween' ? '#f97316' : '#f59e0b';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(displayNote, 540, badgeY + badgeH / 2 + (noteFontSize * 0.35));
+    ctx.restore();
+  }
+
   // 5. Instagram Link-Sticker Drop Zone
   const stickerBoxW = cardW;
-  const stickerBoxH = 150;
+  const stickerBoxH = trimmedNote ? 128 : 150;
   const stickerBoxX = cardX;
-  const stickerBoxY = 1460;
+  const stickerBoxY = trimmedNote ? 1496 : 1460;
 
   ctx.save();
   // Dashed sticker target border

@@ -166,7 +166,10 @@ describe('story-image-generator', () => {
         writable: true,
       });
 
-      const blob = await generateStoryImageBlob(mockMatch, { theme: 'classic' });
+      const blob = await generateStoryImageBlob(mockMatch, {
+        theme: 'classic',
+        customNote: '🎟️ Eintritt frei',
+      });
 
       expect(blob).toBeDefined();
       expect(blob.type).toBe('image/png');
