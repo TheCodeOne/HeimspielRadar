@@ -135,318 +135,38 @@ function drawRoundedRect(
 }
 
 /**
- * Draws an authentic basketball hardwood parquet floor texture:
- * - Staggered horizontal planks with subtle tonal variations (honey oak / maple / midnight dark wood)
- * - Subtle woodgrain lines on planks
- * - Painted court areas (keys / free-throw lanes)
- * - Authentic FIBA/NBA court geometry (center circle, center line, 3pt arc, key, free-throw circle & hashes)
- * - Overhead arena spotlight & vignette
+ * Draws basketball court texture lines (court markings).
  */
-function drawHardwoodFloor(
+function drawBasketballCourtLines(
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
   theme: StoryTheme
 ) {
   ctx.save();
-
-  // 1. Base Plank Grid Setup
-  // Plank height ~28px -> ~68 rows across 1920px height
-  const plankHeight = 28;
-  const numRows = Math.ceil(height / plankHeight);
-
-  // Palettes for planks
-  // Classic: Rich honey maple, warm oak, amber tones
-  const classicColors = [
-    '#c88a42',
-    '#bd7f37',
-    '#d4964e',
-    '#b4752e',
-    '#c2843c',
-    '#cf9047',
-    '#ba7933',
-    '#c7883f',
-  ];
-
-  // Halloween: Deep midnight dark timber, espresso, charred oak
-  const halloweenColors = [
-    '#1c1328',
-    '#170e22',
-    '#221730',
-    '#140c1e',
-    '#1f142b',
-    '#261937',
-    '#191024',
-    '#2a1c3d',
-  ];
-
-  const colors = theme === 'halloween' ? halloweenColors : classicColors;
-
-  // Pseudo-random deterministic hash for consistent plank layout & woodgrain
-  const pseudoRandom = (seed: number) => {
-    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-
-    return x - Math.floor(x);
-  };
-
-  // Draw hardwood planks row by row
-  for (let r = 0; r < numRows; r++) {
-    const y = r * plankHeight;
-    // Standard plank lengths vary between 220px and 380px, with staggered offset per row
-    const rowOffset = (r * 137) % 320;
-    let x = -rowOffset;
-    let plankIdx = 0;
-
-    while (x < width) {
-      // Deterministic plank width
-      const randVal = pseudoRandom(r * 100 + plankIdx);
-      const plankWidth = 240 + Math.floor(randVal * 160); // 240px - 400px
-
-      // Plank color variation
-      const colorIdx = Math.floor(pseudoRandom(r * 31 + plankIdx * 17) * colors.length);
-      ctx.fillStyle = colors[colorIdx];
-      ctx.fillRect(Math.max(0, x), y, Math.min(width - x, plankWidth), plankHeight);
-
-      // Subtle plank woodgrain lines (1-2 very fine streaks per plank)
-      const grainRand = pseudoRandom(r * 50 + plankIdx * 13);
-
-      if (grainRand > 0.3) {
-        ctx.strokeStyle =
-          theme === 'halloween'
-            ? 'rgba(255, 255, 255, 0.025)'
-            : 'rgba(255, 255, 255, 0.07)';
-        ctx.lineWidth = 1;
-        const grainY = y + 8 + Math.floor(grainRand * 12);
-        ctx.beginPath();
-        ctx.moveTo(Math.max(0, x), grainY);
-        ctx.lineTo(Math.min(width, x + plankWidth), grainY);
-        ctx.stroke();
-      }
-
-      // Vertical joint seam between planks
-      ctx.strokeStyle =
-        theme === 'halloween'
-          ? 'rgba(0, 0, 0, 0.65)'
-          : 'rgba(75, 45, 15, 0.55)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(x + plankWidth, y);
-      ctx.lineTo(x + plankWidth, y + plankHeight);
-      ctx.stroke();
-
-      x += plankWidth;
-      plankIdx++;
-    }
-
-    // Horizontal groove seam between plank rows
-    ctx.strokeStyle =
-      theme === 'halloween'
-        ? 'rgba(0, 0, 0, 0.5)'
-        : 'rgba(70, 40, 10, 0.4)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, y + plankHeight);
-    ctx.lineTo(width, y + plankHeight);
-    ctx.stroke();
-  }
-
-  // 2. Painted Key / Free-Throw Lane (Stained wood accent paint)
-  // Top key and Bottom key
-  // Standard FIBA key width is 4.9m, at this canvas scale ~340px wide
-  const keyWidth = 340;
-  const keyHeight = 440;
-  const keyX = (width - keyWidth) / 2;
-
-  // Stained Key Paint Area
-  ctx.fillStyle =
+  ctx.strokeStyle =
     theme === 'halloween'
-      ? 'rgba(234, 88, 12, 0.22)' // Pumpkin tinted lane
-      : 'rgba(180, 83, 9, 0.35)'; // Rich mahogany/amber stained lane
+      ? 'rgba(249, 115, 22, 0.07)'
+      : 'rgba(255, 255, 255, 0.04)';
+  ctx.lineWidth = 4;
 
-  // Top Key (Home lane)
-  ctx.fillRect(keyX, 0, keyWidth, keyHeight);
-  // Bottom Key (Guest lane)
-  ctx.fillRect(keyX, height - keyHeight, keyWidth, keyHeight);
-
-  // 3. Crisp Basketball Court Markings (High contrast court enamel paint)
-  const courtLineColor =
-    theme === 'halloween'
-      ? 'rgba(255, 237, 213, 0.65)' // Warm parchment cream
-      : 'rgba(255, 255, 255, 0.7)'; // Bright crisp court white
-
-  const courtLineGlow =
-    theme === 'halloween'
-      ? 'rgba(249, 115, 22, 0.3)'
-      : 'rgba(255, 255, 255, 0.2)';
-
-  ctx.strokeStyle = courtLineColor;
-  ctx.lineWidth = 5;
-  ctx.shadowColor = courtLineGlow;
-  ctx.shadowBlur = 4;
-
-  // A. Center Court Line & Center Circle
-  const centerY = height / 2; // 960px
+  // Center circle
   ctx.beginPath();
-  ctx.moveTo(0, centerY);
-  ctx.lineTo(width, centerY);
+  ctx.arc(540, 820, 240, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Center outer jump circle (radius 180px)
+  // Center line
   ctx.beginPath();
-  ctx.arc(width / 2, centerY, 180, 0, Math.PI * 2);
+  ctx.moveTo(0, 820);
+  ctx.lineTo(1080, 820);
   ctx.stroke();
 
-  // Center inner jump circle (radius 60px)
+  // Free-throw key / 3-point arcs (top and bottom)
   ctx.beginPath();
-  ctx.arc(width / 2, centerY, 60, 0, Math.PI * 2);
+  ctx.arc(540, 0, 480, 0, Math.PI);
   ctx.stroke();
 
-  // B. Top Key Lines & Free-Throw Circle
-  // Key boundary box
   ctx.beginPath();
-  ctx.rect(keyX, 0, keyWidth, keyHeight);
+  ctx.arc(540, 1920, 480, Math.PI, 0);
   ctx.stroke();
-
-  // Free throw circle top (solid bottom half, dashed top half)
-  ctx.beginPath();
-  ctx.arc(width / 2, keyHeight, 170, 0, Math.PI);
-  ctx.stroke();
-
-  ctx.setLineDash([16, 12]);
-  ctx.beginPath();
-  ctx.arc(width / 2, keyHeight, 170, Math.PI, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Top Key hash marks (rebound markers)
-  const hashLength = 20;
-  [120, 200, 280, 360].forEach((hashY) => {
-    // Left hash
-    ctx.beginPath();
-    ctx.moveTo(keyX - hashLength, hashY);
-    ctx.lineTo(keyX, hashY);
-    ctx.stroke();
-    // Right hash
-    ctx.beginPath();
-    ctx.moveTo(keyX + keyWidth, hashY);
-    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
-    ctx.stroke();
-  });
-
-  // Top 3-Point Line Arc (radius ~480px from basket baseline at y=0)
-  ctx.beginPath();
-  ctx.arc(width / 2, 0, 490, 0.22 * Math.PI, 0.78 * Math.PI);
-  ctx.stroke();
-
-  // C. Bottom Key Lines & Free-Throw Circle
-  const bottomKeyY = height - keyHeight;
-  ctx.beginPath();
-  ctx.rect(keyX, bottomKeyY, keyWidth, keyHeight);
-  ctx.stroke();
-
-  // Free throw circle bottom (solid top half, dashed bottom half)
-  ctx.beginPath();
-  ctx.arc(width / 2, bottomKeyY, 170, Math.PI, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.setLineDash([16, 12]);
-  ctx.beginPath();
-  ctx.arc(width / 2, bottomKeyY, 170, 0, Math.PI);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Bottom Key hash marks
-  [120, 200, 280, 360].forEach((offsetY) => {
-    const hashY = height - offsetY;
-    // Left hash
-    ctx.beginPath();
-    ctx.moveTo(keyX - hashLength, hashY);
-    ctx.lineTo(keyX, hashY);
-    ctx.stroke();
-    // Right hash
-    ctx.beginPath();
-    ctx.moveTo(keyX + keyWidth, hashY);
-    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
-    ctx.stroke();
-  });
-
-  // Bottom 3-Point Line Arc (radius ~490px from bottom baseline)
-  ctx.beginPath();
-  ctx.arc(width / 2, height, 490, 1.22 * Math.PI, 1.78 * Math.PI);
-  ctx.stroke();
-
-  ctx.shadowBlur = 0; // reset shadow
-
-  // 4. Overhead Arena Spotlight & Stadium Vignette
-  // This blends the realistic hardwood floor into an epic arena setting, keeping contrast
-  // high so text and cards remain punchy and clear.
-  if (theme === 'halloween') {
-    // Eerie Pumpkin & Purple Arena Spotlight
-    const spotlight = ctx.createRadialGradient(
-      width / 2,
-      centerY - 100,
-      100,
-      width / 2,
-      centerY,
-      850
-    );
-
-    spotlight.addColorStop(0, 'rgba(249, 115, 22, 0.28)'); // warm amber center beam
-    spotlight.addColorStop(0.4, 'rgba(147, 51, 234, 0.35)'); // rich eerie violet
-    spotlight.addColorStop(0.75, 'rgba(15, 7, 26, 0.75)'); // dark outer fade
-    spotlight.addColorStop(1, 'rgba(8, 3, 14, 0.94)'); // deep edge vignette
-    ctx.fillStyle = spotlight;
-    ctx.fillRect(0, 0, width, height);
-
-    // Subtle atmospheric bats
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-
-    const drawBat = (bx: number, by: number, scale: number) => {
-      ctx.save();
-      ctx.translate(bx, by);
-      ctx.scale(scale, scale);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(15, -20, 40, -10);
-      ctx.quadraticCurveTo(25, 10, 15, 12);
-      ctx.quadraticCurveTo(5, 5, 0, 15);
-      ctx.quadraticCurveTo(-5, 5, -15, 12);
-      ctx.quadraticCurveTo(-25, 10, -40, -10);
-      ctx.quadraticCurveTo(-15, -20, 0, 0);
-      ctx.fill();
-      ctx.restore();
-    };
-
-    drawBat(160, 210, 1.1);
-    drawBat(240, 160, 0.65);
-    drawBat(920, 290, 0.95);
-    drawBat(860, 360, 0.55);
-  } else {
-    // Classic Arena Spotlight & Vignette
-    const arenaLight = ctx.createRadialGradient(
-      width / 2,
-      centerY - 80,
-      120,
-      width / 2,
-      centerY,
-      800
-    );
-
-    arenaLight.addColorStop(0, 'rgba(255, 255, 255, 0.15)'); // overhead beam
-    arenaLight.addColorStop(0.35, 'rgba(245, 158, 11, 0.1)'); // warm court amber
-    arenaLight.addColorStop(0.65, 'rgba(12, 18, 30, 0.65)'); // midnight stadium gradient
-    arenaLight.addColorStop(0.9, 'rgba(6, 10, 18, 0.88)'); // deep dark vignette
-    arenaLight.addColorStop(1, 'rgba(2, 4, 8, 0.95)'); // edge frame
-    ctx.fillStyle = arenaLight;
-    ctx.fillRect(0, 0, width, height);
-
-    // Warm court gloss reflection across upper half
-    const courtGloss = ctx.createLinearGradient(0, 300, 0, 1100);
-    courtGloss.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
-    courtGloss.addColorStop(0.5, 'rgba(255, 255, 255, 0.0)');
-    ctx.fillStyle = courtGloss;
-    ctx.fillRect(0, 300, width, 800);
-  }
 
   ctx.restore();
 }
@@ -587,8 +307,84 @@ export async function generateStoryImageBlob(
     throw new Error('Failed to get 2D canvas context');
   }
 
-  // 1. Authentic Basketball Hardwood Floor & Arena Atmosphere
-  drawHardwoodFloor(ctx, width, height, theme);
+  // 1. Epic Background
+  if (theme === 'halloween') {
+    // Deep Spooky Dark Violet gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    bgGrad.addColorStop(0, '#190a2a');
+    bgGrad.addColorStop(0.35, '#0e0517');
+    bgGrad.addColorStop(0.75, '#0b0412');
+    bgGrad.addColorStop(1, '#1f0d04');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Dynamic pumpkin ambient flares
+    const glowTopRight = ctx.createRadialGradient(880, 280, 40, 880, 280, 520);
+    glowTopRight.addColorStop(0, 'rgba(249, 115, 22, 0.28)');
+    glowTopRight.addColorStop(0.7, 'rgba(249, 115, 22, 0.05)');
+    glowTopRight.addColorStop(1, 'rgba(249, 115, 22, 0)');
+    ctx.fillStyle = glowTopRight;
+    ctx.fillRect(0, 0, width, height);
+
+    const glowCenter = ctx.createRadialGradient(540, 820, 80, 540, 820, 600);
+    glowCenter.addColorStop(0, 'rgba(168, 85, 247, 0.18)');
+    glowCenter.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    ctx.fillStyle = glowCenter;
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle atmospheric bats
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+
+    const drawBat = (bx: number, by: number, scale: number) => {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.scale(scale, scale);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(15, -20, 40, -10);
+      ctx.quadraticCurveTo(25, 10, 15, 12);
+      ctx.quadraticCurveTo(5, 5, 0, 15);
+      ctx.quadraticCurveTo(-5, 5, -15, 12);
+      ctx.quadraticCurveTo(-25, 10, -40, -10);
+      ctx.quadraticCurveTo(-15, -20, 0, 0);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    drawBat(160, 210, 1.1);
+    drawBat(240, 160, 0.65);
+    drawBat(920, 290, 0.95);
+    drawBat(860, 360, 0.55);
+    ctx.restore();
+  } else {
+    // Classic Court: Deep Midnight Hardwood Stadium
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    bgGrad.addColorStop(0, '#0c1322');
+    bgGrad.addColorStop(0.3, '#070b14');
+    bgGrad.addColorStop(0.7, '#05070d');
+    bgGrad.addColorStop(1, '#020408');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Vibrant Orange / Amber court spotlights
+    const courtSpotlight = ctx.createRadialGradient(540, 640, 60, 540, 640, 720);
+    courtSpotlight.addColorStop(0, 'rgba(249, 115, 22, 0.22)');
+    courtSpotlight.addColorStop(0.6, 'rgba(249, 115, 22, 0.05)');
+    courtSpotlight.addColorStop(1, 'rgba(249, 115, 22, 0)');
+    ctx.fillStyle = courtSpotlight;
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle blue accent glow at the bottom
+    const bottomGlow = ctx.createRadialGradient(540, 1750, 40, 540, 1750, 500);
+    bottomGlow.addColorStop(0, 'rgba(56, 189, 248, 0.12)');
+    bottomGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = bottomGlow;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  // Basketball Court Geometry
+  drawBasketballCourtLines(ctx, theme);
 
   // 2. Top Header - Modern Sport Headline
   ctx.save();
