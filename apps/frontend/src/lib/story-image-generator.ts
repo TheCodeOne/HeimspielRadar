@@ -145,7 +145,7 @@ function drawBasketballCourtLines(
   ctx.strokeStyle =
     theme === 'halloween'
       ? 'rgba(249, 115, 22, 0.07)'
-      : 'rgba(255, 255, 255, 0.04)';
+      : 'rgba(251, 146, 60, 0.08)';
   ctx.lineWidth = 4;
 
   // Center circle
@@ -166,6 +166,116 @@ function drawBasketballCourtLines(
 
   ctx.beginPath();
   ctx.arc(540, 1920, 480, Math.PI, 0);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draws a stylized Molten-inspired basketball sphere (iconic 12-panel cream stripe bands,
+ * curved basketball seam ribs, and subtle leather pebble texture).
+ */
+function drawMoltenBallGraphic(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  rotationRad: number,
+  opacity: number
+) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate?.(rotationRad);
+
+  // Clip everything to the basketball sphere
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.clip?.();
+
+  // 1. Base Terracotta Leather 3D Sphere Gradient
+  const ballGrad = ctx.createRadialGradient(
+    -radius * 0.28,
+    -radius * 0.28,
+    radius * 0.08,
+    0,
+    0,
+    radius
+  );
+
+  ballGrad.addColorStop(0, `rgba(234, 88, 12, ${0.42 * opacity})`);
+  ballGrad.addColorStop(0.55, `rgba(180, 52, 12, ${0.28 * opacity})`);
+  ballGrad.addColorStop(1, `rgba(67, 20, 7, ${0.08 * opacity})`);
+  ctx.fillStyle = ballGrad;
+  ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+  // 2. Iconic Molten Cream / Ivory Dual-Panel Curved Bands
+  ctx.strokeStyle = `rgba(254, 243, 199, ${0.18 * opacity})`;
+  ctx.lineWidth = radius * 0.22;
+  ctx.lineCap = 'round';
+
+  // Top/Left Molten cream band
+  ctx.beginPath();
+  ctx.arc(-radius * 0.58, 0, radius * 0.78, -Math.PI * 0.48, Math.PI * 0.48);
+  ctx.stroke();
+
+  // Bottom/Right Molten cream band
+  ctx.beginPath();
+  ctx.arc(radius * 0.58, 0, radius * 0.78, Math.PI * 0.52, Math.PI * 1.48);
+  ctx.stroke();
+
+  // 3. Subtle Leather Pebble Grain (Noppen-Struktur)
+  ctx.fillStyle = `rgba(254, 215, 170, ${0.12 * opacity})`;
+  const step = Math.max(14, Math.round(radius / 18));
+
+  for (let py = -radius; py <= radius; py += step) {
+    const rowOffset = (Math.abs(Math.round(py / step)) % 2) * (step / 2);
+
+    for (let px = -radius; px <= radius; px += step) {
+      const gx = px + rowOffset;
+      const distSq = gx * gx + py * py;
+
+      if (distSq < radius * radius * 0.92) {
+        ctx.beginPath();
+        ctx.arc(gx, py, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // 4. Characteristic Black/Dark-Amber Basketball Seam Channels (Rillen)
+  ctx.strokeStyle = `rgba(15, 7, 4, ${0.55 * opacity})`;
+  ctx.lineWidth = Math.max(5, radius * 0.028);
+
+  // Center horizontal & vertical seams
+  ctx.beginPath();
+  ctx.moveTo(-radius, 0);
+  ctx.lineTo(radius, 0);
+  ctx.moveTo(0, -radius);
+  ctx.lineTo(0, radius);
+  ctx.stroke();
+
+  // Curved side seams framing the Molten bands
+  ctx.beginPath();
+  ctx.arc(-radius * 0.58, 0, radius * 0.67, -Math.PI * 0.5, Math.PI * 0.5);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(-radius * 0.58, 0, radius * 0.89, -Math.PI * 0.5, Math.PI * 0.5);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(radius * 0.58, 0, radius * 0.67, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(radius * 0.58, 0, radius * 0.89, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.stroke();
+
+  // 5. Outer rim highlight
+  ctx.beginPath();
+  ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(251, 146, 60, ${0.28 * opacity})`;
+  ctx.lineWidth = 3;
   ctx.stroke();
 
   ctx.restore();
@@ -358,29 +468,33 @@ export async function generateStoryImageBlob(
     drawBat(860, 360, 0.55);
     ctx.restore();
   } else {
-    // Classic Court: Deep Midnight Hardwood Stadium
+    // Classic Molten Edition: Deep Warm Basketball Arena & Official Molten Game Ball Aesthetic
     const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-    bgGrad.addColorStop(0, '#0c1322');
-    bgGrad.addColorStop(0.3, '#070b14');
-    bgGrad.addColorStop(0.7, '#05070d');
-    bgGrad.addColorStop(1, '#020408');
+    bgGrad.addColorStop(0, '#1e0c04');
+    bgGrad.addColorStop(0.32, '#0f0704');
+    bgGrad.addColorStop(0.72, '#090403');
+    bgGrad.addColorStop(1, '#1a0a03');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Vibrant Orange / Amber court spotlights
-    const courtSpotlight = ctx.createRadialGradient(540, 640, 60, 540, 640, 720);
-    courtSpotlight.addColorStop(0, 'rgba(249, 115, 22, 0.22)');
-    courtSpotlight.addColorStop(0.6, 'rgba(249, 115, 22, 0.05)');
-    courtSpotlight.addColorStop(1, 'rgba(249, 115, 22, 0)');
-    ctx.fillStyle = courtSpotlight;
+    // Warm Terracotta & Molten Cream ambient arena flares
+    const topRightGlow = ctx.createRadialGradient(880, 260, 40, 880, 260, 560);
+    topRightGlow.addColorStop(0, 'rgba(234, 88, 12, 0.32)');
+    topRightGlow.addColorStop(0.65, 'rgba(234, 88, 12, 0.06)');
+    topRightGlow.addColorStop(1, 'rgba(234, 88, 12, 0)');
+    ctx.fillStyle = topRightGlow;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle blue accent glow at the bottom
-    const bottomGlow = ctx.createRadialGradient(540, 1750, 40, 540, 1750, 500);
-    bottomGlow.addColorStop(0, 'rgba(56, 189, 248, 0.12)');
-    bottomGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
-    ctx.fillStyle = bottomGlow;
+    const bottomLeftGlow = ctx.createRadialGradient(200, 1580, 50, 200, 1580, 580);
+    bottomLeftGlow.addColorStop(0, 'rgba(217, 119, 6, 0.24)');
+    bottomLeftGlow.addColorStop(0.7, 'rgba(254, 243, 199, 0.04)');
+    bottomLeftGlow.addColorStop(1, 'rgba(217, 119, 6, 0)');
+    ctx.fillStyle = bottomLeftGlow;
     ctx.fillRect(0, 0, width, height);
+
+    // Iconic Molten 12-Panel Basketball Graphics in Background
+    drawMoltenBallGraphic(ctx, 890, 250, 310, -0.42, 0.9);
+    drawMoltenBallGraphic(ctx, 170, 1600, 340, 0.52, 0.7);
   }
 
   // Basketball Court Geometry
@@ -395,7 +509,7 @@ export async function generateStoryImageBlob(
 
   // Eyebrow / Category badge
   const accentColor = theme === 'halloween' ? '#f97316' : '#f59e0b';
-  const accentLight = theme === 'halloween' ? '#fdba74' : '#fde68a';
+  const accentLight = theme === 'halloween' ? '#fdba74' : '#fef3c7';
 
   const defaultCategoryText =
     theme === 'halloween' ? 'HALLOWEEN SPECIAL' : 'OFFIZIELLES LIGASPIEL';
@@ -403,7 +517,7 @@ export async function generateStoryImageBlob(
   const categoryText = isFinished ? 'MATCH RESULT' : defaultCategoryText;
 
   ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = isFinished && theme !== 'halloween' ? '#38bdf8' : accentColor;
+  ctx.fillStyle = accentColor;
   ctx.letterSpacing = '8px';
   ctx.fillText(categoryText, 540, 180);
 
@@ -415,9 +529,7 @@ export async function generateStoryImageBlob(
   ctx.shadowColor =
     theme === 'halloween'
       ? 'rgba(249, 115, 22, 0.5)'
-      : isFinished
-      ? 'rgba(56, 189, 248, 0.45)'
-      : 'rgba(245, 158, 11, 0.4)';
+      : 'rgba(234, 88, 12, 0.5)';
   ctx.shadowBlur = 30;
   ctx.fillText(headline, 540, 275);
   ctx.restore();
@@ -434,9 +546,9 @@ export async function generateStoryImageBlob(
   const pillY = 310;
 
   drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 24);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(255, 255, 255, 0.08)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(234, 88, 12, 0.2)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(255, 255, 255, 0.18)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(254, 243, 199, 0.4)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -457,12 +569,17 @@ export async function generateStoryImageBlob(
   ctx.shadowBlur = 50;
   ctx.shadowOffsetY = 24;
   drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(15, 23, 42, 0.88)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(20, 11, 7, 0.88)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(255, 255, 255, 0.12)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(234, 88, 12, 0.38)';
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
+
+  // Subtle watermarked Molten basketball inside the center of the card in Classic mode
+  if (theme !== 'halloween') {
+    drawMoltenBallGraphic(ctx, 540, cardY + 395, 250, -0.25, 0.25);
+  }
 
   // Matchup Content inside Central Card
   const innerMaxW = cardW - 80;
@@ -597,9 +714,9 @@ export async function generateStoryImageBlob(
 
   ctx.save();
   drawRoundedRect(ctx, infoX, infoY, infoW, infoH, 28);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(56, 189, 248, 0.08)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(234, 88, 12, 0.14)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(56, 189, 248, 0.25)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(251, 146, 60, 0.38)';
   ctx.lineWidth = 2;
   ctx.stroke();
 
@@ -659,10 +776,10 @@ export async function generateStoryImageBlob(
     const badgeX = (width - badgeW) / 2;
 
     // Glowing badge pill
-    ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(245, 158, 11, 0.35)';
+    ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(234, 88, 12, 0.4)';
     ctx.shadowBlur = 18;
     drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 29);
-    ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(245, 158, 11, 0.16)';
+    ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(234, 88, 12, 0.22)';
     ctx.fill();
     ctx.strokeStyle = theme === 'halloween' ? '#f97316' : '#f59e0b';
     ctx.lineWidth = 2.5;
@@ -688,7 +805,7 @@ export async function generateStoryImageBlob(
   ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.fill();
   ctx.setLineDash([12, 10]);
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(56, 189, 248, 0.6)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(251, 146, 60, 0.6)';
   ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.setLineDash([]); // clear dash
@@ -696,7 +813,7 @@ export async function generateStoryImageBlob(
   // Sticker Callout Header
   ctx.textAlign = 'center';
   ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#38bdf8';
+  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#fde68a';
   ctx.letterSpacing = '1px';
   ctx.fillText('[ 🔗 HIER INSTAGRAM LINK-STICKER PLATZIEREN ]', 540, stickerBoxY + 54);
 
