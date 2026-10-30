@@ -21,6 +21,7 @@ export interface StoryEditorViewProps {
   match: Match;
   onBack: () => void;
   onShareFeedback?: (message: string) => void;
+  initialTheme?: StoryTheme;
 }
 
 const PRE_MATCH_QUICK_CHIPS = [
@@ -45,11 +46,16 @@ export function StoryEditorView({
   match,
   onBack,
   onShareFeedback,
+  initialTheme,
 }: StoryEditorViewProps) {
   const isFinished = Boolean(match.result);
   const quickChips = isFinished ? POST_MATCH_QUICK_CHIPS : PRE_MATCH_QUICK_CHIPS;
 
   const [theme, setTheme] = React.useState<StoryTheme>(() => {
+    if (initialTheme) {
+      return initialTheme;
+    }
+
     return isHalloweenSeason() ? 'halloween' : 'classic';
   });
 
@@ -284,9 +290,9 @@ export function StoryEditorView({
             {/* 1. Theme Selector */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Design & Style
+                Hintergrund & Style
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setTheme('classic')}
@@ -297,10 +303,27 @@ export function StoryEditorView({
                   }`}
                 >
                   <span className="text-sm font-bold flex items-center gap-1.5">
-                    <span>🏀 Hardwood Court</span>
+                    <span>🏀 Hardwood Clean</span>
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Echter Hallenboden & Basketball-Look
+                    Dunkles Parkett ohne Linien
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTheme('vintage')}
+                  className={`p-3 rounded-xl border text-left transition flex flex-col gap-1 ${
+                    theme === 'vintage'
+                      ? 'bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm ring-1 ring-amber-500'
+                      : 'bg-card/40 border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                  }`}
+                >
+                  <span className="text-sm font-bold flex items-center gap-1.5 text-amber-300">
+                    <span>🏟️ Vintage Court</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Dunkles Holz & Court-Linien
                   </span>
                 </button>
 
@@ -317,7 +340,7 @@ export function StoryEditorView({
                     <span>🎃 Halloween</span>
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Dunkles Violett & Fledermaus-Ambiente
+                    Dunkles Violett & Fledermäuse
                   </span>
                 </button>
               </div>

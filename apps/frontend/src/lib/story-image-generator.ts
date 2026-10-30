@@ -1,7 +1,7 @@
 import type { Match } from '@sundayleague/shared-types';
 import { formatDisplayDate, formatKickoffTime } from './date-utils';
 
-export type StoryTheme = 'classic' | 'halloween';
+export type StoryTheme = 'classic' | 'vintage' | 'halloween';
 
 export interface ParsedMatchScore {
   home: number;
@@ -164,7 +164,7 @@ export function isHalloweenSeason(date: Date = new Date()): boolean {
  * Resolves the effective StoryTheme, defaulting to seasonal auto-detection if 'auto' or unspecified.
  */
 export function resolveStoryTheme(theme?: StoryTheme | 'auto'): StoryTheme {
-  if (theme === 'classic' || theme === 'halloween') {
+  if (theme === 'classic' || theme === 'vintage' || theme === 'halloween') {
     return theme;
   }
 
@@ -653,20 +653,23 @@ function drawSplitTeamCard(ctx: CanvasRenderingContext2D, params: SplitTeamCardP
   ctx.restore();
 }
 
-let cachedCourtBgImage: HTMLImageElement | null = null;
+const cachedCourtBgImages: Record<string, HTMLImageElement> = {};
 
 /**
  * Loads and caches the photographic hardwood court background image for browser rendering.
  */
 async function loadCourtBackgroundImage(
-  ctx: CanvasRenderingContext2D
+  ctx: CanvasRenderingContext2D,
+  imageSrc: string
 ): Promise<HTMLImageElement | null> {
   if (!('Image' in globalThis) || !('drawImage' in ctx)) {
     return null;
   }
 
-  if (cachedCourtBgImage && cachedCourtBgImage.complete && cachedCourtBgImage.naturalWidth > 0) {
-    return cachedCourtBgImage;
+  const cached = cachedCourtBgImages[imageSrc];
+
+  if (cached && cached.complete && cached.naturalWidth > 0) {
+    return cached;
   }
 
   return new Promise<HTMLImageElement | null>((resolve) => {
@@ -679,7 +682,7 @@ async function loadCourtBackgroundImage(
 
     img.onload = () => {
       clearTimeout(timeout);
-      cachedCourtBgImage = img;
+      cachedCourtBgImages[imageSrc] = img;
       resolve(img);
     };
 
@@ -688,7 +691,7 @@ async function loadCourtBackgroundImage(
       resolve(null);
     };
 
-    img.src = '/story-bg-court.jpg?v=2';
+    img.src = imageSrc;
   });
 }
 
@@ -778,16 +781,28 @@ export async function generateStoryImageBlob(
 
     drawBasketballCourtLines(ctx, theme);
   } else {
-    const courtBgImg = await loadCourtBackgroundImage(ctx);
+    const bgSrc =
+      theme === 'vintage' ? '/story-bg-court-lines.jpg?v=1' : '/story-bg-court.jpg?v=2';
+
+    const courtBgImg = await loadCourtBackgroundImage(ctx, bgSrc);
 
     if (courtBgImg) {
       ctx.drawImage(courtBgImg, 0, 0, width, height);
 
       const overlayGrad = ctx.createLinearGradient(0, 0, 0, height);
-      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.65)');
-      overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.32)');
-      overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.36)');
-      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.75)');
+
+      if (theme === 'vintage') {
+        overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.38)');
+        overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.20)');
+        overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.25)');
+        overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.65)');
+      } else {
+        overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.65)');
+        overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.32)');
+        overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.36)');
+        overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.75)');
+      }
+
       ctx.fillStyle = overlayGrad;
       ctx.fillRect(0, 0, width, height);
     } else {

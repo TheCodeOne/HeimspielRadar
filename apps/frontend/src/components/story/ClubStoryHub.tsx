@@ -143,6 +143,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
     return (
       <StoryEditorView
         match={editingMatch}
+        initialTheme={themePreference}
         onBack={() => {
           if (typeof window !== 'undefined') {
             window.history.pushState({}, '', '/story');
@@ -182,22 +183,33 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
         </Button>
 
         {/* Story Theme Selector */}
-        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border/60">
+        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/60">
           <button
             type="button"
             onClick={() => setThemePreference('classic')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
               themePreference === 'classic'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span>🏀 Classic</span>
+            <span>🏀 Hardwood</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setThemePreference('vintage')}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+              themePreference === 'vintage'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🏟️ Vintage</span>
           </button>
           <button
             type="button"
             onClick={() => setThemePreference('halloween')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
               themePreference === 'halloween'
                 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
