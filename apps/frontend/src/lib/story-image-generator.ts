@@ -135,37 +135,126 @@ function drawRoundedRect(
 }
 
 /**
- * Draws basketball court texture lines (court markings).
+ * Draws authentic FIBA basketball court markings (Key lane, Free-Throw circle with dashed half,
+ * rebound hash marks, 3-Point arcs, and Center jump circle).
  */
 function drawBasketballCourtLines(
   ctx: CanvasRenderingContext2D,
   theme: StoryTheme
 ) {
+  const width = 1080;
+  const height = 1920;
+  const keyWidth = 340;
+  const keyHeight = 440;
+  const keyX = (width - keyWidth) / 2;
+  const centerY = height / 2;
+
   ctx.save();
+
+  // Subtle stained paint inside the top & bottom key lanes
+  ctx.fillStyle =
+    theme === 'halloween'
+      ? 'rgba(234, 88, 12, 0.14)'
+      : 'rgba(180, 83, 9, 0.18)';
+
+  ctx.fillRect(keyX, 0, keyWidth, keyHeight);
+  ctx.fillRect(keyX, height - keyHeight, keyWidth, keyHeight);
+
+  // Crisp court enamel lines
   ctx.strokeStyle =
     theme === 'halloween'
-      ? 'rgba(249, 115, 22, 0.07)'
-      : 'rgba(255, 255, 255, 0.04)';
-  ctx.lineWidth = 4;
+      ? 'rgba(255, 237, 213, 0.28)'
+      : 'rgba(255, 255, 255, 0.32)';
+  ctx.lineWidth = 4.5;
 
-  // Center circle
+  // A. Center Court Line & Jump Circles
   ctx.beginPath();
-  ctx.arc(540, 820, 240, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Center line
-  ctx.beginPath();
-  ctx.moveTo(0, 820);
-  ctx.lineTo(1080, 820);
-  ctx.stroke();
-
-  // Free-throw key / 3-point arcs (top and bottom)
-  ctx.beginPath();
-  ctx.arc(540, 0, 480, 0, Math.PI);
+  ctx.moveTo(0, centerY);
+  ctx.lineTo(width, centerY);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(540, 1920, 480, Math.PI, 0);
+  ctx.arc(width / 2, centerY, 180, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(width / 2, centerY, 60, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // B. Top Key Box & Free-Throw Circle
+  ctx.beginPath();
+  ctx.moveTo(keyX, 0);
+  ctx.lineTo(keyX, keyHeight);
+  ctx.lineTo(keyX + keyWidth, keyHeight);
+  ctx.lineTo(keyX + keyWidth, 0);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(width / 2, keyHeight, 170, 0, Math.PI);
+  ctx.stroke();
+
+  ctx.setLineDash([16, 12]);
+  ctx.beginPath();
+  ctx.arc(width / 2, keyHeight, 170, Math.PI, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Top Key rebound hash marks
+  const hashLength = 18;
+
+  for (const hashY of [120, 200, 280, 360]) {
+    ctx.beginPath();
+    ctx.moveTo(keyX - hashLength, hashY);
+    ctx.lineTo(keyX, hashY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(keyX + keyWidth, hashY);
+    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
+    ctx.stroke();
+  }
+
+  // Top 3-Point Arc
+  ctx.beginPath();
+  ctx.arc(width / 2, 0, 490, 0.22 * Math.PI, 0.78 * Math.PI);
+  ctx.stroke();
+
+  // C. Bottom Key Box & Free-Throw Circle
+  const bottomKeyY = height - keyHeight;
+  ctx.beginPath();
+  ctx.moveTo(keyX, height);
+  ctx.lineTo(keyX, bottomKeyY);
+  ctx.lineTo(keyX + keyWidth, bottomKeyY);
+  ctx.lineTo(keyX + keyWidth, height);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(width / 2, bottomKeyY, 170, Math.PI, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.setLineDash([16, 12]);
+  ctx.beginPath();
+  ctx.arc(width / 2, bottomKeyY, 170, 0, Math.PI);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Bottom Key rebound hash marks
+  for (const offsetY of [120, 200, 280, 360]) {
+    const hashY = height - offsetY;
+    ctx.beginPath();
+    ctx.moveTo(keyX - hashLength, hashY);
+    ctx.lineTo(keyX, hashY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(keyX + keyWidth, hashY);
+    ctx.lineTo(keyX + keyWidth + hashLength, hashY);
+    ctx.stroke();
+  }
+
+  // Bottom 3-Point Arc
+  ctx.beginPath();
+  ctx.arc(width / 2, height, 490, 1.22 * Math.PI, 1.78 * Math.PI);
   ctx.stroke();
 
   ctx.restore();
@@ -314,7 +403,7 @@ async function loadCourtBackgroundImage(
       resolve(null);
     };
 
-    img.src = '/story-bg-court.jpg';
+    img.src = '/story-bg-court.jpg?v=2';
   });
 }
 
@@ -400,19 +489,22 @@ export async function generateStoryImageBlob(
     // Basketball Court Geometry for Halloween
     drawBasketballCourtLines(ctx, theme);
   } else {
-    // Classic Court: Real Photographic Hardwood & Basketball Background (/story-bg-court.jpg)
+    // Classic Court: Real Photographic Hardwood Floor (/story-bg-court.jpg) + FIBA Court Markings
     const courtBgImg = await loadCourtBackgroundImage(ctx);
 
     if (courtBgImg) {
-      // Draw full-bleed photographic hardwood court & basketball
+      // Draw full-bleed photographic vertical maple hardwood floor
       ctx.drawImage(courtBgImg, 0, 0, width, height);
 
-      // Subtle atmospheric dark vignette so white text & glass cards pop
+      // Draw crisp FIBA basketball court lines onto the wood floor
+      drawBasketballCourtLines(ctx, theme);
+
+      // Smooth dark arena vignette so white typography and cards have maximum contrast
       const overlayGrad = ctx.createLinearGradient(0, 0, 0, height);
-      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.45)');
-      overlayGrad.addColorStop(0.35, 'rgba(6, 5, 4, 0.22)');
-      overlayGrad.addColorStop(0.75, 'rgba(6, 5, 4, 0.28)');
-      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.62)');
+      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.68)');
+      overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.38)');
+      overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.42)');
+      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.78)');
       ctx.fillStyle = overlayGrad;
       ctx.fillRect(0, 0, width, height);
     } else {
@@ -477,9 +569,9 @@ export async function generateStoryImageBlob(
   const pillY = 310;
 
   drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 24);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(10, 8, 6, 0.55)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(14, 10, 7, 0.85)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.45)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.5)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -500,9 +592,9 @@ export async function generateStoryImageBlob(
   ctx.shadowBlur = 50;
   ctx.shadowOffsetY = 24;
   drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(10, 8, 6, 0.58)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(14, 10, 7, 0.86)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.35)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.42)';
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
@@ -640,9 +732,9 @@ export async function generateStoryImageBlob(
 
   ctx.save();
   drawRoundedRect(ctx, infoX, infoY, infoW, infoH, 28);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(10, 8, 6, 0.58)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(14, 10, 7, 0.86)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.38)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.42)';
   ctx.lineWidth = 2;
   ctx.stroke();
 
@@ -728,10 +820,10 @@ export async function generateStoryImageBlob(
   // Dashed sticker target border
   ctx.beginPath();
   drawRoundedRect(ctx, stickerBoxX, stickerBoxY, stickerBoxW, stickerBoxH, 24);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 8, 6, 0.52)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(14, 10, 7, 0.84)';
   ctx.fill();
   ctx.setLineDash([12, 10]);
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(245, 158, 11, 0.58)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(245, 158, 11, 0.65)';
   ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.setLineDash([]); // clear dash
