@@ -3,6 +3,7 @@ import {
   splitTeamName,
   isHalloweenSeason,
   resolveStoryTheme,
+  formatGamedayDateTime,
   generateStoryImageBlob,
 } from './story-image-generator';
 
@@ -51,6 +52,22 @@ describe('story-image-generator', () => {
       expect(splitTeamName('VfL Kirchheim Knights')).toEqual({
         base: 'VfL Kirchheim Knights',
       });
+    });
+  });
+
+  describe('formatGamedayDateTime', () => {
+    it('formats date and time cleanly without repeating UHR', () => {
+      const formatted = formatGamedayDateTime('2026-10-31', '17:00');
+
+      expect(formatted).not.toContain('Uhr UHR');
+      expect(formatted).not.toContain('UHR UHR');
+      expect(formatted).toContain('17:00 UHR');
+    });
+
+    it('handles open time gracefully', () => {
+      const formatted = formatGamedayDateTime('2026-10-31', null);
+
+      expect(formatted).toContain('UHRZEIT OFFEN');
     });
   });
 

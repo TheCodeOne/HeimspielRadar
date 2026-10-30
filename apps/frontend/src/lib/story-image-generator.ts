@@ -52,35 +52,29 @@ export interface StoryImageOptions {
 }
 
 /**
- * Helper to wrap text into multiple lines given a maxWidth on a 2D canvas context.
+ * Formats match date and kickoff time cleanly without duplicate "UHR" bug.
+ * Example: "SAMSTAG • 30. OKT. • 17:00 UHR"
  */
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = words[0] || '';
+export function formatGamedayDateTime(kickoffDate?: string | null, kickoffTime?: string | null): string {
+  const dateStr = formatDisplayDate(kickoffDate).toUpperCase();
+  const rawTimeStr = formatKickoffTime(kickoffTime);
 
-  for (let i = 1; i < words.length; i++) {
-    const word = words[i];
-    const testLine = `${currentLine} ${word}`;
-    const metrics = ctx.measureText(testLine);
+  // If timeStr already ends with 'Uhr' or 'UHR', normalize it to single uppercase 'UHR'
+  let timeStr = rawTimeStr;
 
-    if (metrics.width > maxWidth) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
+  if (/uhr$/i.test(timeStr.trim())) {
+    timeStr = timeStr.trim().replace(/uhr$/i, 'UHR');
+  } else if (timeStr !== 'Uhrzeit offen') {
+    timeStr = `${timeStr} UHR`;
+  } else {
+    timeStr = 'UHRZEIT OFFEN';
   }
 
-  if (currentLine) {
-    lines.push(currentLine);
+  if (dateStr === 'ALLE TERMINE' || dateStr === 'TERMIN OFFEN') {
+    return `${dateStr} • ${timeStr}`;
   }
 
-  return lines;
+  return `${dateStr} • ${timeStr}`;
 }
 
 /**
@@ -108,68 +102,146 @@ function drawRoundedRect(
 }
 
 /**
- * Draws the Matchday Ticket with side notches and perforation line.
+ * Draws basketball court texture lines (court markings).
  */
-function drawMatchdayTicket(
+function drawBasketballCourtLines(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  radius: number,
-  notchY: number,
-  notchRadius: number,
-  fillColor: string,
-  strokeColor?: string
+  theme: StoryTheme
 ) {
   ctx.save();
+  ctx.strokeStyle =
+    theme === 'halloween'
+      ? 'rgba(249, 115, 22, 0.07)'
+      : 'rgba(255, 255, 255, 0.04)';
+  ctx.lineWidth = 4;
+
+  // Center circle
   ctx.beginPath();
+  ctx.arc(540, 820, 240, 0, Math.PI * 2);
+  ctx.stroke();
 
-  // Top-left corner
-  ctx.moveTo(x + radius, y);
-  // Top edge
-  ctx.lineTo(x + w - radius, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  // Center line
+  ctx.beginPath();
+  ctx.moveTo(0, 820);
+  ctx.lineTo(1080, 820);
+  ctx.stroke();
 
-  // Right edge down to notch
-  ctx.lineTo(x + w, notchY - notchRadius);
-  // Right semicircular notch (inward)
-  ctx.arc(x + w, notchY, notchRadius, -Math.PI / 2, Math.PI / 2, true);
-  // Right edge down to bottom
-  ctx.lineTo(x + w, y + h - radius);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  // Free-throw key / 3-point arcs (top and bottom)
+  ctx.beginPath();
+  ctx.arc(540, 0, 480, 0, Math.PI);
+  ctx.stroke();
 
-  // Bottom edge
-  ctx.lineTo(x + radius, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.beginPath();
+  ctx.arc(540, 1920, 480, Math.PI, 0);
+  ctx.stroke();
 
-  // Left edge up to notch
-  ctx.lineTo(x, notchY + notchRadius);
-  // Left semicircular notch (inward)
-  ctx.arc(x, notchY, notchRadius, Math.PI / 2, -Math.PI / 2, true);
-  // Left edge up to top
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.restore();
+}
 
-  ctx.closePath();
-  ctx.fillStyle = fillColor;
-  ctx.fill();
+/**
+ * Draws a team block with smart font-scaling so team names and suffixes stay balanced,
+ * never isolating single digits on their own line.
+ */
+function drawTeamBlock(
+  ctx: CanvasRenderingContext2D,
+  teamName: string,
+  roleLabel: string,
+  centerY: number,
+  accentColor: string,
+  maxWidth: number
+) {
+  const trimmed = teamName.trim();
+  const split = splitTeamName(trimmed);
 
-  if (strokeColor) {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = strokeColor;
-    ctx.stroke();
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  // Role pill / label (e.g. "HEIMTEAM" or "GASTTEAM")
+  ctx.font = '700 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.letterSpacing = '4px';
+  ctx.fillText(roleLabel, 540, centerY - 65);
+
+  // Check if base + suffix fits comfortably on 1 line
+  const fullText = split.suffix ? `${split.base} ${split.suffix}` : split.base;
+
+  // Start with 62px font size and scale down until it fits maxWidth or hits minimum
+  let fontSize = 62;
+  ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  let textWidth = ctx.measureText(fullText).width;
+
+  while (textWidth > maxWidth && fontSize > 42) {
+    fontSize -= 2;
+    ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    textWidth = ctx.measureText(fullText).width;
   }
 
-  // Perforation dashed line across notchY
-  ctx.beginPath();
-  ctx.setLineDash([12, 10]);
-  ctx.moveTo(x + notchRadius + 12, notchY);
-  ctx.lineTo(x + w - notchRadius - 12, notchY);
-  ctx.strokeStyle = strokeColor || 'rgba(255, 255, 255, 0.15)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.setLineDash([]); // Reset line dash
+  if (textWidth <= maxWidth) {
+    // Fits on 1 line!
+    if (split.suffix) {
+      // Draw base in white and suffix in accent color, or full text
+      const baseWidth = ctx.measureText(split.base + ' ').width;
+      const suffixWidth = ctx.measureText(split.suffix).width;
+      const totalW = baseWidth + suffixWidth;
+      const startX = 540 - totalW / 2;
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(split.base + ' ', startX, centerY);
+
+      ctx.fillStyle = accentColor;
+      ctx.fillText(split.suffix, startX + baseWidth, centerY);
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(fullText, 540, centerY);
+    }
+  } else {
+    // 2-line layout: split into words keeping suffix bound to the last word
+    const words = split.base.split(/\s+/);
+    let line1 = '';
+    let line2 = '';
+
+    if (words.length <= 2) {
+      line1 = words[0];
+      line2 = split.suffix ? `${words.slice(1).join(' ')} ${split.suffix}` : words.slice(1).join(' ');
+    } else {
+      const mid = Math.ceil(words.length / 2);
+      line1 = words.slice(0, mid).join(' ');
+      line2 = split.suffix ? `${words.slice(mid).join(' ')} ${split.suffix}` : words.slice(mid).join(' ');
+    }
+
+    // Auto-fit 2 lines
+    let lineFontSize = 46;
+    ctx.font = `900 ${lineFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+    while (
+      (ctx.measureText(line1).width > maxWidth || ctx.measureText(line2).width > maxWidth) &&
+      lineFontSize > 34
+    ) {
+      lineFontSize -= 2;
+      ctx.font = `900 ${lineFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    }
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(line1, 540, centerY - 20);
+
+    // If line2 has suffix, color suffix
+    if (split.suffix && line2.endsWith(split.suffix)) {
+      const prefix = line2.slice(0, -split.suffix.length).trimEnd();
+      const prefixW = ctx.measureText(prefix + ' ').width;
+      const sufW = ctx.measureText(split.suffix).width;
+      const totalW = prefixW + sufW;
+      const startX = 540 - totalW / 2;
+
+      ctx.textAlign = 'left';
+      ctx.fillText(prefix + ' ', startX, centerY + 34);
+      ctx.fillStyle = accentColor;
+      ctx.fillText(split.suffix, startX + prefixW, centerY + 34);
+    } else {
+      ctx.fillText(line2, 540, centerY + 34);
+    }
+  }
 
   ctx.restore();
 }
@@ -202,35 +274,34 @@ export async function generateStoryImageBlob(
     throw new Error('Failed to get 2D canvas context');
   }
 
-  // 1. Background
+  // 1. Epic Background
   if (theme === 'halloween') {
-    // Spooky dark purple to black gradient
-    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-
-    bgGrad.addColorStop(0, '#1a0826');
-    bgGrad.addColorStop(0.5, '#0d0414');
-    bgGrad.addColorStop(1, '#1b0d02');
+    // Deep Spooky Dark Violet gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    bgGrad.addColorStop(0, '#190a2a');
+    bgGrad.addColorStop(0.35, '#0e0517');
+    bgGrad.addColorStop(0.75, '#0b0412');
+    bgGrad.addColorStop(1, '#1f0d04');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Ambient Pumpkin Orange Glow top-right and purple bottom-left
-    const glow1 = ctx.createRadialGradient(880, 260, 50, 880, 260, 600);
-
-    glow1.addColorStop(0, 'rgba(249, 115, 22, 0.25)'); // Orange-500
-    glow1.addColorStop(1, 'rgba(249, 115, 22, 0)');
-    ctx.fillStyle = glow1;
+    // Dynamic pumpkin ambient flares
+    const glowTopRight = ctx.createRadialGradient(880, 280, 40, 880, 280, 520);
+    glowTopRight.addColorStop(0, 'rgba(249, 115, 22, 0.28)');
+    glowTopRight.addColorStop(0.7, 'rgba(249, 115, 22, 0.05)');
+    glowTopRight.addColorStop(1, 'rgba(249, 115, 22, 0)');
+    ctx.fillStyle = glowTopRight;
     ctx.fillRect(0, 0, width, height);
 
-    const glow2 = ctx.createRadialGradient(200, 1600, 50, 200, 1600, 600);
-
-    glow2.addColorStop(0, 'rgba(168, 85, 247, 0.2)'); // Purple-500
-    glow2.addColorStop(1, 'rgba(168, 85, 247, 0)');
-    ctx.fillStyle = glow2;
+    const glowCenter = ctx.createRadialGradient(540, 820, 80, 540, 820, 600);
+    glowCenter.addColorStop(0, 'rgba(168, 85, 247, 0.18)');
+    glowCenter.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    ctx.fillStyle = glowCenter;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle Spooky Silhouettes (Bats)
+    // Subtle atmospheric bats
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
 
     const drawBat = (bx: number, by: number, scale: number) => {
       ctx.save();
@@ -248,291 +319,239 @@ export async function generateStoryImageBlob(
       ctx.restore();
     };
 
-    drawBat(160, 220, 1.2);
-    drawBat(240, 170, 0.7);
-    drawBat(920, 320, 1.0);
-    drawBat(850, 390, 0.6);
+    drawBat(160, 210, 1.1);
+    drawBat(240, 160, 0.65);
+    drawBat(920, 290, 0.95);
+    drawBat(860, 360, 0.55);
     ctx.restore();
   } else {
-    // Classic Court: Dark hardwood slate background
-    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-
-    bgGrad.addColorStop(0, '#0f172a'); // slate-900
-    bgGrad.addColorStop(0.5, '#090d16');
-    bgGrad.addColorStop(1, '#020617'); // slate-950
+    // Classic Court: Deep Midnight Hardwood Stadium
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    bgGrad.addColorStop(0, '#0c1322');
+    bgGrad.addColorStop(0.3, '#070b14');
+    bgGrad.addColorStop(0.7, '#05070d');
+    bgGrad.addColorStop(1, '#020408');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // Warm Basketball Amber glow in the center-top
-    const courtGlow = ctx.createRadialGradient(540, 600, 100, 540, 600, 750);
-
-    courtGlow.addColorStop(0, 'rgba(234, 88, 12, 0.18)'); // amber/orange glow
-    courtGlow.addColorStop(1, 'rgba(234, 88, 12, 0)');
-    ctx.fillStyle = courtGlow;
+    // Vibrant Orange / Amber court spotlights
+    const courtSpotlight = ctx.createRadialGradient(540, 640, 60, 540, 640, 720);
+    courtSpotlight.addColorStop(0, 'rgba(249, 115, 22, 0.22)');
+    courtSpotlight.addColorStop(0.6, 'rgba(249, 115, 22, 0.05)');
+    courtSpotlight.addColorStop(1, 'rgba(249, 115, 22, 0)');
+    ctx.fillStyle = courtSpotlight;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle Basketball Court Line Markings
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.lineWidth = 4;
-    // Center circle
-    ctx.beginPath();
-    ctx.arc(540, 850, 280, 0, Math.PI * 2);
-    ctx.stroke();
-    // Center dividing line
-    ctx.beginPath();
-    ctx.moveTo(0, 850);
-    ctx.lineTo(1080, 850);
-    ctx.stroke();
-    // 3-point key arc top & bottom
-    ctx.beginPath();
-    ctx.arc(540, 0, 420, 0, Math.PI);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(540, 1920, 420, Math.PI, 0);
-    ctx.stroke();
-    ctx.restore();
+    // Subtle blue accent glow at the bottom
+    const bottomGlow = ctx.createRadialGradient(540, 1750, 40, 540, 1750, 500);
+    bottomGlow.addColorStop(0, 'rgba(56, 189, 248, 0.12)');
+    bottomGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = bottomGlow;
+    ctx.fillRect(0, 0, width, height);
   }
 
-  // 2. Story Header / Category Eyebrow
+  // Basketball Court Geometry
+  drawBasketballCourtLines(ctx, theme);
+
+  // 2. Top Header - Modern Sport Headline
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#f97316' : '#f59e0b'; // orange-500 / amber-500
+
+  // Eyebrow / Category badge
+  const accentColor = theme === 'halloween' ? '#f97316' : '#f59e0b';
+  const accentLight = theme === 'halloween' ? '#fdba74' : '#fde68a';
+
+  ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = accentColor;
+  ctx.letterSpacing = '8px';
+  ctx.fillText(theme === 'halloween' ? 'HALLOWEEN SPECIAL' : 'OFFIZIELLES LIGASPIEL', 540, 180);
+
+  // Main bold GAMEDAY headline
+  ctx.font = '900 102px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = '#ffffff';
   ctx.letterSpacing = '6px';
-  const headerIcon = theme === 'halloween' ? '🎃 MATCHDAY HALLOWEEN SPECIAL 🏀' : '🏀 GAMEDAY • HEIMSPIEL 🏀';
-
-  ctx.fillText(headerIcon, 540, 220);
+  ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.5)' : 'rgba(245, 158, 11, 0.4)';
+  ctx.shadowBlur = 30;
+  ctx.fillText('GAMEDAY', 540, 275);
   ctx.restore();
 
-  // 3. Center Ticket
-  const ticketX = 80;
-  const ticketY = 270;
-  const ticketW = 920;
-  const ticketH = 1180;
-  const ticketRadius = 36;
-  const notchY = ticketY + 230; // perforation below league banner
-  const notchRadius = 32;
-
-  const ticketBg = theme === 'halloween' ? '#181124' : '#141c2e';
-  const ticketBorder = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(56, 189, 248, 0.25)';
-
-  // Drop shadow behind ticket
-  ctx.save();
-  ctx.shadowColor = theme === 'halloween' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = 40;
-  ctx.shadowOffsetY = 20;
-  drawMatchdayTicket(
-    ctx,
-    ticketX,
-    ticketY,
-    ticketW,
-    ticketH,
-    ticketRadius,
-    notchY,
-    notchRadius,
-    ticketBg,
-    ticketBorder
-  );
-  ctx.restore();
-
-  // Inside Ticket Content:
-  // --- Section 1: Header (above notch) ---
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  // League badge
+  // League badge pill
   const leagueName = match.league?.name || 'Amateur Basketball';
-
-  ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(leagueName.toUpperCase(), 540, ticketY + 90);
-
-  // Spieltag / Gender info
-  const details: string[] = [];
-
-  if (match.round) {
-    details.push(`SPIELTAG ${match.round}`);
-  }
-
-  if (match.league?.gender) {
-    const gender = match.league.gender;
-
-    const label =
-      gender === 'm'
-        ? 'HERREN'
-        : gender === 'w'
-        ? 'DAMEN'
-        : gender === 'mix'
-        ? 'MIXED'
-        : gender.toUpperCase();
-
-    details.push(label);
-  }
-
-  if (match.league?.ageClass) {
-    details.push(match.league.ageClass.toUpperCase());
-  }
-
-  const subHeader = details.length > 0 ? details.join(' • ') : 'OFFIZIELLES LIGASPIEL';
-
-  ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#38bdf8'; // orange-400 / sky-400
-  ctx.fillText(subHeader, 540, ticketY + 145);
-  ctx.restore();
-
-  // --- Section 2: Match Teams (Below notch) ---
-  const homeSplit = splitTeamName(match.homeTeam.name);
-  const guestSplit = splitTeamName(match.guestTeam.name);
-
-  // Home Team Label & Name
-  let currentY = ticketY + 310;
-
   ctx.save();
-  ctx.textAlign = 'center';
-  ctx.font = '700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-  ctx.fillText('HEIMTEAM', 540, currentY);
+  ctx.font = '700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const leagueMetrics = ctx.measureText(leagueName.toUpperCase());
+  const pillPadding = 36;
+  const pillW = Math.min(leagueMetrics.width + pillPadding * 2, 880);
+  const pillH = 48;
+  const pillX = (width - pillW) / 2;
+  const pillY = 310;
 
-  currentY += 55;
-  ctx.font = '900 52px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  const homeLines = wrapText(ctx, homeSplit.base, ticketW - 140);
-
-  for (const line of homeLines) {
-    ctx.fillText(line, 540, currentY);
-    currentY += 60;
-  }
-
-  if (homeSplit.suffix) {
-    ctx.font = '800 38px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = theme === 'halloween' ? '#f97316' : '#f59e0b';
-    ctx.fillText(homeSplit.suffix, 540, currentY);
-    currentY += 45;
-  }
-
-  // VS Badge
-  currentY += 20;
-  ctx.beginPath();
-  ctx.arc(540, currentY, 36, 0, Math.PI * 2);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+  drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 24);
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(255, 255, 255, 0.08)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? '#f97316' : 'rgba(255, 255, 255, 0.2)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.font = 'italic 900 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#f97316' : '#ffffff';
-  ctx.fillText('VS', 540, currentY + 10);
-
-  // Guest Team
-  currentY += 65;
-  ctx.font = '700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-  ctx.fillText('GASTTEAM', 540, currentY);
-
-  currentY += 55;
-  ctx.font = '900 52px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  const guestLines = wrapText(ctx, guestSplit.base, ticketW - 140);
-
-  for (const line of guestLines) {
-    ctx.fillText(line, 540, currentY);
-    currentY += 60;
-  }
-
-  if (guestSplit.suffix) {
-    ctx.font = '800 38px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = theme === 'halloween' ? '#f97316' : '#f59e0b';
-    ctx.fillText(guestSplit.suffix, 540, currentY);
-    currentY += 45;
-  }
-
-  ctx.restore();
-
-  // --- Section 3: Match Kickoff Box ---
-  const kickoffBoxY = ticketY + ticketH - 300;
-  const boxW = ticketW - 100;
-  const boxH = 110;
-  const boxX = ticketX + 50;
-
-  ctx.save();
-  drawRoundedRect(ctx, boxX, kickoffBoxY, boxW, boxH, 20);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(56, 189, 248, 0.12)';
-  ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(56, 189, 248, 0.3)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Kickoff date & time
-  const dateFormatted = formatDisplayDate(match.kickoffDate).toUpperCase();
-  const timeFormatted = formatKickoffTime(match.kickoffTime);
-  const kickoffStr = `⏰ ${dateFormatted} • ${timeFormatted} UHR`;
-
-  ctx.textAlign = 'center';
-  ctx.font = '800 38px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#fed7aa' : '#ffffff';
-  ctx.fillText(kickoffStr, 540, kickoffBoxY + 68);
-  ctx.restore();
-
-  // --- Section 4: Venue Info (Bottom of ticket) ---
-  ctx.save();
-  ctx.textAlign = 'center';
-  const venueY = kickoffBoxY + 155;
-
-  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#f1f5f9';
-  const venueTitle = `📍 ${match.venue?.name || 'Sporthalle'}`;
-
-  ctx.fillText(venueTitle, 540, venueY);
-
-  const addressParts = [match.venue?.street, `${match.venue?.postalCode || ''} ${match.venue?.city || ''}`.trim()].filter(Boolean);
-  const addressStr = addressParts.length > 0 ? addressParts.join(', ') : 'Adresse siehe App';
-
-  ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-  ctx.fillText(addressStr, 540, venueY + 40);
-  ctx.restore();
-
-  // 4. Bottom Branding & Instagram Sticker Tip
-  const brandingY = 1530;
-
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  // App Logo & URL
-  ctx.font = '900 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('🏀 heimspielradar.app', 540, brandingY);
-
-  // Subtitle
-  ctx.font = '500 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.fillText('Alle Amateur-Basketball Heimspiele in deiner Nähe', 540, brandingY + 46);
-
-  // Instagram Story Link-Sticker Guide Box
-  const tipBoxW = 860;
-  const tipBoxH = 140;
-  const tipBoxX = (width - tipBoxW) / 2;
-  const tipBoxY = brandingY + 95;
-
-  drawRoundedRect(ctx, tipBoxX, tipBoxY, tipBoxW, tipBoxH, 24);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(255, 255, 255, 0.18)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#38bdf8';
-  ctx.fillText('📲 TIPP FÜR DEINE INSTAGRAM STORY', 540, tipBoxY + 48);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = accentLight;
+  ctx.fillText(leagueName.toUpperCase(), 540, pillY + 33);
+  ctx.restore();
 
-  const targetUrl = options?.origin ? `${options.origin}/matches/${match.id}` : `heimspielradar.app/matches/${match.id}`;
+  // 3. Central Matchup Card (Glassmorphism Dark Panel)
+  const cardX = 64;
+  const cardY = 390;
+  const cardW = width - cardX * 2; // 952px
+  const cardH = 800;
+  const cardRadius = 36;
 
-  ctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+  ctx.shadowBlur = 50;
+  ctx.shadowOffsetY = 24;
+  drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(15, 23, 42, 0.88)';
+  ctx.fill();
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // Matchup Content inside Central Card
+  const innerMaxW = cardW - 80;
+
+  // Home Team (Top of card)
+  drawTeamBlock(
+    ctx,
+    match.homeTeam.name,
+    'HEIMTEAM',
+    cardY + 160,
+    accentColor,
+    innerMaxW
+  );
+
+  // VS Badge (Center of card)
+  const vsY = cardY + 395;
+  ctx.save();
+  // Ambient glow behind VS badge
+  const vsGlow = ctx.createRadialGradient(540, vsY, 15, 540, vsY, 90);
+  vsGlow.addColorStop(0, theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.3)');
+  vsGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vsGlow;
+  ctx.fillRect(440, vsY - 100, 200, 200);
+
+  // VS Circle
+  ctx.beginPath();
+  ctx.arc(540, vsY, 44, 0, Math.PI * 2);
+  ctx.fillStyle = theme === 'halloween' ? '#1f0e2f' : '#0b111e';
+  ctx.fill();
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(`Link-Sticker einfügen: ${targetUrl.replace(/^https?:\/\//, '')}`, 540, tipBoxY + 96);
+  ctx.fillText('VS', 540, vsY + 11);
+  ctx.restore();
 
+  // Guest Team (Bottom of card)
+  drawTeamBlock(
+    ctx,
+    match.guestTeam.name,
+    'GASTTEAM',
+    cardY + 630,
+    accentColor,
+    innerMaxW
+  );
+
+  // 4. Kickoff & Venue Info Card
+  const infoY = 1226;
+  const infoW = cardW;
+  const infoH = 200;
+  const infoX = cardX;
+
+  ctx.save();
+  drawRoundedRect(ctx, infoX, infoY, infoW, infoH, 28);
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(56, 189, 248, 0.08)';
+  ctx.fill();
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(56, 189, 248, 0.25)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Kickoff Date & Time Bar
+  ctx.textAlign = 'center';
+  const kickoffStr = formatGamedayDateTime(match.kickoffDate, match.kickoffTime);
+  ctx.font = '800 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`⏰  ${kickoffStr}`, 540, infoY + 68);
+
+  // Venue & City (Bold venue, subtle city/address)
+  const venueTitle = match.venue?.name || 'Sporthalle';
+  const venueCity = match.venue?.city ? `📍 ${venueTitle} • ${match.venue.city}` : `📍 ${venueTitle}`;
+  ctx.font = '700 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = accentLight;
+  ctx.fillText(venueCity, 540, infoY + 125);
+
+  if (match.venue?.street) {
+    ctx.font = '500 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.fillText(match.venue.street, 540, infoY + 162);
+  }
+
+  ctx.restore();
+
+  // 5. Instagram Link-Sticker Drop Zone
+  const stickerBoxW = cardW;
+  const stickerBoxH = 150;
+  const stickerBoxX = cardX;
+  const stickerBoxY = 1460;
+
+  ctx.save();
+  // Dashed sticker target border
+  ctx.beginPath();
+  drawRoundedRect(ctx, stickerBoxX, stickerBoxY, stickerBoxW, stickerBoxH, 24);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.fill();
+  ctx.setLineDash([12, 10]);
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(56, 189, 248, 0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.setLineDash([]); // clear dash
+
+  // Sticker Callout Header
+  ctx.textAlign = 'center';
+  ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#38bdf8';
+  ctx.letterSpacing = '1px';
+  ctx.fillText('[ 🔗 HIER INSTAGRAM LINK-STICKER PLATZIEREN ]', 540, stickerBoxY + 54);
+
+  // Clean URL that never overflows 1080px
+  const targetDomain = options?.origin
+    ? options.origin.replace(/^https?:\/\//, '')
+    : 'heimspielradar.app';
+
+  const cleanUrl = `${targetDomain}/matches/${match.id}`;
+
+  ctx.font = '600 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.letterSpacing = '0.5px';
+  ctx.fillText(cleanUrl, 540, stickerBoxY + 104);
+  ctx.restore();
+
+  // 6. Bottom App Branding
+  const brandingY = 1680;
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  ctx.font = '900 44px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.letterSpacing = '2px';
+  ctx.fillText('🏀 HEIMSPIELRADAR.APP', 540, brandingY);
+
+  ctx.font = '500 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+  ctx.fillText('Finde Amateur-Basketball in deiner Nähe', 540, brandingY + 48);
   ctx.restore();
 
   // Convert canvas to PNG blob
