@@ -89,6 +89,7 @@ export function getActiveVerbaende(): readonly VerbandInfo[] {
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
   private lastSyncedAt: Date | null = null;
+  private hasLoadedLastSyncedAt = false;
   private isSyncRunning = false;
   private activeSyncRunId: number | null = null;
 
@@ -1573,17 +1574,20 @@ export class ScraperService {
 
   /**
    * Returns the ISO timestamp of the last successful sync.
-   * Checks in-memory cache first, then the system_settings table,
+   * Checks in-memory cache first, then the system_settings table once,
    * and finally falls back to the latest updatedAt among matches and leagues.
+   * Subsequent calls read strictly from memory so /api/health does not prevent DB scale-to-zero.
    */
   async getLastSyncedAt(): Promise<string | null> {
     if (this.lastSyncedAt) {
       return this.lastSyncedAt.toISOString();
     }
 
-    if (!this.db) {
+    if (this.hasLoadedLastSyncedAt || !this.db) {
       return null;
     }
+
+    this.hasLoadedLastSyncedAt = true;
 
     try {
       const [setting] = await this.db
@@ -1593,6 +1597,12 @@ export class ScraperService {
         .limit(1);
 
       if (setting?.value) {
+        const parsed = new Date(setting.value);
+
+        if (!isNaN(parsed.getTime())) {
+          this.lastSyncedAt = parsed;
+        }
+
         return setting.value;
       }
     } catch {
@@ -1607,6 +1617,8 @@ export class ScraperService {
         .limit(1);
 
       if (latestMatch?.updatedAt) {
+        this.lastSyncedAt = latestMatch.updatedAt;
+
         return latestMatch.updatedAt.toISOString();
       }
 
@@ -1617,6 +1629,8 @@ export class ScraperService {
         .limit(1);
 
       if (latestLeague?.updatedAt) {
+        this.lastSyncedAt = latestLeague.updatedAt;
+
         return latestLeague.updatedAt.toISOString();
       }
     } catch (err) {
@@ -1628,6 +1642,7 @@ export class ScraperService {
 
   setLastSyncedAt(date: Date | null): void {
     this.lastSyncedAt = date;
+    this.hasLoadedLastSyncedAt = date !== null;
   }
 
   private async persistLastSyncedAt(date: Date): Promise<void> {

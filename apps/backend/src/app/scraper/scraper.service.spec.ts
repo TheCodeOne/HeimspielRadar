@@ -1770,5 +1770,19 @@ describe('ScraperService', () => {
       expect(savedLeague).toBeDefined();
       expect(savedLeague?.name).toBe('U8 Kreisliga mix Kreis Bochum');
     });
+
+    it('caches getLastSyncedAt in memory after initial lookup so health checks do not repeatedly query the database', async () => {
+      const selectSpy = jest.spyOn(fakeDb, 'select');
+
+      const first = await service.getLastSyncedAt();
+      expect(first).toBeNull();
+      const callsAfterFirst = selectSpy.mock.calls.length;
+      expect(callsAfterFirst).toBeGreaterThan(0);
+
+      // Subsequent health check polls must not query the database again
+      const second = await service.getLastSyncedAt();
+      expect(second).toBeNull();
+      expect(selectSpy.mock.calls.length).toBe(callsAfterFirst);
+    });
   });
 });
