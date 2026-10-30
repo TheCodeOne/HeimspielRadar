@@ -489,22 +489,19 @@ export async function generateStoryImageBlob(
     // Basketball Court Geometry for Halloween
     drawBasketballCourtLines(ctx, theme);
   } else {
-    // Classic Court: Real Photographic Hardwood Floor (/story-bg-court.jpg) + FIBA Court Markings
+    // Classic Court: Clean Photographic Hardwood Floor (/story-bg-court.jpg) without overlay lines
     const courtBgImg = await loadCourtBackgroundImage(ctx);
 
     if (courtBgImg) {
       // Draw full-bleed photographic vertical maple hardwood floor
       ctx.drawImage(courtBgImg, 0, 0, width, height);
 
-      // Draw crisp FIBA basketball court lines onto the wood floor
-      drawBasketballCourtLines(ctx, theme);
-
       // Smooth dark arena vignette so white typography and cards have maximum contrast
       const overlayGrad = ctx.createLinearGradient(0, 0, 0, height);
-      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.68)');
-      overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.38)');
-      overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.42)');
-      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.78)');
+      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.65)');
+      overlayGrad.addColorStop(0.28, 'rgba(6, 5, 4, 0.32)');
+      overlayGrad.addColorStop(0.68, 'rgba(6, 5, 4, 0.36)');
+      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.75)');
       ctx.fillStyle = overlayGrad;
       ctx.fillRect(0, 0, width, height);
     } else {
@@ -516,8 +513,6 @@ export async function generateStoryImageBlob(
       bgGrad.addColorStop(1, '#020408');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
-
-      drawBasketballCourtLines(ctx, theme);
     }
   }
 
