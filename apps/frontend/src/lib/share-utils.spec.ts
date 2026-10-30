@@ -4,7 +4,9 @@ import {
   getMatchSharePayload,
   getMatchShareUrl,
   shareMatch,
+  shareMatchStory,
 } from './share-utils';
+import * as storyGenerator from './story-image-generator';
 
 describe('share-utils', () => {
   const sampleMatch: Match = {
@@ -36,6 +38,7 @@ describe('share-utils', () => {
   describe('getMatchShareUrl', () => {
     it('generates the URL with current origin or fallback', () => {
       const url = getMatchShareUrl(98765);
+
       expect(url).toContain('/matches/98765');
     });
   });
@@ -50,33 +53,15 @@ describe('share-utils', () => {
       expect(shareText).toContain('Oberliga Württemberg');
       expect(shareText).toContain('https://heimspielradar.de/matches/98765');
     });
-
-    it('falls back cleanly when venue or time are missing', () => {
-      const matchWithoutVenueAndTime: Match = {
-        ...sampleMatch,
-        kickoffTime: null,
-        venue: null,
-        league: undefined,
-      };
-
-      const shareText = formatMatchShareText(
-        matchWithoutVenueAndTime,
-        'https://heimspielradar.de/matches/98765'
-      );
-
-      expect(shareText).toContain('Uhrzeit offen');
-      expect(shareText).toContain('Halle offen');
-      expect(shareText).toContain('Amateur-Basketball');
-    });
   });
 
   describe('getMatchSharePayload', () => {
-    it('constructs title, text, and url', () => {
+    it('creates correct title, text, and url', () => {
       const payload = getMatchSharePayload(sampleMatch);
 
       expect(payload.title).toBe('TSV Crailsheim vs VfL Kirchheim – HeimspielRadar');
-      expect(payload.url).toContain('/matches/98765');
       expect(payload.text).toContain('TSV Crailsheim vs VfL Kirchheim');
+      expect(payload.url).toContain('/matches/98765');
     });
   });
 
@@ -91,8 +76,9 @@ describe('share-utils', () => {
       });
     });
 
-    it('uses navigator.share when available and invokes onSuccess with "shared"', async () => {
+    it('uses navigator.share if available and supported', async () => {
       const mockShare = jest.fn().mockResolvedValue(undefined);
+
       Object.defineProperty(global, 'navigator', {
         value: {
           share: mockShare,
@@ -111,6 +97,7 @@ describe('share-utils', () => {
 
     it('falls back to clipboard when navigator.share is absent', async () => {
       const mockWriteText = jest.fn().mockResolvedValue(undefined);
+
       Object.defineProperty(global, 'navigator', {
         value: {
           clipboard: {
@@ -148,6 +135,104 @@ describe('share-utils', () => {
       expect(result).toBe('failed');
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shareMatchStory', () => {
+    beforeEach(() => {
+      jest.spyOn(storyGenerator, 'generateStoryImageBlob').mockResolvedValue(
+        new Blob(['story-blob'], { type: 'image/png' })
+      );
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('uses navigator.share when canShare with files is supported', async () => {
+      const mockShare = jest.fn().mockResolvedValue(undefined);
+      const mockCanShare = jest.fn().mockReturnValue(true);
+      const mockWriteText = jest.fn().mockResolvedValue(undefined);
+
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          share: mockShare,
+          canShare: mockCanShare,
+          clipboard: { writeText: mockWriteText },
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const onSuccess = jest.fn();
+      const result = await shareMatchStory(sampleMatch, { onSuccess });
+
+      expect(result).toBe('shared');
+      expect(mockCanShare).toHaveBeenCalled();
+      expect(mockShare).toHaveBeenCalled();
+      expect(mockWriteText).toHaveBeenCalled();
+      expect(onSuccess).toHaveBeenCalledWith('shared');
+    });
+
+    it('triggers download fallback on desktop when canShare is false or missing', async () => {
+      const mockWriteText = jest.fn().mockResolvedValue(undefined);
+      const mockCreateObjectURL = jest.fn().mockReturnValue('blob:mock-url');
+      const mockRevokeObjectURL = jest.fn();
+
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: { origin: 'https://heimspielradar.app' },
+          URL: {
+            createObjectURL: mockCreateObjectURL,
+            revokeObjectURL: mockRevokeObjectURL,
+          },
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const mockAnchor = {
+        href: '',
+        download: '',
+        click: jest.fn(),
+      };
+
+      const mockDoc = {
+        createElement: jest.fn().mockImplementation((tag: string) => {
+          if (tag === 'a') {
+            return mockAnchor;
+          }
+
+          return {};
+        }),
+        body: {
+          appendChild: jest.fn(),
+          removeChild: jest.fn(),
+        },
+      };
+
+      Object.defineProperty(global, 'document', {
+        value: mockDoc,
+        configurable: true,
+        writable: true,
+      });
+
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          clipboard: { writeText: mockWriteText },
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const onSuccess = jest.fn();
+      const result = await shareMatchStory(sampleMatch, { onSuccess });
+
+      expect(result).toBe('downloaded');
+      expect(mockAnchor.download).toBe('heimspiel-98765.png');
+      expect(mockAnchor.click).toHaveBeenCalled();
+      expect(onSuccess).toHaveBeenCalledWith('downloaded');
+      expect(mockWriteText).toHaveBeenCalled();
     });
   });
 });

@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   Activity,
   BarChart3,
+  Camera,
   Check,
   FileText,
   Navigation,
@@ -58,6 +59,15 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
     if (result === 'copied' && !isCopied) {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2500);
+    }
+  };
+
+  const handleStoryShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/story/${match.id}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   };
 
@@ -201,7 +211,19 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
         </span>
       )}
 
-      {/* 6. Spiel teilen (Web Share API oder Zwischenablage) */}
+      {/* 6. Instagram Matchday Story Generator */}
+      <button
+        type="button"
+        title="Instagram Matchday Story anpassen & erstellen"
+        aria-label="Instagram Matchday Story anpassen & erstellen"
+        data-action="story"
+        onClick={handleStoryShare}
+        className={`${baseButtonClass} border border-primary/50 text-primary hover:bg-primary/15 transition-colors`}
+      >
+        <Camera className={iconSizeClass} />
+      </button>
+
+      {/* 7. Spiel teilen (Web Share API oder Zwischenablage) */}
       <button
         type="button"
         title={isCopied ? 'Link kopiert!' : 'Spiel teilen'}
