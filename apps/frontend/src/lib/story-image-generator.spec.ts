@@ -1,6 +1,8 @@
 import type { Match } from '@sundayleague/shared-types';
 import {
   splitTeamName,
+  getClubMonogram,
+  getSquadBadgeLabel,
   isHalloweenSeason,
   resolveStoryTheme,
   formatGamedayDateTime,
@@ -53,6 +55,36 @@ describe('story-image-generator', () => {
       expect(splitTeamName('VfL Kirchheim Knights')).toEqual({
         base: 'VfL Kirchheim Knights',
       });
+    });
+  });
+
+  describe('getClubMonogram', () => {
+    it('generates 3-letter monograms for German basketball clubs', () => {
+      expect(getClubMonogram('SV Möhringen 1')).toBe('SVM');
+      expect(getClubMonogram('TSG Schwäbisch Hall 1')).toBe('TSG');
+      expect(getClubMonogram('SV 03 Tigers Tübingen 3')).toBe('SVT');
+      expect(getClubMonogram('VfL Kirchheim Knights')).toBe('VFL');
+    });
+  });
+
+  describe('getSquadBadgeLabel', () => {
+    it('combines league gender or age class with team suffix', () => {
+      expect(
+        getSquadBadgeLabel('2', {
+          id: 1,
+          name: 'Oberliga Württemberg Herren',
+          gender: 'm',
+          ageClass: 'senioren',
+        })
+      ).toBe('HERREN 2');
+      expect(
+        getSquadBadgeLabel(undefined, {
+          id: 2,
+          name: 'Landesliga Damen',
+          gender: 'w',
+          ageClass: 'senioren',
+        })
+      ).toBe('DAMEN 1');
     });
   });
 
