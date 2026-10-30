@@ -303,7 +303,7 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                 matches={[match]}
                 selectedMatchId={match.id}
                 center={venueCoords}
-                zoom={14}
+                zoom={12}
                 radiusKm={15}
                 showRadiusCircle={false}
                 onMarkerClick={() => {}}
