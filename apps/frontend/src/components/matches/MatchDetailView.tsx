@@ -1,51 +1,51 @@
 import * as React from 'react';
 import {
-  ArrowLeft,
   Calendar,
-  CheckCircle2,
   Clock,
   ExternalLink,
   MapPin,
   Share2,
-  Trophy,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName } from '@/components/map/map-utils';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
-import { MatchQrCode } from '@/components/matches/MatchQrCode';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
-import { formatDistance } from '@/lib/geo-utils';
 import { getMatchLinks } from '@/lib/match-links';
 import { getSampleMatches } from '@/lib/sample-matches';
 import { shareMatch } from '@/lib/share-utils';
-
-export type DetailVariant = 'A' | 'B' | 'C';
 
 export interface MatchDetailViewProps {
   matchId: number;
   onNavigateHome: () => void;
 }
 
+export interface SplitTeamNameResult {
+  base: string;
+  suffix?: string;
+}
+
+/**
+ * Splits a basketball team name into the club name and optional team number/suffix
+ * (e.g. "TSG Reutlingen 2" -> { base: "TSG Reutlingen", suffix: "2" })
+ * so the suffix never awkwardly wraps alone onto a new line.
+ */
+function splitTeamName(name: string): SplitTeamNameResult {
+  const trimmed = name.trim();
+  const match = trimmed.match(/^(.*)\s+(\d+|[IVX]+|[A-Z])$/);
+
+  if (match) {
+    return { base: match[1], suffix: match[2] };
+  }
+
+  return { base: trimmed };
+}
+
 export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProps) {
   const [match, setMatch] = React.useState<Match | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
-
-  const [selectedVariant, setSelectedVariant] = React.useState<DetailVariant>(() => {
-    if (typeof window !== 'undefined') {
-      const param = new URLSearchParams(window.location.search).get('variant');
-
-      if (param === 'A' || param === 'B' || param === 'C') {
-        return param;
-      }
-    }
-
-    return 'C';
-  });
 
   const showToast = React.useCallback((message: string) => {
     setToastMessage(message);
@@ -114,16 +114,6 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
     }
   };
 
-  const handleSelectVariant = (v: DetailVariant) => {
-    setSelectedVariant(v);
-
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('variant', v);
-      window.history.replaceState({}, '', url.toString());
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex h-dvh w-full flex-col items-center justify-center bg-background text-foreground">
@@ -150,7 +140,6 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
           className="mt-6 gap-2"
           variant="outline"
         >
-          <ArrowLeft className="h-4 w-4" />
           ← Zum Heimspielradar
         </Button>
       </div>
@@ -162,17 +151,19 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
   const leagueName = formatLeagueName(match.leagueId, match.league?.name);
   const dateFormatted = formatDisplayDate(match.kickoffDate);
   const timeFormatted = formatKickoffTime(match.kickoffTime);
-  const categoryParts = [match.league?.akName, match.league?.geschlecht].filter(Boolean);
 
   const venueCoords: [number, number] =
     match.venue?.latitude != null && match.venue?.longitude != null
       ? [match.venue.latitude, match.venue.longitude]
       : [48.7758, 9.1829];
 
+  const homeParts = splitTeamName(match.homeTeam.name);
+  const guestParts = splitTeamName(match.guestTeam.name);
+
   return (
-    <div className="fixed inset-0 flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
+    <div className="fixed inset-0 flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+      {/* Top Header Bar */}
+      <header className="sticky top-0 z-40 flex h-12 sm:h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
         <Button
           type="button"
           variant="ghost"
@@ -183,50 +174,13 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
           <span>← Zum Heimspielradar</span>
         </Button>
 
-        {/* Prototype Switcher Pill for Variants A, B, C */}
-        <div className="flex items-center gap-1 rounded-full border border-border/80 bg-card/80 p-0.5 text-xs font-medium shadow-xs">
-          <button
-            type="button"
-            onClick={() => handleSelectVariant('A')}
-            className={`rounded-full px-2.5 py-1 transition ${
-              selectedVariant === 'A'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            A: Split
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSelectVariant('B')}
-            className={`rounded-full px-2.5 py-1 transition ${
-              selectedVariant === 'B'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            B: Hero-Map
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSelectVariant('C')}
-            className={`rounded-full px-2.5 py-1 transition ${
-              selectedVariant === 'C'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            C: Ticket
-          </button>
-        </div>
-
         <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={handleShare}
-            className="gap-1.5 text-xs font-medium"
+            className="h-8 gap-1.5 text-xs font-medium"
           >
             <Share2 className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Teilen</span>
@@ -238,7 +192,7 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
       {toastMessage && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
         >
           <span>{toastMessage}</span>
           <button
@@ -251,136 +205,100 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
         </div>
       )}
 
-      {/* Main Body per Variant */}
-      <main className="relative flex flex-1 min-h-0 w-full overflow-hidden">
-        {selectedVariant === 'A' && (
-          /* VARIANT A: SPLIT-VIEW (Desktop side-by-side / Mobile stacked) */
-          <div className="flex flex-1 flex-col md:flex-row h-full w-full overflow-hidden">
-            {/* Detail Focus Panel */}
-            <div className="w-full md:w-[480px] lg:w-[540px] shrink-0 border-b md:border-b-0 md:border-r border-border/70 overflow-y-auto p-4 sm:p-6 space-y-5 bg-card/30">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="league" className="text-xs">
-                    <Trophy className="mr-1 h-3.5 w-3.5" />
-                    {leagueName}
-                  </Badge>
-                  {categoryParts.length > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      {categoryParts.join(' • ')}
-                    </Badge>
-                  )}
-                  <Badge variant="kickoff" className="text-xs">
-                    <Clock className="mr-1 h-3.5 w-3.5" />
-                    {timeFormatted}
-                  </Badge>
-                </div>
+      {/* Main Body - Centered Ticket layout that fits completely within 100dvh without scrolling */}
+      <main className="relative flex flex-1 min-h-0 w-full flex-col items-center justify-center p-2 sm:p-4 overflow-hidden bg-radial from-slate-900/60 to-slate-950/95">
+        <div className="relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
+          {/* Perforation Cutouts */}
+          <div
+            aria-hidden="true"
+            className="absolute top-[68px] sm:top-[76px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-slate-700/80 shadow-inner"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute top-[68px] sm:top-[76px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-slate-700/80 shadow-inner"
+          />
 
-                {isFinished ? (
-                  <Badge variant="secondary" className="font-mono font-bold text-primary">
-                    {match.result}
-                  </Badge>
-                ) : match.confirmed ? (
-                  <Badge variant="success" className="text-xs">
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                    Bestätigt
-                  </Badge>
-                ) : (
-                  <Badge variant="warning" className="text-xs">
-                    Vorläufig
-                  </Badge>
-                )}
+          {/* 1. Ticket Header Stub */}
+          <div className="relative shrink-0 bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-2.5 sm:py-3 border-b border-dashed border-slate-700/80">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                  HeimspielRadar Ticket
+                </span>
               </div>
 
-              {/* Matchup Teams Banner */}
-              <Card className="border-border/80 bg-background/60 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Heim
-                      </span>
-                      <div className="text-lg sm:text-xl font-extrabold text-foreground leading-tight">
-                        {match.homeTeam.name}
-                      </div>
-                    </div>
+              {match.matchDay && (
+                <span className="font-mono text-[10px] text-slate-400">
+                  {match.matchDay}. Spieltag {match.matchNo ? `• #${match.matchNo}` : ''}
+                </span>
+              )}
+            </div>
 
-                    <div className="shrink-0 rounded-lg bg-muted px-3 py-1.5 font-mono text-xs font-bold text-muted-foreground">
-                      VS
-                    </div>
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="truncate text-xs font-bold text-foreground tracking-tight">
+                {leagueName}
+              </span>
+            </div>
+          </div>
 
-                    <div className="flex-1 space-y-1 text-right">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Gast
-                      </span>
-                      <div className="text-lg sm:text-xl font-extrabold text-foreground leading-tight">
-                        {match.guestTeam.name}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span>{dateFormatted}</span>
-                    </div>
-                    <span className="font-mono text-xs">
-                      {match.matchDay}. Spieltag {match.matchNo ? `(Nr. ${match.matchNo})` : ''}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Venue Card */}
-              {match.venue && (
-                <div className="rounded-xl border border-border/70 bg-card/60 p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                        <MapPin className="h-4 w-4 shrink-0" />
-                        <span>Austragungsort</span>
-                      </div>
-                      <div className="font-bold text-foreground text-sm sm:text-base">
-                        {match.venue.name}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {match.venue.street}, {match.venue.postalCode} {match.venue.city}
-                      </p>
-                    </div>
-
-                    {links.navigationUrl && (
-                      <a
-                        href={links.navigationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary/20 transition"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        <span>Navigation</span>
-                      </a>
+          {/* 2. Middle Content Grid (Flex column fitting exactly without scrolling) */}
+          <div className="p-3 sm:p-4 flex-1 min-h-0 flex flex-col gap-2 sm:gap-3 overflow-hidden">
+            {/* Matchup Teams Banner */}
+            <div className="shrink-0 rounded-2xl bg-card/60 p-2.5 sm:p-3 border border-border/50 text-center">
+              <div className="flex items-center justify-center gap-2">
+                {/* Home Team */}
+                <div className="flex-1 text-right">
+                  <div className="text-xs sm:text-sm md:text-base font-black text-foreground leading-tight">
+                    <span>{homeParts.base}</span>
+                    {homeParts.suffix && (
+                      <span className="whitespace-nowrap ml-1 text-primary">{homeParts.suffix}</span>
                     )}
                   </div>
+                  <span className="text-[9px] font-mono uppercase text-primary font-bold">Heim</span>
                 </div>
-              )}
 
-              {/* DBB Links & Quick Actions */}
-              <div className="space-y-2.5 rounded-xl border border-border/70 bg-card/60 p-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  DBB Aktionen & Statistiken
-                </span>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs text-muted-foreground">
-                    Direktzugriff auf Spielinfo, Boxscore & Tabelle:
-                  </span>
-                  <MatchQuickActions
-                    match={match}
-                    onShareFeedback={showToast}
-                  />
+                {/* VS / Result */}
+                <div className="shrink-0 flex flex-col items-center px-1">
+                  {isFinished ? (
+                    <div className="rounded-lg bg-primary/20 border border-primary/40 px-2 py-0.5 font-mono text-xs font-black text-primary">
+                      {match.result}
+                    </div>
+                  ) : (
+                    <div className="rounded-full bg-slate-800/90 border border-slate-700/70 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
+                      VS
+                    </div>
+                  )}
                 </div>
+
+                {/* Guest Team */}
+                <div className="flex-1 text-left">
+                  <div className="text-xs sm:text-sm md:text-base font-black text-foreground leading-tight">
+                    <span>{guestParts.base}</span>
+                    {guestParts.suffix && (
+                      <span className="whitespace-nowrap ml-1 text-slate-300">{guestParts.suffix}</span>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-mono uppercase text-slate-400 font-bold">Gast</span>
+                </div>
+              </div>
+
+              {/* Anpfiff Date & Time */}
+              <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-center gap-2 text-xs">
+                <span className="flex items-center gap-1 font-medium text-foreground">
+                  <Calendar className="h-3 w-3 text-primary" />
+                  {dateFormatted}
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="flex items-center gap-1 font-mono font-semibold text-primary">
+                  <Clock className="h-3 w-3 text-primary" />
+                  {timeFormatted}
+                </span>
               </div>
             </div>
 
-            {/* Map Container Right */}
-            <div className="relative flex-1 h-full min-h-[300px] w-full">
+            {/* Embedded Map Section */}
+            <div className="flex-1 min-h-[140px] sm:min-h-[170px] relative rounded-2xl overflow-hidden border border-border/60">
               <MapContainer
                 matches={[match]}
                 selectedMatchId={match.id}
@@ -392,229 +310,63 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                 className="h-full w-full border-0 rounded-none"
                 mapHeightClassName="h-full w-full"
               />
-            </div>
-          </div>
-        )}
 
-        {selectedVariant === 'B' && (
-          /* VARIANT B: IMMERSIVE MAP FOCUS WITH FLOATING HERO CARD / BOTTOM SHEET */
-          <div className="relative flex-1 h-full w-full">
-            <MapContainer
-              matches={[match]}
-              selectedMatchId={match.id}
-              center={venueCoords}
-              zoom={14}
-              radiusKm={15}
-              showRadiusCircle={false}
-              onMarkerClick={() => {}}
-              className="h-full w-full border-0 rounded-none"
-              mapHeightClassName="h-full w-full"
-            />
-
-            {/* Floating Hero Card at bottom or top-left */}
-            <div className="absolute bottom-4 left-4 right-4 sm:left-6 sm:right-auto sm:max-w-md z-30 pointer-events-auto">
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 p-4 sm:p-5 shadow-2xl backdrop-blur-xl space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant="league" className="text-[11px]">
-                    <Trophy className="mr-1 h-3 w-3" />
-                    {leagueName}
-                  </Badge>
-                  <span className="font-mono text-xs font-semibold text-primary">
-                    {dateFormatted} • {timeFormatted}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 text-base sm:text-lg font-bold text-foreground">
-                  <span className="truncate">{match.homeTeam.name}</span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">vs</span>
-                  <span className="truncate text-right">{match.guestTeam.name}</span>
-                </div>
-
-                {match.venue && (
-                  <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="truncate font-medium text-foreground">{match.venue.name}</span>
-                      <span>• {match.venue.city}</span>
+              {/* Venue Overlay inside Map */}
+              {match.venue && (
+                <div className="absolute bottom-2 left-2 right-2 z-10 rounded-xl bg-slate-950/85 p-2 backdrop-blur-md border border-slate-800/80 shadow-md flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-foreground truncate">
+                      <MapPin className="h-3 w-3 text-primary shrink-0" />
+                      <span className="truncate">{match.venue.name}</span>
                     </div>
-                    {match.distanceKm != null && (
-                      <span className="font-mono text-[11px] text-primary shrink-0">
-                        {formatDistance(match.distanceKm)}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between border-t border-border/40 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleShare}
-                    className="h-8 gap-1.5 text-xs font-semibold"
-                  >
-                    <Share2 className="h-3.5 w-3.5 text-primary" />
-                    <span>Teilen</span>
-                  </Button>
-
-                  <MatchQuickActions
-                    match={match}
-                    onShareFeedback={showToast}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {selectedVariant === 'C' && (
-          /* VARIANT C: HIGH-DENSITY EVENT-TICKET (FITS 100DVH WITHOUT SCROLLING) */
-          <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden bg-radial from-slate-900/60 to-slate-950/95">
-            {/* The Ticket Container */}
-            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg flex flex-col rounded-3xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
-              {/* Notch Cutout Left & Right Perforations at the divider */}
-              <div
-                aria-hidden="true"
-                className="absolute top-[88px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-slate-700/80 shadow-inner"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute top-[88px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-slate-700/80 shadow-inner"
-              />
-
-              {/* 1. Ticket Header Stub */}
-              <div className="relative bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-3.5 border-b border-dashed border-slate-700/80">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[11px] font-black uppercase tracking-widest text-primary">
-                      HeimspielRadar Ticket
-                    </span>
+                    <div className="text-[10px] text-muted-foreground truncate pl-4">
+                      {match.venue.street ? `${match.venue.street}, ` : ''}{match.venue.postalCode} {match.venue.city}
+                    </div>
                   </div>
 
-                  <span className="font-mono text-[10px] text-slate-400">
-                    {match.matchDay}. ST {match.matchNo ? `• #${match.matchNo}` : ''}
-                  </span>
-                </div>
-
-                <div className="mt-1 flex items-baseline justify-between gap-2">
-                  <span className="truncate text-xs font-bold text-foreground tracking-tight">
-                    {leagueName}
-                  </span>
-                  {match.venue && (
-                    <span className="shrink-0 font-mono text-[10px] font-bold uppercase text-primary/90">
-                      HALLE / {match.venue.city}
-                    </span>
+                  {links.navigationUrl && (
+                    <a
+                      href={links.navigationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/20 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary/30 transition"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Route</span>
+                    </a>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* 3. Ticket Footer: Quick Actions / DBB Links */}
+            <div className="shrink-0 rounded-2xl bg-card/40 p-2 sm:p-2.5 border border-border/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShare}
+                  className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-border/60"
+                >
+                  <Share2 className="h-3 w-3 text-primary" />
+                  <span>Teilen</span>
+                </Button>
               </div>
 
-              {/* 2. Middle Matchup & Detail Grid */}
-              <div className="p-4 sm:p-5 space-y-3.5 flex-1">
-                {/* Matchup Teams Banner */}
-                <div className="rounded-2xl bg-card/60 p-3.5 border border-border/50 text-center">
-                  <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                    SPIEL
-                  </div>
-
-                  <div className="mt-1 flex items-center justify-center gap-2 sm:gap-4">
-                    <div className="flex-1 text-right">
-                      <div className="text-sm sm:text-base md:text-lg font-black text-foreground leading-tight line-clamp-2">
-                        {match.homeTeam.name}
-                      </div>
-                      <span className="text-[9px] font-mono uppercase text-primary font-bold">Heim</span>
-                    </div>
-
-                    <div className="shrink-0 flex flex-col items-center px-1">
-                      {isFinished ? (
-                        <div className="rounded-lg bg-primary/20 border border-primary/40 px-2 py-0.5 font-mono text-xs font-black text-primary">
-                          {match.result}
-                        </div>
-                      ) : (
-                        <div className="rounded-full bg-slate-800/90 border border-slate-700/70 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
-                          VS
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 text-left">
-                      <div className="text-sm sm:text-base md:text-lg font-black text-foreground leading-tight line-clamp-2">
-                        {match.guestTeam.name}
-                      </div>
-                      <span className="text-[9px] font-mono uppercase text-slate-400 font-bold">Gast</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Structured Ticket Grid: Datum & Uhrzeit, Halle & Ort */}
-                <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-card/40 p-3 border border-border/40 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-primary" /> DATUM & UHRZEIT
-                    </span>
-                    <p className="font-bold text-foreground text-xs sm:text-sm">
-                      {dateFormatted}
-                    </p>
-                    <p className="font-mono text-xs font-semibold text-primary">
-                      {timeFormatted}
-                    </p>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-primary" /> HALLE / ORT
-                    </span>
-                    <p className="font-bold text-foreground text-xs sm:text-sm truncate">
-                      {match.venue?.name || 'Halle offen'}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {match.venue ? `${match.venue.postalCode} ${match.venue.city}` : 'Keine Adresse'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Bottom Stub: QR-Code & Quick Actions */}
-                <div className="rounded-2xl bg-card/40 p-3 border border-border/40 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <MatchQrCode
-                      value={typeof window !== 'undefined' ? window.location.href : `https://heimspielradar.de/matches/${match.id}`}
-                      size={64}
-                    />
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        SPIEL-TICKET CODE
-                      </span>
-                      <p className="text-[11px] text-muted-foreground leading-tight">
-                        QR-Code scannen oder direkt teilen.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleShare}
-                        className="h-6 px-2 text-[11px] font-semibold gap-1"
-                      >
-                        <Share2 className="h-3 w-3 text-primary" />
-                        <span>Teilen</span>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className="text-[9px] font-mono uppercase text-muted-foreground">
-                      Aktionen
-                    </span>
-                    <MatchQuickActions
-                      match={match}
-                      size="default"
-                      onShareFeedback={showToast}
-                    />
-                  </div>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="hidden xs:inline text-[10px] font-mono uppercase text-muted-foreground mr-1">
+                  DBB Links:
+                </span>
+                <MatchQuickActions
+                  match={match}
+                  size="sm"
+                  onShareFeedback={showToast}
+                />
               </div>
             </div>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );

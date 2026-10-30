@@ -59,26 +59,29 @@ test.describe('Match Sharing & Standalone Detail Page (/matches/:id)', () => {
     });
   });
 
-  test('standalone detail page loads and renders all 3 variants', async ({ page }) => {
+  test('standalone detail page loads and renders polished ticket view', async ({ page }) => {
     await page.goto('/matches/42131');
 
-    // 1. Initial Variant C (Ticket View)
+    // 1. Ticket View Elements
     await expect(page.getByText('TSG Stuttgart')).toBeVisible();
     await expect(page.getByText('MTV Ludwigsburg')).toBeVisible();
     await expect(page.getByText('← Zum Heimspielradar')).toBeVisible();
     await expect(page.getByText('HeimspielRadar Ticket')).toBeVisible();
-    await expect(page.getByText('SPIEL-TICKET CODE')).toBeVisible();
 
-    // 2. Switch to Variant A (Split View)
-    await page.getByRole('button', { name: 'A: Split' }).click();
-    await expect(page.getByRole('button', { name: 'A: Split' })).toHaveClass(/bg-primary/);
-    await expect(page.getByText('Austragungsort')).toBeVisible();
+    // 2. Map and Venue details visible in ticket
+    await expect(page.getByText('Sporthalle West')).toBeVisible();
 
-    // 3. Switch to Variant B (Hero-Map)
-    await page.getByRole('button', { name: 'B: Hero-Map' }).click();
-    await expect(page.getByRole('button', { name: 'B: Hero-Map' })).toHaveClass(/bg-primary/);
+    // 3. Take screenshot for visual inspection
+    await page.screenshot({ path: `test-results/ticket-view-${test.info().project.name}.png` });
 
-    // 4. Back button returns to /
+    // 4. Verify no vertical scrolling is present on root/html/body
+    const isScrollable = await page.evaluate(() => {
+      return document.documentElement.scrollHeight > document.documentElement.clientHeight;
+    });
+
+    expect(isScrollable).toBe(false);
+
+    // 5. Back button returns to /
     await page.getByRole('button', { name: '← Zum Heimspielradar' }).click();
     await expect(page).toHaveURL(/\/?$/);
   });

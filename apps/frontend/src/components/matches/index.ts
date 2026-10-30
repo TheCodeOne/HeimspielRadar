@@ -6,6 +6,5 @@ export * from './MatchQuickActions';
 
 export * from './VenueModal';
 
-export * from './MatchQrCode';
-
 export * from './MatchDetailView';
+
