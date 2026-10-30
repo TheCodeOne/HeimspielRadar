@@ -86,11 +86,11 @@ ssh "$PI_HOST" "cd $PI_DIR && docker compose ps"
 
 echo ""
 echo "📜 Recent container logs:"
-ssh "$PI_HOST" "cd $PI_DIR && docker compose logs --tail=25 backend"
+ssh "$PI_HOST" "cd $PI_DIR && docker compose logs --tail=25 api"
 
 echo ""
 echo "============================================================"
 echo "🎉 Deployment to $PI_HOST completed successfully!"
 echo "============================================================"
 echo "To tail logs continuously:"
-echo "  ssh $PI_HOST 'cd $PI_DIR && docker compose logs -f backend'"
+echo "  ssh $PI_HOST 'cd $PI_DIR && docker compose logs -f api admin'"

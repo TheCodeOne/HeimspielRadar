@@ -1,14 +1,83 @@
 services:
-  backend:
-    image: heimspielradar-backend:latest
-    container_name: heimspielradar-backend
+  postgres:
+    image: imresamu/postgis:16-3.4
+    container_name: heimspielradar-db
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: heimspielradar
+      POSTGRES_USER: heimspiel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-heimspiel_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heimspiel -d heimspielradar || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # =========================================================================
+  # 1. PUBLIC API (Port 3001 -> Cloudflare Tunnel -> api.heimspielradar.app)
+  # Dedicated API backend: No frontend static serving, root redirects to
+  # https://heimspielradar.app, scraper cron disabled (runs on admin).
+  # =========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: heimspielradar-backend:latest
+    container_name: heimspielradar-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "${PORT:-3000}:3000"
+      - "${API_PORT:-3001}:3000"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://heimspiel:${DB_PASSWORD:-heimspiel_secret}@postgres:5432/heimspielradar
+      - SERVE_FRONTEND=false
+      - ROOT_REDIRECT_URL=https://heimspielradar.app
+      - ENABLE_CRON_SYNC=false
+      - ENABLE_ADMIN_API=false
+      - SCRAPER_SECRET=${SCRAPER_SECRET:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # =========================================================================
+  # 2. LOCAL / ADMIN / WORKER (Port 3000 -> Local Network & Scheduled Cron)
+  # Serves the embedded web app & admin dashboard, runs background scrapers.
+  # =========================================================================
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: heimspielradar-backend:latest
+    container_name: heimspielradar-admin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://heimspiel:${DB_PASSWORD:-heimspiel_secret}@postgres:5432/heimspielradar
+      - SERVE_FRONTEND=true
       - ENABLE_CRON_SYNC=${ENABLE_CRON_SYNC:-true}
       - CRON_DELTA_SCHEDULE=${CRON_DELTA_SCHEDULE:-0 5,18 * * *}
       - CRON_DEEP_SCHEDULE=${CRON_DEEP_SCHEDULE:-0 2 * * 2}
@@ -17,12 +86,12 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - ADMIN_BASE_URL=${ADMIN_BASE_URL:-http://raspberrypi.local:3000}
       - ENABLE_ADMIN_API=${ENABLE_ADMIN_API:-true}
-    env_file:
-      - path: .env
-        required: false
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 20s
+
+volumes:
+  postgres_data:

@@ -12,6 +12,10 @@ import { resolveFrontendDistPath } from './static-path.util';
 
 const frontendDistPath = resolveFrontendDistPath();
 
+const isFrontendDisabled =
+  process.env.SERVE_FRONTEND === 'false' ||
+  process.env.DISABLE_STATIC_SERVING === 'true';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -19,10 +23,14 @@ const frontendDistPath = resolveFrontendDistPath();
       envFilePath: ['.env.local', '.env'],
     }),
     ScheduleModule.forRoot(),
-    ServeStaticModule.forRoot({
-      rootPath: frontendDistPath,
-      exclude: ['/api/{*path}'],
-    }),
+    ...(isFrontendDisabled
+      ? []
+      : [
+          ServeStaticModule.forRoot({
+            rootPath: frontendDistPath,
+            exclude: ['/api/{*path}'],
+          }),
+        ]),
     DatabaseModule,
     ScraperModule,
     MatchesModule,
