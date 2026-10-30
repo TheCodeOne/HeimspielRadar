@@ -62,23 +62,24 @@ test.describe('Match Sharing & Standalone Detail Page (/matches/:id)', () => {
   test('standalone detail page loads and renders all 3 variants', async ({ page }) => {
     await page.goto('/matches/42131');
 
-    // 1. Initial Variant A (Split View)
+    // 1. Initial Variant C (Ticket View)
     await expect(page.getByText('TSG Stuttgart')).toBeVisible();
     await expect(page.getByText('MTV Ludwigsburg')).toBeVisible();
-    await expect(page.getByText('Zur Übersicht / Alle Spiele')).toBeVisible();
+    await expect(page.getByText('← Zum Heimspielradar')).toBeVisible();
+    await expect(page.getByText('HeimspielRadar Ticket')).toBeVisible();
+    await expect(page.getByText('SPIEL-TICKET CODE')).toBeVisible();
+
+    // 2. Switch to Variant A (Split View)
+    await page.getByRole('button', { name: 'A: Split' }).click();
+    await expect(page.getByRole('button', { name: 'A: Split' })).toHaveClass(/bg-primary/);
     await expect(page.getByText('Austragungsort')).toBeVisible();
 
-    // 2. Switch to Variant B (Hero-Map)
+    // 3. Switch to Variant B (Hero-Map)
     await page.getByRole('button', { name: 'B: Hero-Map' }).click();
     await expect(page.getByRole('button', { name: 'B: Hero-Map' })).toHaveClass(/bg-primary/);
 
-    // 3. Switch to Variant C (Ticket)
-    await page.getByRole('button', { name: 'C: Ticket' }).click();
-    await expect(page.getByText('MATCHDAY TICKET')).toBeVisible();
-    await expect(page.getByText('Spiel weiterleiten')).toBeVisible();
-
     // 4. Back button returns to /
-    await page.getByRole('button', { name: 'Zur Übersicht / Alle Spiele' }).click();
+    await page.getByRole('button', { name: '← Zum Heimspielradar' }).click();
     await expect(page).toHaveURL(/\/?$/);
   });
 

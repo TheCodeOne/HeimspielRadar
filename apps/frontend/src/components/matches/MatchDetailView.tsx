@@ -13,6 +13,7 @@ import type { Match } from '@sundayleague/shared-types';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName } from '@/components/map/map-utils';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
+import { MatchQrCode } from '@/components/matches/MatchQrCode';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,7 +44,7 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
       }
     }
 
-    return 'A';
+    return 'C';
   });
 
   const showToast = React.useCallback((message: string) => {
@@ -150,7 +151,7 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
           variant="outline"
         >
           <ArrowLeft className="h-4 w-4" />
-          Zur Übersicht / Alle Spiele
+          ← Zum Heimspielradar
         </Button>
       </div>
     );
@@ -177,10 +178,9 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
           variant="ghost"
           size="sm"
           onClick={onNavigateHome}
-          className="gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          className="gap-1.5 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Zur Übersicht / Alle Spiele</span>
+          <span>← Zum Heimspielradar</span>
         </Button>
 
         {/* Prototype Switcher Pill for Variants A, B, C */}
@@ -468,110 +468,148 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
         )}
 
         {selectedVariant === 'C' && (
-          /* VARIANT C: STANDALONE EVENT-TICKET / MATCHDAY-POSTER CARD */
-          <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center items-start bg-slate-950/50">
-            <div className="w-full max-w-xl rounded-3xl border border-slate-700/80 bg-slate-900/90 shadow-2xl backdrop-blur-xl overflow-hidden">
-              {/* Ticket Header Banner */}
-              <div className="relative bg-gradient-to-r from-orange-600/30 via-primary/20 to-amber-600/30 p-6 border-b border-border/60">
+          /* VARIANT C: HIGH-DENSITY EVENT-TICKET (FITS 100DVH WITHOUT SCROLLING) */
+          <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden bg-radial from-slate-900/60 to-slate-950/95">
+            {/* The Ticket Container */}
+            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg flex flex-col rounded-3xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
+              {/* Notch Cutout Left & Right Perforations at the divider */}
+              <div
+                aria-hidden="true"
+                className="absolute top-[88px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-slate-700/80 shadow-inner"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute top-[88px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-slate-700/80 shadow-inner"
+              />
+
+              {/* 1. Ticket Header Stub */}
+              <div className="relative bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-3.5 border-b border-dashed border-slate-700/80">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge variant="outline" className="border-primary/40 bg-primary/20 text-primary font-bold">
-                    MATCHDAY TICKET
-                  </Badge>
-                  <span className="font-mono text-xs text-slate-300">
-                    {match.matchDay}. Spieltag {match.matchNo ? `#${match.matchNo}` : ''}
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                      HeimspielRadar Ticket
+                    </span>
+                  </div>
+
+                  <span className="font-mono text-[10px] text-slate-400">
+                    {match.matchDay}. ST {match.matchNo ? `• #${match.matchNo}` : ''}
                   </span>
                 </div>
 
-                <div className="mt-4 text-center space-y-1">
-                  <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-                    {leagueName} {categoryParts.length > 0 ? `(${categoryParts.join(' • ')})` : ''}
+                <div className="mt-1 flex items-baseline justify-between gap-2">
+                  <span className="truncate text-xs font-bold text-foreground tracking-tight">
+                    {leagueName}
                   </span>
-                  <div className="flex items-center justify-center gap-3 sm:gap-6 pt-2">
+                  {match.venue && (
+                    <span className="shrink-0 font-mono text-[10px] font-bold uppercase text-primary/90">
+                      HALLE / {match.venue.city}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Middle Matchup & Detail Grid */}
+              <div className="p-4 sm:p-5 space-y-3.5 flex-1">
+                {/* Matchup Teams Banner */}
+                <div className="rounded-2xl bg-card/60 p-3.5 border border-border/50 text-center">
+                  <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    SPIEL
+                  </div>
+
+                  <div className="mt-1 flex items-center justify-center gap-2 sm:gap-4">
                     <div className="flex-1 text-right">
-                      <div className="text-lg sm:text-2xl font-black text-foreground">
+                      <div className="text-sm sm:text-base md:text-lg font-black text-foreground leading-tight line-clamp-2">
                         {match.homeTeam.name}
                       </div>
-                      <span className="text-[10px] font-mono uppercase text-primary">Heim</span>
+                      <span className="text-[9px] font-mono uppercase text-primary font-bold">Heim</span>
                     </div>
 
-                    <div className="shrink-0 flex flex-col items-center">
+                    <div className="shrink-0 flex flex-col items-center px-1">
                       {isFinished ? (
-                        <div className="rounded-xl bg-primary/20 border border-primary/40 px-3 py-1 font-mono text-base font-extrabold text-primary">
+                        <div className="rounded-lg bg-primary/20 border border-primary/40 px-2 py-0.5 font-mono text-xs font-black text-primary">
                           {match.result}
                         </div>
                       ) : (
-                        <div className="rounded-full bg-slate-800/80 px-2.5 py-1 font-mono text-xs font-bold text-muted-foreground">
+                        <div className="rounded-full bg-slate-800/90 border border-slate-700/70 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
                           VS
                         </div>
                       )}
                     </div>
 
                     <div className="flex-1 text-left">
-                      <div className="text-lg sm:text-2xl font-black text-foreground">
+                      <div className="text-sm sm:text-base md:text-lg font-black text-foreground leading-tight line-clamp-2">
                         {match.guestTeam.name}
                       </div>
-                      <span className="text-[10px] font-mono uppercase text-slate-400">Gast</span>
+                      <span className="text-[9px] font-mono uppercase text-slate-400 font-bold">Gast</span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Ticket Body Details */}
-              <div className="p-6 space-y-5">
-                <div className="grid grid-cols-2 gap-4 rounded-2xl bg-card/40 p-4 border border-border/40 text-xs">
-                  <div className="space-y-1">
-                    <span className="text-muted-foreground font-semibold flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5 text-primary" /> Datum & Uhrzeit
+                {/* Structured Ticket Grid: Datum & Uhrzeit, Halle & Ort */}
+                <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-card/40 p-3 border border-border/40 text-xs">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-primary" /> DATUM & UHRZEIT
                     </span>
-                    <p className="font-bold text-foreground text-sm">
+                    <p className="font-bold text-foreground text-xs sm:text-sm">
                       {dateFormatted}
                     </p>
-                    <p className="font-mono text-slate-300">{timeFormatted}</p>
+                    <p className="font-mono text-xs font-semibold text-primary">
+                      {timeFormatted}
+                    </p>
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="text-muted-foreground font-semibold flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-primary" /> Austragungsort
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-primary" /> HALLE / ORT
                     </span>
-                    <p className="font-bold text-foreground text-sm truncate">
+                    <p className="font-bold text-foreground text-xs sm:text-sm truncate">
                       {match.venue?.name || 'Halle offen'}
                     </p>
-                    <p className="text-muted-foreground truncate">
+                    <p className="text-[11px] text-muted-foreground truncate">
                       {match.venue ? `${match.venue.postalCode} ${match.venue.city}` : 'Keine Adresse'}
                     </p>
                   </div>
                 </div>
 
-                {/* Embedded Mini-Map */}
-                <div className="h-44 w-full rounded-2xl overflow-hidden border border-border/60">
-                  <MapContainer
-                    matches={[match]}
-                    selectedMatchId={match.id}
-                    center={venueCoords}
-                    zoom={14}
-                    radiusKm={15}
-                    showRadiusCircle={false}
-                    onMarkerClick={() => {}}
-                    className="h-full w-full border-0 rounded-none"
-                    mapHeightClassName="h-full w-full"
-                  />
-                </div>
+                {/* Bottom Stub: QR-Code & Quick Actions */}
+                <div className="rounded-2xl bg-card/40 p-3 border border-border/40 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <MatchQrCode
+                      value={typeof window !== 'undefined' ? window.location.href : `https://heimspielradar.de/matches/${match.id}`}
+                      size={64}
+                    />
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        SPIEL-TICKET CODE
+                      </span>
+                      <p className="text-[11px] text-muted-foreground leading-tight">
+                        QR-Code scannen oder direkt teilen.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleShare}
+                        className="h-6 px-2 text-[11px] font-semibold gap-1"
+                      >
+                        <Share2 className="h-3 w-3 text-primary" />
+                        <span>Teilen</span>
+                      </Button>
+                    </div>
+                  </div>
 
-                {/* Footer Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/40 pt-4">
-                  <Button
-                    type="button"
-                    onClick={handleShare}
-                    className="gap-2 text-xs font-semibold"
-                  >
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span>Spiel weiterleiten</span>
-                  </Button>
-
-                  <MatchQuickActions
-                    match={match}
-                    onShareFeedback={showToast}
-                  />
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="text-[9px] font-mono uppercase text-muted-foreground">
+                      Aktionen
+                    </span>
+                    <MatchQuickActions
+                      match={match}
+                      size="default"
+                      onShareFeedback={showToast}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
