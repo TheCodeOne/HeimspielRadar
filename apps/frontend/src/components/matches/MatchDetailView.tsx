@@ -367,7 +367,7 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                   className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
                 >
                   <Camera className="h-3 w-3" />
-                  <span>📸 Story</span>
+                  <span>Story</span>
                 </Button>
               </div>
 

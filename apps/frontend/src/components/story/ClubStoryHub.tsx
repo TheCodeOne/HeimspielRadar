@@ -317,7 +317,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
                         }`}
                       >
                         <Camera className="h-3.5 w-3.5" />
-                        <span>📸 Story anpassen</span>
+                        <span>Story anpassen</span>
                       </Button>
                     </div>
                   </div>

@@ -409,7 +409,7 @@ export function StoryPreviewModal({
               ) : (
                 <Share2 className="h-4 w-4" />
               )}
-              <span>📸 Story teilen / Bild speichern</span>
+              <span>Story teilen / Bild speichern</span>
             </Button>
           </div>
         </div>
