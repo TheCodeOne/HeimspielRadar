@@ -15,6 +15,7 @@ import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { getSampleMatches } from '@/lib/sample-matches';
 import {
   isHalloweenSeason,
+  parseMatchScore,
   type StoryTheme,
 } from '@/lib/story-image-generator';
 import { StoryEditorView } from './StoryEditorView';
@@ -23,8 +24,11 @@ export interface ClubStoryHubProps {
   onNavigateHome: () => void;
 }
 
+export type ClubStoryHubTab = 'upcoming' | 'results' | 'all';
+
 export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
   const [selectedClub, setSelectedClub] = React.useState<string>('');
+  const [activeTab, setActiveTab] = React.useState<ClubStoryHubTab>('upcoming');
   const [allMatches, setAllMatches] = React.useState<Match[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
   const [editingMatch, setEditingMatch] = React.useState<Match | null>(null);
@@ -53,7 +57,11 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
 
     if (selectedClub.trim()) {
       queryParams.set('teamQuery', selectedClub.trim());
-    } else {
+    }
+
+    // Only force onlyUpcoming when the user explicitly requests upcoming games AND no specific team query
+    // If user is on 'results' or 'all' tab, or has entered a club query, do not restrict to onlyUpcoming
+    if (!selectedClub.trim() && activeTab === 'upcoming') {
       queryParams.set('onlyUpcoming', 'true');
     }
 
@@ -99,10 +107,20 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
       isCancelled = true;
       abortController.abort();
     };
-  }, [selectedClub]);
+  }, [selectedClub, activeTab]);
 
-  // Matches to display (already filtered from server/fallback)
-  const filteredMatches = allMatches;
+  // Filter matches based on active tab
+  const filteredMatches = React.useMemo(() => {
+    if (activeTab === 'upcoming') {
+      return allMatches.filter((m) => !m.result);
+    }
+
+    if (activeTab === 'results') {
+      return allMatches.filter((m) => Boolean(m.result));
+    }
+
+    return allMatches;
+  }, [allMatches, activeTab]);
 
   const handleSelectSuggestion = (suggestion: TeamSuggestion) => {
     setSelectedClub(suggestion.clubName || suggestion.name);
@@ -217,15 +235,56 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
 
       {/* Match Table / Selection Grid */}
       <main className="flex-1 px-4 pb-12 sm:px-8 max-w-5xl mx-auto w-full">
-        <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-4">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {selectedClub ? `Spiele für „${selectedClub}“ (${filteredMatches.length})` : `Aktuelle Spiele (${filteredMatches.length})`}
-          </span>
-          {isLoading && (
-            <span className="text-xs text-muted-foreground animate-pulse">
-              Lade Spiele...
+        {/* Tab Filter: Anstehende Spiele vs Letzte Ergebnisse vs Alle */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/40 mb-4">
+          <div className="flex items-center gap-1.5 p-1 bg-muted/40 rounded-xl border border-border/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab('upcoming')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                activeTab === 'upcoming'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Anstehende Spiele
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('results')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                activeTab === 'results'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Letzte Ergebnisse
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                activeTab === 'all'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Alle Spiele
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {selectedClub
+                ? `Spiele für „${selectedClub}“ (${filteredMatches.length})`
+                : `Spiele (${filteredMatches.length})`}
             </span>
-          )}
+            {isLoading && (
+              <span className="text-xs text-muted-foreground animate-pulse">
+                Lade...
+              </span>
+            )}
+          </div>
         </div>
 
         {filteredMatches.length === 0 ? (
@@ -269,29 +328,39 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
 
                   {/* Teams */}
                   <div className="py-3 flex flex-col gap-1">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm sm:text-base font-bold text-foreground">
-                        {match.homeTeam.name}
-                      </span>
-                      {match.result && (
-                        <span className="text-sm font-mono font-bold text-primary">
-                          {match.result.home}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] font-black uppercase text-muted-foreground/60">
-                      vs
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-sm sm:text-base font-bold text-foreground">
-                        {match.guestTeam.name}
-                      </span>
-                      {match.result && (
-                        <span className="text-sm font-mono font-bold text-primary">
-                          {match.result.guest}
-                        </span>
-                      )}
-                    </div>
+                    {(() => {
+                      const score = parseMatchScore(match.result);
+                      const homeIsWinner = score?.winner === 'home';
+                      const guestIsWinner = score?.winner === 'guest';
+
+                      return (
+                        <>
+                          <div className="flex items-baseline justify-between">
+                            <span className={`text-sm sm:text-base font-bold ${homeIsWinner ? 'text-primary' : 'text-foreground'}`}>
+                              {match.homeTeam.name}
+                            </span>
+                            {score && (
+                              <span className={`text-sm font-mono font-bold ${homeIsWinner ? 'text-primary' : 'text-foreground'}`}>
+                                {score.home}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] font-black uppercase text-muted-foreground/60">
+                            {score ? 'Ergebnis' : 'vs'}
+                          </div>
+                          <div className="flex items-baseline justify-between">
+                            <span className={`text-sm sm:text-base font-bold ${guestIsWinner ? 'text-primary' : 'text-foreground'}`}>
+                              {match.guestTeam.name}
+                            </span>
+                            {score && (
+                              <span className={`text-sm font-mono font-bold ${guestIsWinner ? 'text-primary' : 'text-foreground'}`}>
+                                {score.guest}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Footer: Date, Venue & Generate Button */}

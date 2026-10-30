@@ -3,6 +3,38 @@ import { formatDisplayDate, formatKickoffTime } from './date-utils';
 
 export type StoryTheme = 'classic' | 'halloween';
 
+export interface ParsedMatchScore {
+  home: number;
+  guest: number;
+  winner: 'home' | 'guest' | 'tie';
+  raw: string;
+}
+
+/**
+ * Parses match result string into structured home/guest score and winner.
+ * Handles strings like "78:72", "78 : 72", "78-72".
+ */
+export function parseMatchScore(result?: string | null): ParsedMatchScore | null {
+  if (!result) {
+    return null;
+  }
+
+  const trimmed = result.trim();
+  const match = trimmed.match(/^(\d+)\s*[:-]\s*(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const home = parseInt(match[1], 10);
+  const guest = parseInt(match[2], 10);
+
+  const winner: 'home' | 'guest' | 'tie' =
+    home > guest ? 'home' : guest > home ? 'guest' : 'tie';
+
+  return { home, guest, winner, raw: trimmed };
+}
+
 export interface SplitTeamNameResult {
   base: string;
   suffix?: string;
@@ -358,22 +390,36 @@ export async function generateStoryImageBlob(
   ctx.save();
   ctx.textAlign = 'center';
 
+  const scoreData = parseMatchScore(match.result);
+  const isFinished = Boolean(scoreData);
+
   // Eyebrow / Category badge
   const accentColor = theme === 'halloween' ? '#f97316' : '#f59e0b';
   const accentLight = theme === 'halloween' ? '#fdba74' : '#fde68a';
 
-  ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = accentColor;
-  ctx.letterSpacing = '8px';
-  ctx.fillText(theme === 'halloween' ? 'HALLOWEEN SPECIAL' : 'OFFIZIELLES LIGASPIEL', 540, 180);
+  const defaultCategoryText =
+    theme === 'halloween' ? 'HALLOWEEN SPECIAL' : 'OFFIZIELLES LIGASPIEL';
 
-  // Main bold GAMEDAY headline
+  const categoryText = isFinished ? 'MATCH RESULT' : defaultCategoryText;
+
+  ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = isFinished && theme !== 'halloween' ? '#38bdf8' : accentColor;
+  ctx.letterSpacing = '8px';
+  ctx.fillText(categoryText, 540, 180);
+
+  // Main bold GAMEDAY / FINAL SCORE headline
+  const headline = isFinished ? 'FINAL SCORE' : 'GAMEDAY';
   ctx.font = '900 102px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.letterSpacing = '6px';
-  ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.5)' : 'rgba(245, 158, 11, 0.4)';
+  ctx.shadowColor =
+    theme === 'halloween'
+      ? 'rgba(249, 115, 22, 0.5)'
+      : isFinished
+      ? 'rgba(56, 189, 248, 0.45)'
+      : 'rgba(245, 158, 11, 0.4)';
   ctx.shadowBlur = 30;
-  ctx.fillText('GAMEDAY', 540, 275);
+  ctx.fillText(headline, 540, 275);
   ctx.restore();
 
   // League badge pill
@@ -421,48 +467,125 @@ export async function generateStoryImageBlob(
   // Matchup Content inside Central Card
   const innerMaxW = cardW - 80;
 
+  // Winner accent colors
+  const homeIsWinner = scoreData?.winner === 'home';
+  const guestIsWinner = scoreData?.winner === 'guest';
+  const winnerColor = '#10b981'; // Emerald 500
+
   // Home Team (Top of card)
   drawTeamBlock(
     ctx,
     match.homeTeam.name,
-    'HEIMTEAM',
+    homeIsWinner ? '🏆 HEIMTEAM • SIEGER' : 'HEIMTEAM',
     cardY + 160,
-    accentColor,
+    homeIsWinner ? winnerColor : accentColor,
     innerMaxW
   );
 
-  // VS Badge (Center of card)
-  const vsY = cardY + 395;
-  ctx.save();
-  // Ambient glow behind VS badge
-  const vsGlow = ctx.createRadialGradient(540, vsY, 15, 540, vsY, 90);
-  vsGlow.addColorStop(0, theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.3)');
-  vsGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = vsGlow;
-  ctx.fillRect(440, vsY - 100, 200, 200);
+  // Central Element: Final Score Badge or VS Badge
+  const centerBadgeY = cardY + 395;
 
-  // VS Circle
-  ctx.beginPath();
-  ctx.arc(540, vsY, 44, 0, Math.PI * 2);
-  ctx.fillStyle = theme === 'halloween' ? '#1f0e2f' : '#0b111e';
-  ctx.fill();
-  ctx.strokeStyle = accentColor;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  if (isFinished && scoreData) {
+    // Massive, glowing final score badge [ 78 : 72 ]
+    ctx.save();
 
-  ctx.textAlign = 'center';
-  ctx.font = 'italic 900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('VS', 540, vsY + 11);
-  ctx.restore();
+    // Score glow aura
+    const scoreGlow = ctx.createRadialGradient(
+      540,
+      centerBadgeY,
+      30,
+      540,
+      centerBadgeY,
+      220
+    );
+
+    scoreGlow.addColorStop(
+      0,
+      theme === 'halloween'
+        ? 'rgba(249, 115, 22, 0.45)'
+        : 'rgba(16, 185, 129, 0.35)'
+    );
+    scoreGlow.addColorStop(0.6, 'rgba(56, 189, 248, 0.12)');
+    scoreGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = scoreGlow;
+    ctx.fillRect(240, centerBadgeY - 140, 600, 280);
+
+    // Score banner capsule
+    const scoreBoxW = 440;
+    const scoreBoxH = 100;
+    const scoreBoxX = (width - scoreBoxW) / 2;
+    const scoreBoxY = centerBadgeY - scoreBoxH / 2;
+
+    drawRoundedRect(ctx, scoreBoxX, scoreBoxY, scoreBoxW, scoreBoxH, 28);
+    ctx.fillStyle = theme === 'halloween' ? 'rgba(31, 14, 47, 0.95)' : 'rgba(11, 17, 30, 0.95)';
+    ctx.fill();
+    ctx.strokeStyle =
+      theme === 'halloween'
+        ? '#f97316'
+        : scoreData.winner === 'tie'
+        ? '#f59e0b'
+        : '#10b981';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    // Render Home Score, Colon, Guest Score with winner highlighting
+    const homeScoreText = `${scoreData.home}`;
+    const colonText = ':';
+    const guestScoreText = `${scoreData.guest}`;
+
+    ctx.font = '900 68px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textBaseline = 'middle';
+
+    // Left score (home)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = homeIsWinner ? '#34d399' : '#ffffff';
+    ctx.fillText(homeScoreText, 540 - 32, centerBadgeY);
+
+    // Center colon
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillText(colonText, 540, centerBadgeY - 2);
+
+    // Right score (guest)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = guestIsWinner ? '#34d399' : '#ffffff';
+    ctx.fillText(guestScoreText, 540 + 32, centerBadgeY);
+
+    ctx.textBaseline = 'alphabetic'; // reset
+    ctx.restore();
+  } else {
+    // VS Badge (Center of card)
+    ctx.save();
+    // Ambient glow behind VS badge
+    const vsGlow = ctx.createRadialGradient(540, centerBadgeY, 15, 540, centerBadgeY, 90);
+    vsGlow.addColorStop(0, theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.3)');
+    vsGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = vsGlow;
+    ctx.fillRect(440, centerBadgeY - 100, 200, 200);
+
+    // VS Circle
+    ctx.beginPath();
+    ctx.arc(540, centerBadgeY, 44, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'halloween' ? '#1f0e2f' : '#0b111e';
+    ctx.fill();
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.font = 'italic 900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('VS', 540, centerBadgeY + 11);
+    ctx.restore();
+  }
 
   // Guest Team (Bottom of card)
   drawTeamBlock(
     ctx,
     match.guestTeam.name,
-    'GASTTEAM',
+    guestIsWinner ? '🏆 GASTTEAM • SIEGER' : 'GASTTEAM',
     cardY + 630,
-    accentColor,
+    guestIsWinner ? winnerColor : accentColor,
     innerMaxW
   );
 
@@ -480,12 +603,18 @@ export async function generateStoryImageBlob(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Kickoff Date & Time Bar
+  // Kickoff Date & Time Bar / Final Score Info
   ctx.textAlign = 'center';
   const kickoffStr = formatGamedayDateTime(match.kickoffDate, match.kickoffTime);
+  const dateOnlyStr = formatDisplayDate(match.kickoffDate).toUpperCase();
+
+  const infoHeaderStr = isFinished
+    ? `🏁  ENDERGEBNIS • ${dateOnlyStr}`
+    : `⏰  ${kickoffStr}`;
+
   ctx.font = '800 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(`⏰  ${kickoffStr}`, 540, infoY + 64);
+  ctx.fillText(infoHeaderStr, 540, infoY + 64);
 
   // Venue & City (Bold venue, subtle city/address)
   const venueTitle = match.venue?.name || 'Sporthalle';

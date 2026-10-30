@@ -23,7 +23,7 @@ export interface StoryEditorViewProps {
   onShareFeedback?: (message: string) => void;
 }
 
-const QUICK_CHIPS = [
+const PRE_MATCH_QUICK_CHIPS = [
   '🎟️ Eintritt frei',
   '☕ Kaffee & Kuchen',
   '🚪 Einlass 45 Min vor Tip-Off',
@@ -32,11 +32,23 @@ const QUICK_CHIPS = [
   '🥁 Lautstarke Unterstützung gesucht!',
 ];
 
+const POST_MATCH_QUICK_CHIPS = [
+  '🔥 HEIMSIEG!',
+  '💪 Starke Teamleistung!',
+  '👏 Danke für euren Support!',
+  '⚔️ Hart umkämpftes Spiel',
+  '🔜 Nächstes Heimspiel nächsten Samstag!',
+  '🏀 Auswärtssieg!',
+];
+
 export function StoryEditorView({
   match,
   onBack,
   onShareFeedback,
 }: StoryEditorViewProps) {
+  const isFinished = Boolean(match.result);
+  const quickChips = isFinished ? POST_MATCH_QUICK_CHIPS : PRE_MATCH_QUICK_CHIPS;
+
   const [theme, setTheme] = React.useState<StoryTheme>(() => {
     return isHalloweenSeason() ? 'halloween' : 'classic';
   });
@@ -357,10 +369,10 @@ export function StoryEditorView({
               {/* 3. Quick-Chips */}
               <div className="flex flex-col gap-1.5 pt-1">
                 <span className="text-[11px] text-muted-foreground">
-                  Schnell-Vorlagen:
+                  {isFinished ? 'Ergebnis-Vorlagen:' : 'Schnell-Vorlagen:'}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {QUICK_CHIPS.map((chip) => {
+                  {quickChips.map((chip) => {
                     const isSelected = customNote.includes(chip);
 
                     return (

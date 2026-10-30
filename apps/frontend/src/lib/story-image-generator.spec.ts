@@ -5,6 +5,7 @@ import {
   resolveStoryTheme,
   formatGamedayDateTime,
   generateStoryImageBlob,
+  parseMatchScore,
 } from './story-image-generator';
 
 const mockMatch: Match = {
@@ -174,6 +175,133 @@ describe('story-image-generator', () => {
       expect(blob).toBeDefined();
       expect(blob.type).toBe('image/png');
       expect(mockToBlob).toHaveBeenCalled();
+    });
+
+    it('generates final score story with parsed match result and winner highlighting', async () => {
+      const mockBlob = new Blob(['fake-image-result'], { type: 'image/png' });
+
+      const mockToBlob = jest.fn((callback: (blob: Blob | null) => void) => {
+        callback(mockBlob);
+      });
+
+      const fillTextSpy = jest.fn();
+
+      const fakeCanvas = {
+        width: 0,
+        height: 0,
+        getContext: jest.fn().mockReturnValue({
+          createLinearGradient: () => ({ addColorStop: jest.fn() }),
+          createRadialGradient: () => ({ addColorStop: jest.fn() }),
+          fillRect: jest.fn(),
+          beginPath: jest.fn(),
+          moveTo: jest.fn(),
+          lineTo: jest.fn(),
+          quadraticCurveTo: jest.fn(),
+          arc: jest.fn(),
+          closePath: jest.fn(),
+          fill: jest.fn(),
+          stroke: jest.fn(),
+          save: jest.fn(),
+          restore: jest.fn(),
+          setLineDash: jest.fn(),
+          translate: jest.fn(),
+          scale: jest.fn(),
+          fillText: fillTextSpy,
+          measureText: (text: string) => ({ width: text.length * 10 }),
+        }),
+        toBlob: mockToBlob,
+      };
+
+      const fakeDoc = {
+        createElement: jest.fn().mockImplementation((tag: string) => {
+          if (tag === 'canvas') {
+            return fakeCanvas;
+          }
+
+          return {};
+        }),
+      };
+
+      Object.defineProperty(globalThis, 'document', {
+        value: fakeDoc,
+        configurable: true,
+        writable: true,
+      });
+
+      const finishedMatch: Match = {
+        ...mockMatch,
+        result: '78:72',
+      };
+
+      const blob = await generateStoryImageBlob(finishedMatch, {
+        theme: 'classic',
+        customNote: '🔥 HEIMSIEG!',
+      });
+
+      expect(blob).toBeDefined();
+      expect(blob.type).toBe('image/png');
+
+      // Verify FINAL SCORE headline was rendered
+      expect(fillTextSpy).toHaveBeenCalledWith('FINAL SCORE', 540, 275);
+      // Verify MATCH RESULT category was rendered
+      expect(fillTextSpy).toHaveBeenCalledWith('MATCH RESULT', 540, 180);
+      // Verify final score home and guest numbers were drawn
+      expect(fillTextSpy).toHaveBeenCalledWith('78', 540 - 32, expect.any(Number));
+      expect(fillTextSpy).toHaveBeenCalledWith(':', 540, expect.any(Number));
+      expect(fillTextSpy).toHaveBeenCalledWith('72', 540 + 32, expect.any(Number));
+      // Verify ENDERGEBNIS was rendered in the info card
+      expect(fillTextSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ENDERGEBNIS'),
+        540,
+        expect.any(Number)
+      );
+      // Verify custom note chip (prepended with megaphone if no megaphone present)
+      expect(fillTextSpy).toHaveBeenCalledWith(
+        '📣  🔥 HEIMSIEG!',
+        540,
+        expect.any(Number)
+      );
+    });
+  });
+
+  describe('parseMatchScore', () => {
+    it('correctly parses colon score with home winner', () => {
+      const score = parseMatchScore('78:72');
+
+      expect(score).toEqual({
+        home: 78,
+        guest: 72,
+        winner: 'home',
+        raw: '78:72',
+      });
+    });
+
+    it('correctly parses guest winner and spaces', () => {
+      const score = parseMatchScore('65 : 81');
+
+      expect(score).toEqual({
+        home: 65,
+        guest: 81,
+        winner: 'guest',
+        raw: '65 : 81',
+      });
+    });
+
+    it('correctly parses tie score', () => {
+      const score = parseMatchScore('70-70');
+
+      expect(score).toEqual({
+        home: 70,
+        guest: 70,
+        winner: 'tie',
+        raw: '70-70',
+      });
+    });
+
+    it('returns null for null, empty or invalid strings', () => {
+      expect(parseMatchScore(null)).toBeNull();
+      expect(parseMatchScore('')).toBeNull();
+      expect(parseMatchScore('invalid')).toBeNull();
     });
   });
 });
