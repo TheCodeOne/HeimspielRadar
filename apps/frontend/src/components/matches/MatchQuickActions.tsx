@@ -12,7 +12,6 @@ import {
 import type { Match } from '@sundayleague/shared-types';
 import { getMatchLinks } from '@/lib/match-links';
 import { shareMatch } from '@/lib/share-utils';
-import { StoryPreviewModal } from '@/components/story/StoryPreviewModal';
 
 export interface MatchQuickActionsProps {
   match: Match;
@@ -28,7 +27,6 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
   onShareFeedback,
 }) => {
   const [isCopied, setIsCopied] = React.useState(false);
-  const [isStoryModalOpen, setIsStoryModalOpen] = React.useState(false);
   const links = getMatchLinks(match);
   const isFinished = Boolean(match.result);
 
@@ -66,7 +64,11 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
 
   const handleStoryShare = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsStoryModalOpen(true);
+
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/story/${match.id}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
   };
 
   return (
@@ -240,16 +242,6 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
           <Share2 className={iconSizeClass} />
         )}
       </button>
-
-      {/* Story Customization & Preview Modal */}
-      {isStoryModalOpen && (
-        <StoryPreviewModal
-          match={match}
-          isOpen={isStoryModalOpen}
-          onClose={() => setIsStoryModalOpen(false)}
-          onShareFeedback={onShareFeedback}
-        />
-      )}
     </div>
   );
 };
