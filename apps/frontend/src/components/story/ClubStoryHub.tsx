@@ -126,7 +126,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
   };
 
   return (
-    <div className="min-h-dvh w-full flex flex-col bg-background text-foreground">
+    <div className="fixed inset-0 h-dvh w-full flex flex-col overflow-y-auto bg-background text-foreground">
       {/* Toast Feedback */}
       {toastMessage && (
         <div
