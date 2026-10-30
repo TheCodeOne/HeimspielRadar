@@ -1,7 +1,6 @@
 import * as React from 'react';
 import {
   Calendar,
-  Camera,
   Clock,
   ExternalLink,
   MapPin,
@@ -15,18 +14,37 @@ import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { getMatchLinks } from '@/lib/match-links';
 import { getSampleMatches } from '@/lib/sample-matches';
-import { shareMatch, shareMatchStory } from '@/lib/share-utils';
-import { splitTeamName } from '@/lib/story-image-generator';
+import { shareMatch } from '@/lib/share-utils';
 
 export interface MatchDetailViewProps {
   matchId: number;
   onNavigateHome: () => void;
 }
 
+export interface SplitTeamNameResult {
+  base: string;
+  suffix?: string;
+}
+
+/**
+ * Splits a basketball team name into the club name and optional team number/suffix
+ * (e.g. "TSG Reutlingen 2" -> { base: "TSG Reutlingen", suffix: "2" })
+ * so the suffix never awkwardly wraps alone onto a new line.
+ */
+function splitTeamName(name: string): SplitTeamNameResult {
+  const trimmed = name.trim();
+  const match = trimmed.match(/^(.*)\s+(\d+|[IVX]+|[A-Z])$/);
+
+  if (match) {
+    return { base: match[1], suffix: match[2] };
+  }
+
+  return { base: trimmed };
+}
+
 export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProps) {
   const [match, setMatch] = React.useState<Match | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isGeneratingStory, setIsGeneratingStory] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const showToast = React.useCallback((message: string) => {
@@ -38,48 +56,40 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
 
   React.useEffect(() => {
     let isCancelled = false;
-
     setIsLoading(true);
 
-    fetch(`/api/matches/${matchId}`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load match: ${res.status}`);
-        }
+    async function loadMatch() {
+      try {
+        const res = await fetch(`/api/matches/${matchId}`);
 
-        return res.json();
-      })
-      .then((data: Match) => {
-        if (!isCancelled) {
-          setMatch(data);
-          setIsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!isCancelled) {
-          // Fallback to sample matches if API is unavailable or in offline/prototype mode
-          const sample = getSampleMatches().find((m) => m.id === matchId) || null;
+        if (res.ok) {
+          // SAFETY: Backend returns domain Match DTO
+          const data = (await res.json()) as Match;
 
-          setMatch(sample);
-          setIsLoading(false);
+          if (!isCancelled) {
+            setMatch(data);
+            setIsLoading(false);
+          }
+
+          return;
         }
-      });
+      } catch {
+        // Fall back to sample matches if offline or backend is unconfigured
+      }
+
+      if (!isCancelled) {
+        const sample = getSampleMatches().find((m) => m.id === matchId) ?? null;
+        setMatch(sample);
+        setIsLoading(false);
+      }
+    }
+
+    loadMatch();
 
     return () => {
       isCancelled = true;
     };
   }, [matchId]);
-
-  // Update HTML title on match load
-  React.useEffect(() => {
-    if (match) {
-      document.title = `${match.homeTeam.name} vs ${match.guestTeam.name} – HeimspielRadar`;
-    }
-
-    return () => {
-      document.title = 'HeimspielRadar – Amateur-Basketball in deiner Nähe';
-    };
-  }, [match]);
 
   const handleShare = async () => {
     if (!match) {
@@ -88,11 +98,11 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
 
     const result = await shareMatch(match, {
       onSuccess: (type) => {
-        if (type === 'shared') {
-          showToast('Spiel geteilt!');
-        } else {
-          showToast('Link zum Spiel in die Zwischenablage kopiert!');
-        }
+        showToast(
+          type === 'copied'
+            ? 'Link zum Spiel in die Zwischenablage kopiert!'
+            : 'Spiel erfolgreich geteilt!'
+        );
       },
       onError: () => {
         showToast('Teilen fehlgeschlagen');
@@ -102,32 +112,6 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
     if (result === 'copied') {
       showToast('Link zum Spiel in die Zwischenablage kopiert!');
     }
-  };
-
-  const handleStoryShare = async () => {
-    if (!match || isGeneratingStory) {
-      return;
-    }
-
-    setIsGeneratingStory(true);
-    showToast('Story-Bild wird erstellt...');
-
-    await shareMatchStory(match, {
-      theme: 'auto',
-      onSuccess: (type) => {
-        setIsGeneratingStory(false);
-
-        if (type === 'shared') {
-          showToast('Story geöffnet & Link für Sticker kopiert!');
-        } else {
-          showToast('Story heruntergeladen & Link für Sticker kopiert!');
-        }
-      },
-      onError: () => {
-        setIsGeneratingStory(false);
-        showToast('Story-Generierung fehlgeschlagen');
-      },
-    });
   };
 
   if (isLoading) {
@@ -177,50 +161,26 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
   const guestParts = splitTeamName(match.guestTeam.name);
 
   return (
-    <div className="h-dvh w-full flex flex-col bg-background text-foreground overflow-hidden">
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-slate-900/90 text-white px-4 py-2 text-xs font-semibold shadow-lg backdrop-blur border border-slate-700/80 animate-in fade-in slide-in-from-top-2 duration-200"
+    <div className="fixed inset-0 flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+      {/* Top Header Bar */}
+      <header className="sticky top-0 z-40 flex h-12 sm:h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onNavigateHome}
+          className="gap-1.5 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
-          {toastMessage}
-        </div>
-      )}
+          <span>← Zum Heimspielradar</span>
+        </Button>
 
-      {/* Top Navigation Bar */}
-      <header className="shrink-0 flex items-center justify-between border-b border-border/50 px-3 py-2.5 sm:px-6 bg-card/60 backdrop-blur-md z-20">
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onNavigateHome}
-            className="text-xs font-medium -ml-1 text-muted-foreground hover:text-foreground"
-          >
-            ← Zum Heimspielradar
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleStoryShare}
-            disabled={isGeneratingStory}
-            className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-primary/50 text-primary hover:bg-primary/10"
-          >
-            <Camera className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Story erstellen</span>
-            <span className="sm:hidden">Story</span>
-          </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={handleShare}
-            className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-border/60"
+            className="h-8 gap-1.5 text-xs font-medium"
           >
             <Share2 className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Teilen</span>
@@ -228,106 +188,112 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
         </div>
       </header>
 
-      {/* Main Ticket View (Fills remaining height without scrolling if possible) */}
-      <main className="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
-        {/* Ticket Container */}
-        <div className="relative w-full max-w-xl mx-auto rounded-3xl bg-card border border-border/70 shadow-2xl overflow-hidden flex flex-col max-h-full">
-          {/* Header Ticket Section */}
-          <div className="bg-gradient-to-r from-primary/15 via-primary/5 to-transparent px-4 py-3 sm:px-6 sm:py-4 border-b border-border/60 flex items-center justify-between">
-            <div className="min-w-0 pr-2">
-              <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-primary">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+        >
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Main Body - Centered Ticket layout that fits completely within 100dvh without scrolling */}
+      <main className="relative flex flex-1 min-h-0 w-full flex-col items-center justify-center p-2 sm:p-4 overflow-hidden bg-radial from-slate-900/60 to-slate-950/95">
+        <div className="relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
+          {/* Perforation Cutouts */}
+          <div
+            aria-hidden="true"
+            className="absolute top-[68px] sm:top-[76px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-slate-700/80 shadow-inner"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute top-[68px] sm:top-[76px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-slate-700/80 shadow-inner"
+          />
+
+          {/* 1. Ticket Header Stub */}
+          <div className="relative shrink-0 bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-2.5 sm:py-3 border-b border-dashed border-slate-700/80">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                  HeimspielRadar Ticket
+                </span>
+              </div>
+
+              {match.matchDay && (
+                <span className="font-mono text-[10px] text-slate-400">
+                  {match.matchDay}. Spieltag {match.matchNo ? `• #${match.matchNo}` : ''}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="truncate text-xs font-bold text-foreground tracking-tight">
                 {leagueName}
               </span>
-              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                {match.round && <span>Spieltag {match.round}</span>}
-                {match.league?.gender && (
-                  <span className="capitalize">
-                    {match.league.gender === 'm'
-                      ? 'Herren'
-                      : match.league.gender === 'w'
-                      ? 'Damen'
-                      : 'Mixed'}
-                  </span>
-                )}
-                {match.league?.ageClass && (
-                  <span className="capitalize">{match.league.ageClass}</span>
-                )}
-              </div>
             </div>
-
-            {isFinished ? (
-              <span className="shrink-0 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-                Beendet
-              </span>
-            ) : (
-              <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-semibold">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Anstehend
-              </span>
-            )}
           </div>
 
-          {/* Ticket Body: Match Teams & Score */}
-          <div className="p-4 sm:p-6 flex flex-col gap-4 flex-1">
-            <div className="grid grid-cols-11 items-center gap-2 py-2 sm:py-4">
-              {/* Home Team */}
-              <div className="col-span-5 text-right flex flex-col items-end justify-center min-w-0">
-                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                  Heim
-                </span>
-                <span className="text-base sm:text-xl md:text-2xl font-extrabold tracking-tight text-foreground leading-tight">
-                  <span className="break-words">{homeParts.base}</span>
-                  {homeParts.suffix && (
-                    <span className="whitespace-nowrap font-black text-primary ml-1.5">
-                      {homeParts.suffix}
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              {/* VS or Result Divider */}
-              <div className="col-span-1 flex flex-col items-center justify-center">
-                {isFinished && match.result ? (
-                  <div className="flex flex-col items-center">
-                    <span className="text-lg sm:text-2xl font-black font-mono tracking-tight text-primary">
-                      {match.result.home}:{match.result.guest}
-                    </span>
+          {/* 2. Middle Content Grid (Flex column fitting exactly without scrolling) */}
+          <div className="p-3 sm:p-4 flex-1 min-h-0 flex flex-col gap-2 sm:gap-3 overflow-hidden">
+            {/* Matchup Teams Banner */}
+            <div className="shrink-0 rounded-2xl bg-card/60 p-2.5 sm:p-3 border border-border/50 text-center">
+              <div className="flex items-center justify-center gap-2">
+                {/* Home Team */}
+                <div className="flex-1 text-right">
+                  <div className="text-xs sm:text-sm md:text-base font-black text-foreground leading-tight">
+                    <span>{homeParts.base}</span>
+                    {homeParts.suffix && (
+                      <span className="whitespace-nowrap ml-1 text-primary">{homeParts.suffix}</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-muted/70 flex items-center justify-center border border-border/80">
-                    <span className="text-[10px] sm:text-xs font-black text-muted-foreground uppercase">
+                  <span className="text-[9px] font-mono uppercase text-primary font-bold">Heim</span>
+                </div>
+
+                {/* VS / Result */}
+                <div className="shrink-0 flex flex-col items-center px-1">
+                  {isFinished ? (
+                    <div className="rounded-lg bg-primary/20 border border-primary/40 px-2 py-0.5 font-mono text-xs font-black text-primary">
+                      {match.result}
+                    </div>
+                  ) : (
+                    <div className="rounded-full bg-slate-800/90 border border-slate-700/70 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
                       VS
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Guest Team */}
-              <div className="col-span-5 text-left flex flex-col items-start justify-center min-w-0">
-                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                  Gast
-                </span>
-                <span className="text-base sm:text-xl md:text-2xl font-extrabold tracking-tight text-foreground leading-tight">
-                  <span className="break-words">{guestParts.base}</span>
-                  {guestParts.suffix && (
-                    <span className="whitespace-nowrap font-black text-primary ml-1.5">
-                      {guestParts.suffix}
-                    </span>
+                    </div>
                   )}
-                </span>
-              </div>
-            </div>
+                </div>
 
-            {/* Date & Kickoff Info Pill */}
-            <div className="rounded-xl bg-muted/30 border border-border/50 px-3 py-2 sm:px-4 sm:py-2.5 flex items-center justify-center gap-4 sm:gap-6 text-xs sm:text-sm">
-              <div className="flex items-center gap-1.5 text-foreground font-semibold">
-                <Calendar className="h-4 w-4 text-primary shrink-0" />
-                <span>{dateFormatted}</span>
+                {/* Guest Team */}
+                <div className="flex-1 text-left">
+                  <div className="text-xs sm:text-sm md:text-base font-black text-foreground leading-tight">
+                    <span>{guestParts.base}</span>
+                    {guestParts.suffix && (
+                      <span className="whitespace-nowrap ml-1 text-slate-300">{guestParts.suffix}</span>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-mono uppercase text-slate-400 font-bold">Gast</span>
+                </div>
               </div>
-              <div className="h-3 w-px bg-border/60" />
-              <div className="flex items-center gap-1.5 text-foreground font-semibold">
-                <Clock className="h-4 w-4 text-primary shrink-0" />
-                <span>{timeFormatted}</span>
+
+              {/* Anpfiff Date & Time */}
+              <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center justify-center gap-2 text-xs">
+                <span className="flex items-center gap-1 font-medium text-foreground">
+                  <Calendar className="h-3 w-3 text-primary" />
+                  {dateFormatted}
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="flex items-center gap-1 font-mono font-semibold text-primary">
+                  <Clock className="h-3 w-3 text-primary" />
+                  {timeFormatted}
+                </span>
               </div>
             </div>
 
@@ -385,17 +351,6 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                 >
                   <Share2 className="h-3 w-3 text-primary" />
                   <span>Teilen</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleStoryShare}
-                  disabled={isGeneratingStory}
-                  className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-primary/50 text-primary hover:bg-primary/10"
-                >
-                  <Camera className="h-3 w-3" />
-                  <span>Story</span>
                 </Button>
               </div>
 
