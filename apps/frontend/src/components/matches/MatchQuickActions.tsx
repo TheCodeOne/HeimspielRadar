@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   Activity,
   BarChart3,
+  Camera,
   Check,
   FileText,
   Navigation,
@@ -10,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { getMatchLinks } from '@/lib/match-links';
-import { shareMatch } from '@/lib/share-utils';
+import { shareMatch, shareMatchStory } from '@/lib/share-utils';
 
 export interface MatchQuickActionsProps {
   match: Match;
@@ -26,6 +27,7 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
   onShareFeedback,
 }) => {
   const [isCopied, setIsCopied] = React.useState(false);
+  const [isGeneratingStory, setIsGeneratingStory] = React.useState(false);
   const links = getMatchLinks(match);
   const isFinished = Boolean(match.result);
 
@@ -59,6 +61,34 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2500);
     }
+  };
+
+  const handleStoryShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (isGeneratingStory) {
+      return;
+    }
+
+    setIsGeneratingStory(true);
+    onShareFeedback?.('Story-Bild wird erstellt...');
+
+    await shareMatchStory(match, {
+      theme: 'auto',
+      onSuccess: (type) => {
+        setIsGeneratingStory(false);
+
+        if (type === 'shared') {
+          onShareFeedback?.('Story geöffnet & Link für Sticker kopiert!');
+        } else {
+          onShareFeedback?.('Story heruntergeladen & Link für Sticker kopiert!');
+        }
+      },
+      onError: () => {
+        setIsGeneratingStory(false);
+        onShareFeedback?.('Erstellen des Story-Bilds fehlgeschlagen');
+      },
+    });
   };
 
   return (
@@ -201,7 +231,20 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
         </span>
       )}
 
-      {/* 6. Spiel teilen (Web Share API oder Zwischenablage) */}
+      {/* 6. Instagram Matchday Story Generator */}
+      <button
+        type="button"
+        title="Instagram Matchday Story erstellen"
+        aria-label="Instagram Matchday Story erstellen"
+        data-action="story"
+        disabled={isGeneratingStory}
+        onClick={handleStoryShare}
+        className={`${baseButtonClass} border border-primary/50 text-primary hover:bg-primary/15 transition-colors`}
+      >
+        <Camera className={iconSizeClass} />
+      </button>
+
+      {/* 7. Spiel teilen (Web Share API oder Zwischenablage) */}
       <button
         type="button"
         title={isCopied ? 'Link kopiert!' : 'Spiel teilen'}

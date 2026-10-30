@@ -26,6 +26,7 @@ import {
 import { MapContainer } from '@/components/map';
 import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
 import { MatchDetailView, MatchList, VenueModal } from '@/components/matches';
+import { ClubStoryHub } from '@/components/story';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
@@ -707,6 +708,7 @@ export function App() {
   }, []);
 
   const isAdminRoute = currentPath.startsWith('/admin');
+  const isStoryRoute = currentPath.startsWith('/story') || currentPath.startsWith('/creator');
   const matchDetailId = getMatchDetailIdFromPath(currentPath);
 
   if (isAdminRoute) {
@@ -724,6 +726,10 @@ export function App() {
     }
 
     return <AdminDashboard />;
+  }
+
+  if (isStoryRoute) {
+    return <ClubStoryHub onNavigateHome={() => navigateTo('/')} />;
   }
 
   if (matchDetailId !== null) {
