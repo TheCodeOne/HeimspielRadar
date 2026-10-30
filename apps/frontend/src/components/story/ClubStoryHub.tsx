@@ -42,13 +42,24 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch matches (from API or sample fallback)
+  // Fetch matches from API with optional team search (or fallback to sample data)
   React.useEffect(() => {
     let isCancelled = false;
+    const abortController = new AbortController();
 
     setIsLoading(true);
 
-    fetch('/api/matches')
+    const queryParams = new URLSearchParams();
+
+    if (selectedClub.trim()) {
+      queryParams.set('teamQuery', selectedClub.trim());
+    } else {
+      queryParams.set('onlyUpcoming', 'true');
+    }
+
+    fetch(`/api/matches?${queryParams.toString()}`, {
+      signal: abortController.signal,
+    })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to load matches: ${res.status}`);
@@ -64,32 +75,34 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
       })
       .catch(() => {
         if (!isCancelled) {
-          // Fallback to sample matches if API is unavailable
-          setAllMatches(getSampleMatches());
+          // Fallback to sample matches if API is unavailable or offline
+          const samples = getSampleMatches();
+
+          if (selectedClub.trim()) {
+            const q = selectedClub.toLowerCase().trim();
+            setAllMatches(
+              samples.filter(
+                (m) =>
+                  m.homeTeam.name.toLowerCase().includes(q) ||
+                  m.guestTeam.name.toLowerCase().includes(q)
+              )
+            );
+          } else {
+            setAllMatches(samples);
+          }
+
           setIsLoading(false);
         }
       });
 
     return () => {
       isCancelled = true;
+      abortController.abort();
     };
-  }, []);
+  }, [selectedClub]);
 
-  // Filter matches matching the selected club
-  const filteredMatches = React.useMemo(() => {
-    if (!selectedClub) {
-      return allMatches.slice(0, 15);
-    }
-
-    const queryLower = selectedClub.toLowerCase().trim();
-
-    return allMatches.filter((m) => {
-      const homeMatch = m.homeTeam.name.toLowerCase().includes(queryLower);
-      const guestMatch = m.guestTeam.name.toLowerCase().includes(queryLower);
-
-      return homeMatch || guestMatch;
-    });
-  }, [allMatches, selectedClub]);
+  // Matches to display (already filtered from server/fallback)
+  const filteredMatches = allMatches;
 
   const handleSelectSuggestion = (suggestion: TeamSuggestion) => {
     setSelectedClub(suggestion.clubName || suggestion.name);
