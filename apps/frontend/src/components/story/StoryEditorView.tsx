@@ -277,7 +277,7 @@ export function StoryEditorView({
                 {match.homeTeam.name} vs {match.guestTeam.name}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                {dateStr} • {timeStr} • {match.venue?.name || 'Sporthalle'}
+                {dateStr} • {timeStr} Uhr • {match.venue?.name || 'Sporthalle'}
               </div>
             </div>
 
@@ -297,10 +297,10 @@ export function StoryEditorView({
                   }`}
                 >
                   <span className="text-sm font-bold flex items-center gap-1.5">
-                    <span>🏀 Molten Edition</span>
+                    <span>🏀 Classic Court</span>
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Klassischer DBB-Spielball-Look & Court Lines
+                    Modernes Midnight & Orange Hardwood Design
                   </span>
                 </button>
 
