@@ -279,6 +279,45 @@ function drawTeamBlock(
   ctx.restore();
 }
 
+let cachedCourtBgImage: HTMLImageElement | null = null;
+
+/**
+ * Loads and caches the photographic hardwood court background image for browser rendering.
+ */
+async function loadCourtBackgroundImage(
+  ctx: CanvasRenderingContext2D
+): Promise<HTMLImageElement | null> {
+  if (!('Image' in globalThis) || !('drawImage' in ctx)) {
+    return null;
+  }
+
+  if (cachedCourtBgImage && cachedCourtBgImage.complete && cachedCourtBgImage.naturalWidth > 0) {
+    return cachedCourtBgImage;
+  }
+
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    const timeout = setTimeout(() => {
+      resolve(null);
+    }, 1500);
+
+    img.onload = () => {
+      clearTimeout(timeout);
+      cachedCourtBgImage = img;
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      clearTimeout(timeout);
+      resolve(null);
+    };
+
+    img.src = '/story-bg-court.jpg';
+  });
+}
+
 /**
  * Generates an Instagram Story 9:16 (1080x1920) image Blob from match data.
  */
@@ -357,34 +396,38 @@ export async function generateStoryImageBlob(
     drawBat(920, 290, 0.95);
     drawBat(860, 360, 0.55);
     ctx.restore();
+
+    // Basketball Court Geometry for Halloween
+    drawBasketballCourtLines(ctx, theme);
   } else {
-    // Classic Court: Deep Midnight Hardwood Stadium
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-    bgGrad.addColorStop(0, '#0c1322');
-    bgGrad.addColorStop(0.3, '#070b14');
-    bgGrad.addColorStop(0.7, '#05070d');
-    bgGrad.addColorStop(1, '#020408');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, width, height);
+    // Classic Court: Real Photographic Hardwood & Basketball Background (/story-bg-court.jpg)
+    const courtBgImg = await loadCourtBackgroundImage(ctx);
 
-    // Vibrant Orange / Amber court spotlights
-    const courtSpotlight = ctx.createRadialGradient(540, 640, 60, 540, 640, 720);
-    courtSpotlight.addColorStop(0, 'rgba(249, 115, 22, 0.22)');
-    courtSpotlight.addColorStop(0.6, 'rgba(249, 115, 22, 0.05)');
-    courtSpotlight.addColorStop(1, 'rgba(249, 115, 22, 0)');
-    ctx.fillStyle = courtSpotlight;
-    ctx.fillRect(0, 0, width, height);
+    if (courtBgImg) {
+      // Draw full-bleed photographic hardwood court & basketball
+      ctx.drawImage(courtBgImg, 0, 0, width, height);
 
-    // Subtle blue accent glow at the bottom
-    const bottomGlow = ctx.createRadialGradient(540, 1750, 40, 540, 1750, 500);
-    bottomGlow.addColorStop(0, 'rgba(56, 189, 248, 0.12)');
-    bottomGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
-    ctx.fillStyle = bottomGlow;
-    ctx.fillRect(0, 0, width, height);
+      // Subtle atmospheric dark vignette so white text & glass cards pop
+      const overlayGrad = ctx.createLinearGradient(0, 0, 0, height);
+      overlayGrad.addColorStop(0, 'rgba(6, 5, 4, 0.45)');
+      overlayGrad.addColorStop(0.35, 'rgba(6, 5, 4, 0.22)');
+      overlayGrad.addColorStop(0.75, 'rgba(6, 5, 4, 0.28)');
+      overlayGrad.addColorStop(1, 'rgba(6, 5, 4, 0.62)');
+      ctx.fillStyle = overlayGrad;
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      // Fallback gradient if offline or in unit tests
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, '#0c1322');
+      bgGrad.addColorStop(0.3, '#070b14');
+      bgGrad.addColorStop(0.7, '#05070d');
+      bgGrad.addColorStop(1, '#020408');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      drawBasketballCourtLines(ctx, theme);
+    }
   }
-
-  // Basketball Court Geometry
-  drawBasketballCourtLines(ctx, theme);
 
   // 2. Top Header - Modern Sport Headline
   ctx.save();
@@ -403,7 +446,7 @@ export async function generateStoryImageBlob(
   const categoryText = isFinished ? 'MATCH RESULT' : defaultCategoryText;
 
   ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = isFinished && theme !== 'halloween' ? '#38bdf8' : accentColor;
+  ctx.fillStyle = isFinished && theme !== 'halloween' ? '#34d399' : accentColor;
   ctx.letterSpacing = '8px';
   ctx.fillText(categoryText, 540, 180);
 
@@ -416,7 +459,7 @@ export async function generateStoryImageBlob(
     theme === 'halloween'
       ? 'rgba(249, 115, 22, 0.5)'
       : isFinished
-      ? 'rgba(56, 189, 248, 0.45)'
+      ? 'rgba(16, 185, 129, 0.45)'
       : 'rgba(245, 158, 11, 0.4)';
   ctx.shadowBlur = 30;
   ctx.fillText(headline, 540, 275);
@@ -434,9 +477,9 @@ export async function generateStoryImageBlob(
   const pillY = 310;
 
   drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 24);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(255, 255, 255, 0.08)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(10, 8, 6, 0.55)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(255, 255, 255, 0.18)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.45)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -457,9 +500,9 @@ export async function generateStoryImageBlob(
   ctx.shadowBlur = 50;
   ctx.shadowOffsetY = 24;
   drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(15, 23, 42, 0.88)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(22, 12, 34, 0.88)' : 'rgba(10, 8, 6, 0.58)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(255, 255, 255, 0.12)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.35)';
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
@@ -597,9 +640,9 @@ export async function generateStoryImageBlob(
 
   ctx.save();
   drawRoundedRect(ctx, infoX, infoY, infoW, infoH, 28);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(56, 189, 248, 0.08)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(10, 8, 6, 0.58)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(56, 189, 248, 0.25)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.35)' : 'rgba(245, 158, 11, 0.38)';
   ctx.lineWidth = 2;
   ctx.stroke();
 
@@ -685,10 +728,10 @@ export async function generateStoryImageBlob(
   // Dashed sticker target border
   ctx.beginPath();
   drawRoundedRect(ctx, stickerBoxX, stickerBoxY, stickerBoxW, stickerBoxH, 24);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(10, 8, 6, 0.52)';
   ctx.fill();
   ctx.setLineDash([12, 10]);
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(56, 189, 248, 0.6)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.6)' : 'rgba(245, 158, 11, 0.58)';
   ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.setLineDash([]); // clear dash
@@ -696,7 +739,7 @@ export async function generateStoryImageBlob(
   // Sticker Callout Header
   ctx.textAlign = 'center';
   ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#38bdf8';
+  ctx.fillStyle = theme === 'halloween' ? '#fb923c' : '#fde68a';
   ctx.letterSpacing = '1px';
   ctx.fillText('[ 🔗 HIER INSTAGRAM LINK-STICKER PLATZIEREN ]', 540, stickerBoxY + 54);
 
