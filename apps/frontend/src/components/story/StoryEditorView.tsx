@@ -223,11 +223,11 @@ export function StoryEditorView({
         </div>
       </header>
 
-      {/* Main Content: Split layout on Desktop, Stack on Mobile */}
-      <main className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+      {/* Main Content: Split layout on Desktop, Scrollable Column on Mobile */}
+      <main className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
         {/* Left / Top Column: Live 9:16 Preview */}
-        <section className="flex-1 bg-slate-950/60 p-4 sm:p-6 flex flex-col items-center justify-center overflow-y-auto relative min-h-[340px] md:min-h-0">
-          <div className="w-full max-w-[340px] sm:max-w-[380px] aspect-[9/16] max-h-[72vh] md:max-h-[82vh] rounded-2xl shadow-2xl overflow-hidden border border-border/40 relative flex items-center justify-center bg-slate-900">
+        <section className="shrink-0 md:flex-1 bg-slate-950/60 p-4 sm:p-6 flex flex-col items-center justify-center relative min-h-[460px] md:min-h-0 md:overflow-y-auto">
+          <div className="w-full max-w-[300px] sm:max-w-[340px] md:max-w-[380px] aspect-[9/16] h-auto max-h-[68vh] md:max-h-[82vh] rounded-2xl shadow-2xl overflow-hidden border border-border/40 relative flex items-center justify-center bg-slate-900">
             {previewBlobUrl ? (
               <img
                 src={previewBlobUrl}
@@ -254,7 +254,7 @@ export function StoryEditorView({
         </section>
 
         {/* Right / Bottom Column: Customization Controls */}
-        <section className="w-full md:w-[420px] lg:w-[460px] shrink-0 border-t md:border-t-0 md:border-l border-border/50 bg-card/60 backdrop-blur-md flex flex-col min-h-0 overflow-y-auto">
+        <section className="w-full md:w-[420px] lg:w-[460px] shrink-0 border-t md:border-t-0 md:border-l border-border/50 bg-card/60 backdrop-blur-md flex flex-col min-h-0 overflow-y-auto pb-12 md:pb-6">
           <div className="p-4 sm:p-6 flex-1 flex flex-col gap-6">
             {/* Match info summary */}
             <div className="rounded-xl bg-muted/40 p-3.5 border border-border/50">
