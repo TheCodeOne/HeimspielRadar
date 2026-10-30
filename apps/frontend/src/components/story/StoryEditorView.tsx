@@ -403,10 +403,10 @@ export function StoryEditorView({
                         key={chip}
                         type="button"
                         onClick={() => handleChipClick(chip)}
-                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                           isSelected
-                            ? 'bg-primary/20 border-primary text-primary font-semibold'
-                            : 'bg-muted/40 border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                            ? 'bg-primary/20 border-primary text-primary font-semibold shadow-sm'
+                            : 'bg-secondary/80 border-border text-foreground/90 hover:text-foreground hover:bg-secondary hover:border-primary/40'
                         }`}
                       >
                         {chip}

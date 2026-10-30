@@ -13,11 +13,7 @@ import { TeamSearchInput } from '@/components/filters/shared/TeamSearchInput';
 import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { getSampleMatches } from '@/lib/sample-matches';
-import {
-  isHalloweenSeason,
-  parseMatchScore,
-  type StoryTheme,
-} from '@/lib/story-image-generator';
+import { parseMatchScore } from '@/lib/story-image-generator';
 import { StoryEditorView } from './StoryEditorView';
 
 export interface ClubStoryHubProps {
@@ -32,11 +28,6 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
   const [allMatches, setAllMatches] = React.useState<Match[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
   const [editingMatch, setEditingMatch] = React.useState<Match | null>(null);
-
-  const [themePreference, setThemePreference] = React.useState<StoryTheme>(() => {
-    return isHalloweenSeason() ? 'halloween' : 'classic';
-  });
-
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const showToast = React.useCallback((message: string) => {
@@ -143,7 +134,6 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
     return (
       <StoryEditorView
         match={editingMatch}
-        initialTheme={themePreference}
         onBack={() => {
           if (typeof window !== 'undefined') {
             window.history.pushState({}, '', '/story');
@@ -181,43 +171,6 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
           <ArrowLeft className="h-4 w-4" />
           <span>Zum Heimspielradar</span>
         </Button>
-
-        {/* Story Theme Selector */}
-        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/60">
-          <button
-            type="button"
-            onClick={() => setThemePreference('classic')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
-              themePreference === 'classic'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🏀 Hardwood</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setThemePreference('vintage')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
-              themePreference === 'vintage'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🏟️ Vintage</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setThemePreference('halloween')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
-              themePreference === 'halloween'
-                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🎃 Halloween</span>
-          </button>
-        </div>
       </header>
 
       {/* Hero / Header */}
@@ -380,7 +333,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
                     <div className="min-w-0 flex-1 text-[11px] text-muted-foreground flex flex-col gap-0.5">
                       <div className="flex items-center gap-1 font-semibold text-foreground truncate">
                         <Clock className="h-3 w-3 text-primary shrink-0" />
-                        <span>{timeStr} Uhr</span>
+                        <span>{timeStr}</span>
                       </div>
                       <div className="flex items-center gap-1 truncate">
                         <MapPin className="h-3 w-3 shrink-0" />
@@ -404,11 +357,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
                         type="button"
                         size="sm"
                         onClick={() => handleOpenEditor(match)}
-                        className={`h-8 px-3 text-xs font-bold gap-1.5 ${
-                          themePreference === 'halloween'
-                            ? 'bg-orange-600 hover:bg-orange-500 text-white'
-                            : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                        }`}
+                        className="h-8 px-3 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
                       >
                         <Camera className="h-3.5 w-3.5" />
                         <span>Story anpassen</span>

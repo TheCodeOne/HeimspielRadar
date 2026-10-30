@@ -276,7 +276,7 @@ describe('story-image-generator', () => {
       // Verify FINAL SCORE headline was rendered
       expect(fillTextSpy).toHaveBeenCalledWith('FINAL SCORE', 540, 275);
       // Verify MATCH RESULT category was rendered
-      expect(fillTextSpy).toHaveBeenCalledWith('MATCH RESULT', 540, 180);
+      expect(fillTextSpy).toHaveBeenCalledWith('MATCH RESULT', 540, 145);
       // Verify final score home and guest numbers were drawn
       expect(fillTextSpy).toHaveBeenCalledWith('78', 540 - 32, expect.any(Number));
       expect(fillTextSpy).toHaveBeenCalledWith(':', 540, expect.any(Number));

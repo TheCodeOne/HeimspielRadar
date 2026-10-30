@@ -359,51 +359,6 @@ function drawLinkIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, col
   ctx.restore();
 }
 
-/**
- * Draws the custom orange-amber vector basketball badge at (cx, cy).
- */
-function drawBasketballBadge(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number) {
-  ctx.save();
-
-  // Glowing circle fill
-  const grad = ctx.createLinearGradient(cx - radius, cy + radius, cx + radius, cy - radius);
-  grad.addColorStop(0, '#ea580c');
-  grad.addColorStop(1, '#fbbf24');
-
-  ctx.shadowColor = 'rgba(234, 88, 12, 0.4)';
-  ctx.shadowBlur = 16;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Basketball seam lines inside
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = '#09090b';
-  ctx.lineWidth = 3;
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Horizontal seam
-  ctx.beginPath();
-  ctx.moveTo(cx - radius + 2, cy);
-  ctx.lineTo(cx + radius - 2, cy);
-  ctx.stroke();
-
-  // Left & right curved seams
-  ctx.beginPath();
-  ctx.arc(cx - radius * 0.85, cy, radius * 0.85, -0.75, 0.75);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(cx + radius * 0.85, cy, radius * 0.85, Math.PI - 0.75, Math.PI + 0.75);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
 interface SplitTeamCardParams {
   teamName: string;
   role: 'home' | 'guest';
@@ -529,37 +484,37 @@ function drawSplitTeamCard(ctx: CanvasRenderingContext2D, params: SplitTeamCardP
   ctx.fillStyle = isWinner ? '#34d399' : '#a1a1aa';
   ctx.fillText(roleText, textStartX, labelY);
 
-  const roleWidth = ctx.measureText(roleText).width + roleText.length * 3.5;
+  const roleWidth = ctx.measureText(roleText).width;
 
   if (squadBadge) {
-    ctx.font = '800 18px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '800 19px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.letterSpacing = '1.5px';
-    const badgeTextW = ctx.measureText(squadBadge).width + squadBadge.length * 1.2;
+    const badgeTextW = ctx.measureText(squadBadge).width;
     const badgePadX = 16;
     const badgeW = badgeTextW + badgePadX * 2;
-    const badgeH = 34;
-    const badgeX = textStartX + roleWidth + 16;
-    const badgeY = labelY - 25;
+    const badgeH = 36;
+    const badgeX = textStartX + roleWidth + 18;
+    const badgeY = labelY - 26;
 
-    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 8);
+    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 9);
 
     if (isHome) {
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.20)';
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.65)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = '#fde68a';
     } else {
-      ctx.fillStyle = 'rgba(39, 39, 42, 0.90)';
+      ctx.fillStyle = 'rgba(63, 63, 70, 0.95)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(82, 82, 91, 0.85)';
+      ctx.strokeStyle = 'rgba(161, 161, 170, 0.70)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = '#d4d4d8';
+      ctx.fillStyle = '#ffffff';
     }
 
-    ctx.fillText(squadBadge, badgeX + badgePadX, badgeY + 23);
+    ctx.fillText(squadBadge, badgeX + badgePadX, badgeY + 24);
   }
 
   ctx.restore();
@@ -834,27 +789,27 @@ export async function generateStoryImageBlob(
   ctx.font = '800 22px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
   ctx.fillStyle = isFinished && theme !== 'halloween' ? '#34d399' : accentColor;
   ctx.letterSpacing = '7px';
-  ctx.fillText(categoryText, 540, 180);
+  ctx.fillText(categoryText, 540, 145);
 
   // Decorative side fade lines next to eyebrow
-  const catHalfW = (ctx.measureText(categoryText).width + categoryText.length * 6) / 2;
+  const catHalfW = ctx.measureText(categoryText).width / 2;
   const lineLen = 56;
-  const leftLineGrad = ctx.createLinearGradient(540 - catHalfW - 20 - lineLen, 172, 540 - catHalfW - 20, 172);
+  const leftLineGrad = ctx.createLinearGradient(540 - catHalfW - 24 - lineLen, 137, 540 - catHalfW - 24, 137);
   leftLineGrad.addColorStop(0, 'rgba(245, 158, 11, 0)');
   leftLineGrad.addColorStop(1, 'rgba(245, 158, 11, 0.8)');
   ctx.fillStyle = leftLineGrad;
-  ctx.fillRect(540 - catHalfW - 20 - lineLen, 171, lineLen, 2.5);
+  ctx.fillRect(540 - catHalfW - 24 - lineLen, 136, lineLen, 2.5);
 
-  const rightLineGrad = ctx.createLinearGradient(540 + catHalfW + 20, 172, 540 + catHalfW + 20 + lineLen, 172);
+  const rightLineGrad = ctx.createLinearGradient(540 + catHalfW + 24, 137, 540 + catHalfW + 24 + lineLen, 137);
   rightLineGrad.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
   rightLineGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
   ctx.fillStyle = rightLineGrad;
-  ctx.fillRect(540 + catHalfW + 20, 171, lineLen, 2.5);
+  ctx.fillRect(540 + catHalfW + 24, 136, lineLen, 2.5);
 
   // Main Condensed Broadcast Headline ("GAMEDAY" / "FINAL SCORE")
   const headline = isFinished ? 'FINAL SCORE' : 'GAMEDAY';
-  ctx.font = '700 132px "Bebas Neue", "Oswald", Impact, sans-serif';
-  const headlineGrad = ctx.createLinearGradient(0, 175, 0, 285);
+  ctx.font = '700 124px "Bebas Neue", "Oswald", Impact, sans-serif';
+  const headlineGrad = ctx.createLinearGradient(0, 180, 0, 280);
   headlineGrad.addColorStop(0, '#FFFFFF');
   headlineGrad.addColorStop(0.55, '#F3F4F6');
   headlineGrad.addColorStop(1, '#A1A1AA');
@@ -873,33 +828,34 @@ export async function generateStoryImageBlob(
   // League Pill Badge with glowing amber dot
   const leagueName = (match.league?.name || 'Amateur Basketball').toUpperCase();
   ctx.save();
-  ctx.font = '700 22px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.font = '700 21px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
   ctx.letterSpacing = '3px';
-  const leagueTextW = ctx.measureText(leagueName).width + leagueName.length * 2.5;
-  const pillPadding = 44;
-  const pillW = Math.min(leagueTextW + pillPadding * 2 + 24, 900);
+  const leagueTextW = ctx.measureText(leagueName).width;
+  const pillContentW = 24 + leagueTextW;
+  const pillPadding = 38;
+  const pillW = Math.min(pillContentW + pillPadding * 2, 900);
   const pillH = 50;
   const pillX = (width - pillW) / 2;
   const pillY = 308;
 
   drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 25);
-  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.16)' : 'rgba(245, 158, 11, 0.14)';
+  ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.18)' : 'rgba(18, 12, 8, 0.85)';
   ctx.fill();
-  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.40)';
+  ctx.strokeStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.45)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Glowing dot inside league pill
-  const dotX = pillX + 34;
+  // Glowing dot + centered league name inside pill
+  const contentStartX = 540 - pillContentW / 2;
   const dotY = pillY + pillH / 2;
   ctx.beginPath();
-  ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+  ctx.arc(contentStartX + 6, dotY, 6, 0, Math.PI * 2);
   ctx.fillStyle = '#fbbf24';
   ctx.fill();
 
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.fillStyle = accentLight;
-  ctx.fillText(leagueName, 540 + 10, pillY + 33);
+  ctx.fillText(leagueName, contentStartX + 24, pillY + 33);
   ctx.restore();
 
   // 3. Split Matchup Section (Two Team Cards + Floating 3D VS / Score Badge)
@@ -1197,12 +1153,12 @@ export async function generateStoryImageBlob(
     const badgeW = Math.min(textMetrics.width + 56, maxBadgeW);
     const badgeX = (width - badgeW) / 2;
 
-    ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.4)' : 'rgba(245, 158, 11, 0.35)';
-    ctx.shadowBlur = 18;
+    ctx.shadowColor = theme === 'halloween' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(245, 158, 11, 0.45)';
+    ctx.shadowBlur = 22;
     drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 28);
-    ctx.fillStyle = theme === 'halloween' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(245, 158, 11, 0.16)';
+    ctx.fillStyle = theme === 'halloween' ? 'rgba(28, 14, 42, 0.94)' : 'rgba(18, 12, 8, 0.94)';
     ctx.fill();
-    ctx.strokeStyle = theme === 'halloween' ? '#f97316' : '#f59e0b';
+    ctx.strokeStyle = theme === 'halloween' ? '#f97316' : '#fbbf24';
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
@@ -1254,28 +1210,25 @@ export async function generateStoryImageBlob(
   ctx.fillText(cleanUrl, 540, stickerBoxY + 96);
   ctx.restore();
 
-  // 6. Bottom App Branding (Vector Basketball Badge + Two-Tone HEIMSPIELRADAR.APP)
+  // 6. Bottom App Branding (Emoji + Two-Tone HEIMSPIELRADAR.APP without gap)
   const brandingY = 1675;
   ctx.save();
 
-  ctx.font = '700 40px "Oswald", "Bebas Neue", -apple-system, BlinkMacSystemFont, sans-serif';
-  ctx.letterSpacing = '3px';
-  const brandMain = 'HEIMSPIELRADAR';
+  ctx.font = '800 40px "Oswald", "Bebas Neue", -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.letterSpacing = '2px';
+  const brandPrefix = '🏀 HEIMSPIELRADAR';
   const brandSuffix = '.APP';
-  const mainW = ctx.measureText(brandMain).width + brandMain.length * 2.5;
-  const suffixW = ctx.measureText(brandSuffix).width + brandSuffix.length * 2.5;
-  const badgeRadius = 24;
-  const totalBrandW = badgeRadius * 2 + 18 + mainW + suffixW;
+  const prefixW = ctx.measureText(brandPrefix).width;
+  const suffixW = ctx.measureText(brandSuffix).width;
+  const totalBrandW = prefixW + suffixW;
   const brandStartX = 540 - totalBrandW / 2;
-
-  drawBasketballBadge(ctx, brandStartX + badgeRadius, brandingY - 14, badgeRadius);
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(brandMain, brandStartX + badgeRadius * 2 + 18, brandingY);
+  ctx.fillText(brandPrefix, brandStartX, brandingY);
 
   ctx.fillStyle = '#fbbf24';
-  ctx.fillText(brandSuffix, brandStartX + badgeRadius * 2 + 18 + mainW, brandingY);
+  ctx.fillText(brandSuffix, brandStartX + prefixW, brandingY);
 
   ctx.textAlign = 'center';
   ctx.font = '500 24px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif';
