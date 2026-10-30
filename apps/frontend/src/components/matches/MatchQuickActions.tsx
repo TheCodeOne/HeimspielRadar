@@ -2,24 +2,30 @@ import * as React from 'react';
 import {
   Activity,
   BarChart3,
+  Check,
   FileText,
   Navigation,
+  Share2,
   Trophy,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { getMatchLinks } from '@/lib/match-links';
+import { shareMatch } from '@/lib/share-utils';
 
 export interface MatchQuickActionsProps {
   match: Match;
   className?: string;
   size?: 'sm' | 'default';
+  onShareFeedback?: (message: string) => void;
 }
 
 export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
   match,
   className = '',
   size = 'default',
+  onShareFeedback,
 }) => {
+  const [isCopied, setIsCopied] = React.useState(false);
   const links = getMatchLinks(match);
   const isFinished = Boolean(match.result);
 
@@ -29,6 +35,30 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
 
   const stopPropagation = (e: React.SyntheticEvent) => {
     e.stopPropagation();
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const result = await shareMatch(match, {
+      onSuccess: (type) => {
+        if (type === 'copied') {
+          setIsCopied(true);
+          onShareFeedback?.('Link zum Spiel in die Zwischenablage kopiert!');
+          setTimeout(() => setIsCopied(false), 2500);
+        } else {
+          onShareFeedback?.('Spiel geteilt!');
+        }
+      },
+      onError: () => {
+        onShareFeedback?.('Teilen fehlgeschlagen');
+      },
+    });
+
+    if (result === 'copied' && !isCopied) {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+    }
   };
 
   return (
@@ -170,6 +200,26 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
           <Trophy className={iconSizeClass} />
         </span>
       )}
+
+      {/* 6. Spiel teilen (Web Share API oder Zwischenablage) */}
+      <button
+        type="button"
+        title={isCopied ? 'Link kopiert!' : 'Spiel teilen'}
+        aria-label={isCopied ? 'Link zum Spiel kopiert' : 'Spiel teilen'}
+        data-action="share"
+        onClick={handleShare}
+        className={`${baseButtonClass} ${
+          isCopied
+            ? 'border border-emerald-500/50 bg-emerald-500/20 text-emerald-400 font-semibold'
+            : 'border border-border/70 text-foreground hover:bg-primary/10 hover:text-primary'
+        }`}
+      >
+        {isCopied ? (
+          <Check className={iconSizeClass} />
+        ) : (
+          <Share2 className={iconSizeClass} />
+        )}
+      </button>
     </div>
   );
 };

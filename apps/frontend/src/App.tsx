@@ -25,7 +25,7 @@ import {
 } from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
 import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
-import { MatchList, VenueModal } from '@/components/matches';
+import { MatchDetailView, MatchList, VenueModal } from '@/components/matches';
 import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
@@ -672,23 +672,42 @@ function MainView() {
   );
 }
 
+function getMatchDetailIdFromPath(pathname: string): number | null {
+  const match = pathname.match(/^\/matches\/(\d+)(?:\/)?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const id = parseInt(match[1], 10);
+
+  return Number.isFinite(id) ? id : null;
+}
+
 export function App() {
-  const [isAdminRoute, setIsAdminRoute] = React.useState<boolean>(() => {
-    return (
-      typeof window !== 'undefined' &&
-      window.location.pathname.startsWith('/admin')
-    );
+  const [currentPath, setCurrentPath] = React.useState<string>(() => {
+    return typeof window !== 'undefined' ? window.location.pathname : '/';
   });
 
   React.useEffect(() => {
     const handlePopState = () => {
-      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
+      setCurrentPath(window.location.pathname);
     };
 
     window.addEventListener('popstate', handlePopState);
 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  const navigateTo = React.useCallback((path: string) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', path);
+      setCurrentPath(path);
+    }
+  }, []);
+
+  const isAdminRoute = currentPath.startsWith('/admin');
+  const matchDetailId = getMatchDetailIdFromPath(currentPath);
 
   if (isAdminRoute) {
     const isAdminEnabled = import.meta.env.VITE_ENABLE_ADMIN_UI === 'true';
@@ -705,6 +724,15 @@ export function App() {
     }
 
     return <AdminDashboard />;
+  }
+
+  if (matchDetailId !== null) {
+    return (
+      <MatchDetailView
+        matchId={matchDetailId}
+        onNavigateHome={() => navigateTo('/')}
+      />
+    );
   }
 
   return <MainView />;
