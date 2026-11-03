@@ -19,12 +19,15 @@ function createLeafletVenueDivIcon(
   isSelected: boolean,
   matchCount: number,
   isFeatured = false,
+  hasInfo = false,
 ): L.DivIcon {
   return L.divIcon({
     className: isFeatured
       ? 'custom-leaflet-marker custom-leaflet-marker-featured'
-      : 'custom-leaflet-marker',
-    html: getBasketballPinHtml(isSelected, matchCount, isFeatured),
+      : hasInfo
+        ? 'custom-leaflet-marker custom-leaflet-marker-info'
+        : 'custom-leaflet-marker',
+    html: getBasketballPinHtml(isSelected, matchCount, isFeatured, hasInfo),
     iconSize: [34, 40],
     iconAnchor: [17, 40],
     popupAnchor: [0, -36],
@@ -125,6 +128,7 @@ function LeafletClusterMarker({
         cluster.isSelected,
         cluster.matchCount,
         cluster.isFeatured,
+        cluster.hasInfo,
       );
 
   const zIndexOffset = cluster.isSelected
