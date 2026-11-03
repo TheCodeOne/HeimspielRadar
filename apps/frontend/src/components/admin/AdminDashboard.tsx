@@ -7,16 +7,21 @@ import {
   Clock,
   Cpu,
   Database,
+  MapPin,
   RefreshCw,
+  Search,
   Send,
   ShieldAlert,
+  Star,
   Terminal,
+  X,
   XCircle,
   Zap,
 } from 'lucide-react';
 import {
   AdminStatusResponse,
   GERMAN_BASKETBALL_VERBAENDE,
+  Match,
   SyncFailure,
   SyncRun,
 } from '@sundayleague/shared-types';
@@ -61,6 +66,41 @@ function formatDateTime(dateVal: string | Date | null | undefined): string {
   }).format(d);
 }
 
+function formatShortDate(dateVal: string | Date | null | undefined): string {
+  if (!dateVal) {
+    return '–';
+  }
+
+  const d = new Date(dateVal);
+
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
+
+function formatMatchKickoff(
+  kickoffDate: string | null | undefined,
+  kickoffTime: string | null | undefined
+): string {
+  if (!kickoffDate) {
+    return 'Termin offen';
+  }
+
+  const parts = kickoffDate.split('-');
+
+  const formattedDate =
+    parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : kickoffDate;
+
+  if (kickoffTime && kickoffTime !== '00:00') {
+    return `${formattedDate} • ${kickoffTime} Uhr`;
+  }
+
+  return formattedDate;
+}
+
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null) {
     return '–';
@@ -103,6 +143,17 @@ export function AdminDashboard() {
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
 
+  // Navigation tab state ('overview' shows full dashboard + featured matches; 'featured' focuses on featured matches)
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'featured'>('overview');
+
+  // Featured Matches state
+  const [featuredMatches, setFeaturedMatches] = React.useState<Match[]>([]);
+  const [matchSearchQuery, setMatchSearchQuery] = React.useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState<string>('');
+  const [searchResults, setSearchResults] = React.useState<Match[]>([]);
+  const [isSearchingMatches, setIsSearchingMatches] = React.useState<boolean>(false);
+  const [togglingMatchId, setTogglingMatchId] = React.useState<number | null>(null);
+
   // Sync trigger form state
   const [selectedTarget, setSelectedTarget] = React.useState<string>('verband:1');
   const [customLeagueId, setCustomLeagueId] = React.useState<string>('');
@@ -143,10 +194,11 @@ export function AdminDashboard() {
       }
 
       try {
-        const [statusRes, runsRes, failuresRes] = await Promise.all([
+        const [statusRes, runsRes, failuresRes, featuredRes] = await Promise.all([
           fetch('/api/admin/status'),
           fetch('/api/admin/sync-runs?limit=20'),
           fetch('/api/admin/failures'),
+          fetch('/api/admin/matches/featured').catch(() => null),
         ]);
 
         if (statusRes.ok) {
@@ -165,6 +217,19 @@ export function AdminDashboard() {
           // SAFETY: /api/admin/failures returns SyncFailure[]
           const failuresData = (await failuresRes.json()) as SyncFailure[];
           setFailures(failuresData);
+        }
+
+        if (
+          featuredRes &&
+          featuredRes.ok &&
+          featuredRes.headers.get('content-type')?.includes('application/json')
+        ) {
+          // SAFETY: /api/admin/matches/featured returns Match[]
+          const featuredData = (await featuredRes.json()) as Match[];
+
+          if (Array.isArray(featuredData)) {
+            setFeaturedMatches(featuredData);
+          }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -302,6 +367,221 @@ export function AdminDashboard() {
     }
   };
 
+  // Debounce match search input (300ms)
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(matchSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [matchSearchQuery]);
+
+  // Execute live search when debouncedSearchQuery changes
+  React.useEffect(() => {
+    const trimmed = debouncedSearchQuery.trim();
+
+    if (!trimmed) {
+      setSearchResults([]);
+      setIsSearchingMatches(false);
+
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearchingMatches(true);
+
+    fetch(`/api/admin/matches/search?q=${encodeURIComponent(trimmed)}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        // SAFETY: /api/admin/matches/search returns Match[]
+        const data = (await res.json()) as Match[];
+
+        if (!cancelled && Array.isArray(data)) {
+          setSearchResults(data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          showFeedback('error', `Fehler bei der Spielsuche: ${msg}`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSearchingMatches(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearchQuery, showFeedback]);
+
+  // Handle Toggle Featured Match (7-day default)
+  const handleToggleFeature = async (match: Match, nextFeatured: boolean) => {
+    setTogglingMatchId(match.id);
+
+    try {
+      const res = await fetch(`/api/admin/matches/${match.id}/feature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFeatured: nextFeatured, durationDays: 7 }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // SAFETY: /api/admin/matches/:id/feature returns updated Match
+      const updatedMatch = (await res.json()) as Match;
+
+      const mergedMatch: Match = {
+        ...match,
+        ...updatedMatch,
+        homeTeam: updatedMatch.homeTeam?.name ? updatedMatch.homeTeam : match.homeTeam,
+        guestTeam: updatedMatch.guestTeam?.name ? updatedMatch.guestTeam : match.guestTeam,
+        league: updatedMatch.league ?? match.league,
+        venue: updatedMatch.venue !== undefined ? updatedMatch.venue : match.venue,
+        isFeatured: nextFeatured,
+        featuredUntil: nextFeatured ? (updatedMatch.featuredUntil ?? null) : null,
+      };
+
+      setSearchResults((prev) =>
+        prev.map((m) => (m.id === match.id ? mergedMatch : m))
+      );
+
+      if (nextFeatured) {
+        setFeaturedMatches((prev) => {
+          const exists = prev.some((m) => m.id === match.id);
+
+          if (exists) {
+            return prev.map((m) => (m.id === match.id ? mergedMatch : m));
+          }
+
+          return [...prev, mergedMatch];
+        });
+
+        showFeedback(
+          'success',
+          `⭐ "${match.homeTeam.name} vs. ${match.guestTeam.name}" für 7 Tage als Featured Match markiert!`
+        );
+      } else {
+        setFeaturedMatches((prev) => prev.filter((m) => m.id !== match.id));
+        showFeedback(
+          'success',
+          `Hervorhebung für "${match.homeTeam.name} vs. ${match.guestTeam.name}" entfernt.`
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback('error', `Fehler beim Aktualisieren des Featured-Status: ${msg}`);
+    } finally {
+      setTogglingMatchId(null);
+    }
+  };
+
+  const renderMatchRow = (match: Match, contextPrefix: string) => {
+    const isFeatured = match.isFeatured === true;
+    const isToggling = togglingMatchId === match.id;
+    const leagueLabel = match.league?.name || `Liga #${match.leagueId}`;
+
+    const venueLabel = match.venue
+      ? `${match.venue.name}${match.venue.city ? `, ${match.venue.city}` : ''}`
+      : 'Halle offen';
+
+    return (
+      <div
+        key={`${contextPrefix}-${match.id}`}
+        data-testid={`${contextPrefix}-match-${match.id}`}
+        className={`flex flex-col justify-between gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center ${
+          isFeatured
+            ? 'border-amber-500/40 bg-amber-500/5'
+            : 'border-border bg-card/50 hover:bg-accent/30'
+        }`}
+      >
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {match.homeTeam.name} vs. {match.guestTeam.name}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              #{match.id}
+            </span>
+            {isFeatured ? (
+              <span
+                data-testid={`status-badge-${match.id}`}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400"
+              >
+                <Star className="size-3 fill-amber-400 text-amber-400" />
+                <span>
+                  ⭐ Aktiv bis {formatShortDate(match.featuredUntil)}
+                </span>
+              </span>
+            ) : (
+              <Badge
+                variant="outline"
+                data-testid={`status-badge-${match.id}`}
+                className="text-[10px] text-muted-foreground"
+              >
+                Inaktiv
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/80">{leagueLabel}</span>
+            <span>•</span>
+            <span>{formatMatchKickoff(match.kickoffDate, match.kickoffTime)}</span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-3 shrink-0" />
+              <span>{venueLabel}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center">
+          {isFeatured ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isToggling}
+              onClick={() => handleToggleFeature(match, false)}
+              data-testid={`unfeature-btn-${match.id}`}
+              className="gap-1.5 border-rose-500/30 text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              {isToggling ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <X className="size-3.5" />
+              )}
+              <span>✖️ Hervorhebung entfernen</span>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isToggling}
+              onClick={() => handleToggleFeature(match, true)}
+              data-testid={`feature-btn-${match.id}`}
+              className="gap-1.5 border-amber-500/40 bg-amber-500/10 text-xs text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
+            >
+              {isToggling ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <Star className="size-3.5" />
+              )}
+              <span>⭐ Als Featured markieren (7 Tage)</span>
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading && !status) {
     return (
       <div className="flex h-dvh w-full items-center justify-center bg-background text-foreground">
@@ -396,8 +676,46 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {/* System Status Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Tab Bar */}
+        <div
+          role="tablist"
+          aria-label="Admin-Bereiche"
+          className="flex flex-wrap items-center gap-2 border-b border-border pb-3"
+        >
+          <Button
+            variant={activeTab === 'overview' ? 'default' : 'outline'}
+            size="sm"
+            role="tab"
+            aria-selected={activeTab === 'overview'}
+            data-testid="admin-tab-overview"
+            onClick={() => setActiveTab('overview')}
+            className="gap-1.5 text-xs"
+          >
+            <Activity className="size-3.5" />
+            <span>System & Sync</span>
+          </Button>
+
+          <Button
+            variant={activeTab === 'featured' ? 'default' : 'outline'}
+            size="sm"
+            role="tab"
+            aria-selected={activeTab === 'featured'}
+            data-testid="admin-tab-featured"
+            onClick={() => setActiveTab('featured')}
+            className="gap-1.5 text-xs"
+          >
+            <Star className="size-3.5 text-amber-400" />
+            <span>⭐ Featured Matches</span>
+            <Badge variant="outline" className="ml-1 px-1.5 py-0 text-[10px]">
+              {featuredMatches.length}
+            </Badge>
+          </Button>
+        </div>
+
+        {activeTab === 'overview' && (
+          <>
+            {/* System Status Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Uptime Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -628,7 +946,128 @@ export function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+          </>
+        )}
 
+        {/* Featured Matches Section */}
+        <Card
+          id="featured-matches-section"
+          data-testid="featured-matches-card"
+          className="border-amber-500/30 bg-card/80"
+        >
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div className="flex items-center gap-2">
+              <Star className="size-4 fill-amber-400 text-amber-400" />
+              <CardTitle className="text-sm font-semibold">
+                ⭐ Featured Matches
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-400"
+              >
+                {featuredMatches.length} aktiv
+              </Badge>
+            </div>
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Standard-Laufzeit: 7 Tage
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Debounced Live Search Bar */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="featured-match-search"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Spiel suchen (Teamname, Liga oder Spiel-ID)
+              </label>
+              <div className="relative flex items-center">
+                <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
+                <input
+                  id="featured-match-search"
+                  type="text"
+                  value={matchSearchQuery}
+                  onChange={(e) => setMatchSearchQuery(e.target.value)}
+                  placeholder="Spiele suchen nach Team, Liga oder Spiel-ID (z. B. Baskets, Oberliga, 101)..."
+                  aria-label="Spiele suchen"
+                  data-testid="featured-match-search-input"
+                  className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
+                />
+                {matchSearchQuery && (
+                  <button
+                    type="button"
+                    aria-label="Suche zurücksetzen"
+                    onClick={() => {
+                      setMatchSearchQuery('');
+                      setDebouncedSearchQuery('');
+                      setSearchResults([]);
+                    }}
+                    className="absolute right-2.5 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Search Results List */}
+            {debouncedSearchQuery.trim() !== '' && (
+              <div className="space-y-2.5" data-testid="featured-search-results">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Suchergebnisse für „{debouncedSearchQuery.trim()}“
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {isSearchingMatches
+                      ? 'Suche läuft...'
+                      : `${searchResults.length} Treffer`}
+                  </span>
+                </div>
+
+                {isSearchingMatches ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                    <RefreshCw className="size-4 animate-spin text-amber-400" />
+                    <span>Suche Spiele...</span>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+                    Keine passenden Spiele für „{debouncedSearchQuery.trim()}“ gefunden.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {searchResults.map((match) =>
+                      renderMatchRow(match, 'search-result')
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active Featured Matches List */}
+            <div className="space-y-2.5" data-testid="active-featured-matches">
+              <div className="flex items-center justify-between border-t border-border/60 pt-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Aktuell aktive Featured Matches ({featuredMatches.length})
+                </h3>
+              </div>
+
+              {featuredMatches.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border py-5 text-center text-xs text-muted-foreground">
+                  Derzeit sind keine Featured Matches aktiv. Nutze die Suche oben, um ein Highlight-Spiel für 7 Tage hervorzuheben.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {featuredMatches.map((match) =>
+                    renderMatchRow(match, 'active-featured')
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {activeTab === 'overview' && (
+          <>
         {/* Active Failures Section */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -810,6 +1249,8 @@ export function AdminDashboard() {
             )}
           </CardContent>
         </Card>
+          </>
+        )}
       </main>
     </div>
   );
