@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/card';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
+import { KioskInfoBadges } from './KioskInfoBadges';
+import { KioskSubmissionModal } from './KioskSubmissionModal';
 import { MatchQuickActions } from './MatchQuickActions';
 
 export interface MatchCardProps {
@@ -26,17 +28,48 @@ export interface MatchCardProps {
   isSelected?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
+  onReportKioskInfo?: (match: Match) => void;
   className?: string;
 }
 
 export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
-  ({ match, isSelected = false, onClick, onMouseEnter, className = '' }, ref) => {
+  (
+    {
+      match,
+      isSelected = false,
+      onClick,
+      onMouseEnter,
+      onReportKioskInfo,
+      className = '',
+    },
+    ref,
+  ) => {
+    const [isLocalModalOpen, setIsLocalModalOpen] = React.useState(false);
+    const [localToast, setLocalToast] = React.useState<string | null>(null);
+
     const isFinished = Boolean(match.result);
     const leagueName = formatLeagueName(match.leagueId, match.league?.name);
     const dateFormatted = formatDisplayDate(match.kickoffDate);
     const categoryParts = [match.league?.akName, match.league?.geschlecht].filter(Boolean);
 
+    const hasKioskOrVenueInfo = Boolean(
+      match.admissionFee?.trim() ||
+        match.venue?.kioskDescription?.trim() ||
+        match.venue?.parkingNotes?.trim(),
+    );
+
+    const handleOpenKioskModal = (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (onReportKioskInfo) {
+        onReportKioskInfo(match);
+      } else {
+        setIsLocalModalOpen(true);
+      }
+    };
+
     return (
+      <>
       <Card
         ref={ref}
         data-match-id={match.id}
@@ -143,28 +176,50 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
               </span>
             </div>
           )}
+
+          {/* Kiosk, Admission & Parking Badges */}
+          {hasKioskOrVenueInfo && (
+            <KioskInfoBadges
+              match={match}
+              className="mt-2.5 border-t border-border/30 pt-2.5"
+            />
+          )}
         </CardContent>
 
         <CardFooter className="pt-2 pb-2.5 flex flex-col gap-2 border-t border-border/30 mt-1">
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
               <Calendar className="h-3 w-3 text-muted-foreground" />
               <span>{dateFormatted}</span>
             </div>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick?.();
-              }}
-              className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
-            >
-              <Compass className="mr-1 h-3 w-3" />
-              Auf Karte anzeigen
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                data-action="kiosk-submission"
+                onClick={handleOpenKioskModal}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 text-[11px] font-semibold text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+              >
+                <span aria-hidden="true">🌭</span>
+                <span>Kiosk- & Hallen-Info melden</span>
+              </button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClick?.();
+                }}
+                className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
+              >
+                <Compass className="mr-1 h-3 w-3" />
+                <span className="hidden sm:inline">Auf Karte anzeigen</span>
+                <span className="sm:hidden">Karte</span>
+              </Button>
+            </div>
           </div>
 
           <div className="w-full border-t border-border/20 pt-1.5 flex items-center justify-between">
@@ -176,6 +231,30 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
           </div>
         </CardFooter>
       </Card>
+
+      {!onReportKioskInfo && (
+        <>
+          <KioskSubmissionModal
+            match={match}
+            isOpen={isLocalModalOpen}
+            onClose={() => setIsLocalModalOpen(false)}
+            onSuccess={(msg) => {
+              setLocalToast(msg);
+              setTimeout(() => setLocalToast(null), 5000);
+            }}
+          />
+
+          {localToast && (
+            <div
+              role="status"
+              className="fixed bottom-20 left-1/2 z-70 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+            >
+              <span>{localToast}</span>
+            </div>
+          )}
+        </>
+      )}
+      </>
     );
   },
 );

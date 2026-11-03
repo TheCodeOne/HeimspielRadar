@@ -15,6 +15,7 @@ export interface MatchListProps {
   selectedMatchId?: number | null;
   onSelectMatch: (match: Match) => void;
   onHoverMatch?: (match: Match) => void;
+  onReportKioskInfo?: (match: Match) => void;
   isLoading?: boolean;
   radiusKm: number;
   onExpandRadius?: () => void;
@@ -27,6 +28,7 @@ export function MatchList({
   selectedMatchId,
   onSelectMatch,
   onHoverMatch,
+  onReportKioskInfo,
   isLoading = false,
   radiusKm,
   onExpandRadius,
@@ -144,6 +146,7 @@ export function MatchList({
             isSelected={isSelected}
             onClick={() => onSelectMatch(match)}
             onMouseEnter={() => onHoverMatch?.(match)}
+            onReportKioskInfo={onReportKioskInfo}
             ref={(node) => {
               if (node) {
                 cardElementsRef.current.set(match.id, node);

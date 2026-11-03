@@ -10,6 +10,8 @@ import {
 import { formatDistance } from '@/lib/geo-utils';
 import { formatLeagueName } from '@/components/map/map-utils';
 import { getMatchLinks } from '@/lib/match-links';
+import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
+import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
 import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
@@ -17,6 +19,7 @@ export interface VenueModalProps {
   selectedMatch: Match | null;
   venueMatches: Match[];
   onSelectMatch: (matchId: number) => void;
+  onReportKioskInfo?: (match: Match) => void;
   onClose: () => void;
 }
 
@@ -28,8 +31,12 @@ export function VenueModal({
   selectedMatch,
   venueMatches,
   onSelectMatch,
+  onReportKioskInfo,
   onClose,
 }: VenueModalProps) {
+  const [localModalMatch, setLocalModalMatch] = React.useState<Match | null>(null);
+  const [localToast, setLocalToast] = React.useState<string | null>(null);
+
   const {
     isAnimatingOut,
     dragY,
@@ -229,12 +236,45 @@ export function VenueModal({
                     </div>
                   )}
 
-                  <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      DBB Quick-Actions
-                    </span>
+                  {(Boolean(venueMatch.admissionFee?.trim()) ||
+                    Boolean(venueMatch.venue?.kioskDescription?.trim()) ||
+                    Boolean(venueMatch.venue?.parkingNotes?.trim())) && (
+                    <KioskInfoBadges
+                      match={venueMatch}
+                      size="sm"
+                      className="mt-2 border-t border-border/30 pt-2"
+                    />
+                  )}
 
-                    <MatchQuickActions match={venueMatch} size="sm" />
+                  <div className="mt-2.5 flex flex-col gap-2 border-t border-border/40 pt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        DBB Quick-Actions
+                      </span>
+
+                      <MatchQuickActions match={venueMatch} size="sm" />
+                    </div>
+
+                    <div className="flex items-center justify-end border-t border-border/25 pt-1.5">
+                      <button
+                        type="button"
+                        data-action="kiosk-submission"
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          if (onReportKioskInfo) {
+                            onReportKioskInfo(venueMatch);
+                          } else {
+                            setLocalModalMatch(venueMatch);
+                          }
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="inline-flex h-6 items-center gap-1 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+                      >
+                        <span aria-hidden="true">🌭</span>
+                        <span>Kiosk- & Hallen-Info melden</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -253,6 +293,29 @@ export function VenueModal({
           </button>
         </div>
       </div>
+
+      {!onReportKioskInfo && (
+        <>
+          <KioskSubmissionModal
+            match={localModalMatch}
+            isOpen={localModalMatch !== null}
+            onClose={() => setLocalModalMatch(null)}
+            onSuccess={(msg) => {
+              setLocalToast(msg);
+              setTimeout(() => setLocalToast(null), 5000);
+            }}
+          />
+
+          {localToast && (
+            <div
+              role="status"
+              className="fixed bottom-20 left-1/2 z-70 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+            >
+              <span>{localToast}</span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
