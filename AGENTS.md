@@ -53,3 +53,29 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
 - `npm run lockfile:check` (when `package.json` or `package-lock.json` is modified)
 - `npm run test:backend` & `npm run build`
 - **Frontend Visual & E2E Check** (when `apps/frontend/` is modified): Run `PLAYWRIGHT_PORT=42<id> npm run test:e2e` to boot the worktree's local Vite server, test the changed UI interactively on Desktop (`1280x800`) and Mobile (`390x844`), and inspect the generated screenshots in `test-results/` via `view_file`.
+
+---
+
+## 4. Distributed Execution & Remote Agents (Herdr / Windows PC)
+
+- **Dedicated Remote Runner (`windows`)**: Der Windows-PC (`DIMI-PC`) ist per Herdr Core (`hc`) angebunden.
+- **REMOTE AGENT EXECUTION POLICY (MANDATORY)**:
+  - **Sämtliche Agenten (Subagenten, Task-Worker, Coding-Sessions)** werden **auf dem Windows-PC (`--on windows`) gespawnt**, NICHT lokal auf dem Mac!
+  - Lokale Agenten auf dem Mac dienen nur als Dispatcher/Koordinator.
+  - Sobald eine Aufgabe, ein Feature, ein Refactoring oder ein Testlauf an einen Agenten übergeben wird, startet dieser remote auf Windows.
+- **Herdr Remote Commands**:
+  - **Agent auf Windows starten**:
+    ```bash
+    # z. B. Antigravity CLI Agent (agy) im Hintergrund auf Windows starten:
+    hc run --bg --name agent-<task> --on windows "agy --dangerously-skip-permissions --prompt '<anweisung>'"
+    # oder im WSL Ubuntu:
+    hc run --bg --name agent-<task> --on windows "wsl -d Ubuntu -- <agent-command>"
+    ```
+  - **Agent-Status & Kommunikation**:
+    - Status & laufende Agenten: `hc ls`
+    - Auf Agent-Fertigstellung warten: `hc wait windows/agent-<task>`
+    - Screen/Log des Agenten lesen: `hc read windows/agent-<task>`
+    - Anweisungen an den Agenten senden: `hc send windows/agent-<task> "<neue anweisung>"`
+  - **Direkte Builds & Tests**: `hc exec --on windows "wsl -d Ubuntu -- <command>"`
+
+

@@ -47,7 +47,7 @@ export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   location: STUTTGART_FALLBACK,
   radiusKm: 30,
   showRadiusCircle: true,
-  dateMode: 'today',
+  dateMode: 'weekend',
   customDate: undefined,
   customDateFrom: '',
   customDateTo: '',
