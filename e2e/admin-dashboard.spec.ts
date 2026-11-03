@@ -177,4 +177,86 @@ test.describe('HeimspielRadar Pi Admin Dashboard (/admin)', () => {
       page.getByText('Sync für "verband:1" erfolgreich im Hintergrund gestartet.')
     ).toBeVisible();
   });
+
+  test('searches matches and toggles Featured Match status for 7 days', async ({
+    page,
+  }) => {
+    const sampleMatch = {
+      id: 101,
+      leagueId: 53941,
+      league: {
+        id: 53941,
+        dbbId: 53941,
+        name: 'Oberliga Herren BaWü',
+      },
+      matchDay: 4,
+      kickoffDate: '2026-11-08',
+      kickoffTime: '18:00',
+      homeTeam: { id: 10, dbbId: 501, name: 'Stuttgart Baskets' },
+      guestTeam: { id: 20, dbbId: 502, name: 'City Lions' },
+      venue: {
+        id: 901,
+        name: 'Scharrena Stuttgart',
+        street: 'Mercedesstr. 87',
+        postalCode: '70372',
+        city: 'Stuttgart',
+        latitude: 48.79,
+        longitude: 9.23,
+      },
+      confirmed: true,
+      isFeatured: false,
+      featuredUntil: null,
+    };
+
+    await page.route('**/api/admin/matches/featured', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route('**/api/admin/matches/search*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([sampleMatch]),
+      });
+    });
+
+    await page.route('**/api/admin/matches/101/feature', async (route) => {
+      // SAFETY: test mock payload is JSON object with isFeatured boolean
+      const body = route.request().postDataJSON() as { isFeatured: boolean };
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...sampleMatch,
+          isFeatured: body.isFeatured,
+          featuredUntil: body.isFeatured ? '2026-11-10T20:00:00.000Z' : null,
+        }),
+      });
+    });
+
+    await page.goto('/admin');
+
+    await page.getByTestId('admin-tab-featured').click();
+
+    const searchInput = page.getByTestId('featured-match-search-input');
+    await searchInput.fill('Baskets');
+
+    await expect(
+      page.getByText('Stuttgart Baskets vs. City Lions')
+    ).toBeVisible();
+
+    await page.getByTestId('feature-btn-101').click();
+
+    await expect(
+      page.getByText(
+        '⭐ "Stuttgart Baskets vs. City Lions" für 7 Tage als Featured Match markiert!'
+      )
+    ).toBeVisible();
+    await expect(page.getByTestId('unfeature-btn-101').first()).toBeVisible();
+  });
 });

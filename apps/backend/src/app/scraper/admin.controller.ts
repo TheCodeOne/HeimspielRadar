@@ -14,6 +14,7 @@ import {
 import { sql } from 'drizzle-orm';
 import {
   AdminStatusResponse,
+  FeatureMatchDto,
   SyncRun,
   SyncTriggerDto,
 } from '@sundayleague/shared-types';
@@ -162,5 +163,23 @@ export class AdminController {
     @Headers('authorization') authHeader?: string
   ) {
     return this.rejectSubmission(id, token, authHeader);
+  }
+
+  @Get('matches/search')
+  async searchMatches(@Query('q') query?: string) {
+    return this.resolvedAdminService.searchMatches(query);
+  }
+
+  @Get('matches/featured')
+  async getFeaturedMatches() {
+    return this.resolvedAdminService.getFeaturedMatches();
+  }
+
+  @Post('matches/:id/feature')
+  async featureMatch(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: FeatureMatchDto
+  ) {
+    return this.resolvedAdminService.featureMatch(id, dto);
   }
 }

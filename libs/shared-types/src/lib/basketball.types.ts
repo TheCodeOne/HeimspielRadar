@@ -96,6 +96,11 @@ export interface CreateKioskSubmissionDto {
   submitterRole?: string;
 }
 
+export interface FeatureMatchDto {
+  isFeatured: boolean;
+  durationDays?: number;
+}
+
 export interface SyncResult {
   leagueId: number;
   leagueName: string;

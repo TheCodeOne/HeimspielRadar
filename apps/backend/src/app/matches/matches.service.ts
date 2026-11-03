@@ -6,9 +6,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { aliasedTable, and, asc, eq, gte, ilike, inArray, lte, or, sql, SQL } from 'drizzle-orm';
+import { aliasedTable, and, asc, eq, gte, ilike, inArray, isNull, lte, or, sql, SQL } from 'drizzle-orm';
 import {
   CreateKioskSubmissionDto,
+  FeatureMatchDto,
   League,
   Match,
   NearbyMatchesQuery,
@@ -694,6 +695,170 @@ export class MatchesService {
     dto: CreateKioskSubmissionDto
   ): Promise<VenueSubmission> {
     return this.createKioskSubmission(matchId, dto);
+  }
+
+  /**
+   * Search matches for Admin dashboard by home team, guest team, league, or match ID.
+   */
+  async searchAdminMatches(query?: string): Promise<Match[]> {
+    if (!this.db) {
+      throw new Error('Database is not configured!');
+    }
+
+    const trimmed = query ? query.trim() : '';
+
+    if (!trimmed) {
+      return [];
+    }
+
+    const homeTeam = aliasedTable(teams, 'home_team');
+    const guestTeam = aliasedTable(teams, 'guest_team');
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+
+    const tokenConditions = tokens.map((token) => {
+      const pattern = `%${token}%`;
+
+      const orClauses: SQL[] = [
+        ilike(homeTeam.name, pattern),
+        ilike(homeTeam.shortName, pattern),
+        ilike(guestTeam.name, pattern),
+        ilike(guestTeam.shortName, pattern),
+        ilike(leagues.name, pattern),
+        ilike(sql`coalesce(${leagues.skName}, ${leagues.rawData}->>'skName')`, pattern),
+        ilike(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`, pattern),
+        ilike(venues.name, pattern),
+        ilike(venues.city, pattern),
+      ];
+
+      if (/^\d+$/.test(token)) {
+        const numericId = parseInt(token, 10);
+
+        if (!Number.isNaN(numericId)) {
+          orClauses.push(eq(matches.id, numericId));
+        }
+      }
+
+      return or(...orClauses)!;
+    });
+
+    const rows = await this.db
+      .select({
+        match: matches,
+        league: leagues,
+        homeTeam,
+        guestTeam,
+        venue: venues,
+      })
+      .from(matches)
+      .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+      .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+      .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+      .leftJoin(venues, eq(matches.venueId, venues.id))
+      .where(and(...tokenConditions))
+      .orderBy(asc(matches.kickoffDate), asc(matches.kickoffTime))
+      .limit(50);
+
+    return rows.map((r) =>
+      this.mapRelationalMatch({
+        match: r.match,
+        league: r.league,
+        homeTeam: r.homeTeam,
+        guestTeam: r.guestTeam,
+        venue: r.venue,
+      })
+    );
+  }
+
+  /**
+   * Retrieve all currently active Featured Matches (`is_featured = true` and not expired).
+   */
+  async findFeaturedMatches(): Promise<Match[]> {
+    if (!this.db) {
+      throw new Error('Database is not configured!');
+    }
+
+    const now = new Date();
+    const homeTeam = aliasedTable(teams, 'home_team');
+    const guestTeam = aliasedTable(teams, 'guest_team');
+
+    const rows = await this.db
+      .select({
+        match: matches,
+        league: leagues,
+        homeTeam,
+        guestTeam,
+        venue: venues,
+      })
+      .from(matches)
+      .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+      .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+      .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+      .leftJoin(venues, eq(matches.venueId, venues.id))
+      .where(
+        and(
+          eq(matches.isFeatured, true),
+          or(isNull(matches.featuredUntil), gte(matches.featuredUntil, now))
+        )
+      )
+      .orderBy(asc(matches.kickoffDate), asc(matches.kickoffTime));
+
+    return rows.map((r) =>
+      this.mapRelationalMatch({
+        match: r.match,
+        league: r.league,
+        homeTeam: r.homeTeam,
+        guestTeam: r.guestTeam,
+        venue: r.venue,
+      })
+    );
+  }
+
+  /**
+   * Toggle Featured Match state for a given match ID.
+   */
+  async toggleMatchFeature(matchId: number, dto: FeatureMatchDto): Promise<Match> {
+    if (!dto || (dto.isFeatured !== true && dto.isFeatured !== false)) {
+      throw new BadRequestException('isFeatured boolean is required');
+    }
+
+    if (!this.db) {
+      throw new Error('Database is not configured!');
+    }
+
+    const existing = await this.findById(matchId);
+
+    if (!existing) {
+      throw new NotFoundException(`Match with ID ${matchId} not found`);
+    }
+
+    const now = new Date();
+
+    const durationDays =
+      dto.durationDays !== undefined &&
+      dto.durationDays !== null &&
+      !Number.isNaN(Number(dto.durationDays)) &&
+      Number(dto.durationDays) > 0
+        ? Number(dto.durationDays)
+        : 7;
+
+    const featuredUntil = dto.isFeatured
+      ? new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    await this.db
+      .update(matches)
+      .set({
+        isFeatured: dto.isFeatured,
+        featuredUntil,
+        updatedAt: now,
+      })
+      .where(eq(matches.id, matchId));
+
+    return {
+      ...existing,
+      isFeatured: dto.isFeatured,
+      featuredUntil: featuredUntil ? featuredUntil.toISOString() : null,
+    };
   }
 }
 
