@@ -15,10 +15,16 @@ import {
   type VenueGroup,
 } from '../map-utils';
 
-function createLeafletVenueDivIcon(isSelected: boolean, matchCount: number): L.DivIcon {
+function createLeafletVenueDivIcon(
+  isSelected: boolean,
+  matchCount: number,
+  isFeatured = false,
+): L.DivIcon {
   return L.divIcon({
-    className: 'custom-leaflet-marker',
-    html: getBasketballPinHtml(isSelected, matchCount),
+    className: isFeatured
+      ? 'custom-leaflet-marker custom-leaflet-marker-featured'
+      : 'custom-leaflet-marker',
+    html: getBasketballPinHtml(isSelected, matchCount, isFeatured),
     iconSize: [34, 40],
     iconAnchor: [17, 40],
     popupAnchor: [0, -36],
@@ -28,7 +34,7 @@ function createLeafletVenueDivIcon(isSelected: boolean, matchCount: number): L.D
 function createLeafletClusterDivIcon(cluster: VenueCluster): L.DivIcon {
   return L.divIcon({
     className: 'custom-cluster-marker',
-    html: getClusterBadgeHtml(cluster.matchCount, cluster.isSelected),
+    html: getClusterBadgeHtml(cluster.matchCount, cluster.isSelected, cluster.isFeatured),
     iconSize: [46, 46],
     iconAnchor: [23, 23],
     popupAnchor: [0, -24],
@@ -115,13 +121,25 @@ function LeafletClusterMarker({
 
   const icon = cluster.isCluster
     ? createLeafletClusterDivIcon(cluster)
-    : createLeafletVenueDivIcon(cluster.isSelected, cluster.matchCount);
+    : createLeafletVenueDivIcon(
+        cluster.isSelected,
+        cluster.matchCount,
+        cluster.isFeatured,
+      );
+
+  const zIndexOffset = cluster.isSelected
+    ? 1000
+    : cluster.isFeatured
+      ? 750
+      : cluster.isCluster
+        ? 500
+        : 0;
 
   return (
     <Marker
       position={[cluster.latitude, cluster.longitude]}
       icon={icon}
-      zIndexOffset={cluster.isSelected ? 1000 : cluster.isCluster ? 500 : 0}
+      zIndexOffset={zIndexOffset}
       eventHandlers={{
         click: handleClick,
       }}

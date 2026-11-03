@@ -22,6 +22,8 @@ export const badgeVariants = cva(
           'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium tracking-wider text-[11px]',
         kickoff:
           'border-border/80 bg-muted/80 text-foreground font-mono text-xs',
+        featured:
+          'border-amber-400/70 bg-amber-500/20 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.28)] font-bold tracking-wide',
       },
     },
     defaultVariants: {

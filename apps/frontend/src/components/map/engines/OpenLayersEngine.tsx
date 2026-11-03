@@ -319,6 +319,11 @@ export function OpenLayersEngine({
 
         const overlay = new Overlay({
           element: clusterEl,
+          className: cluster.isSelected
+            ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-selected'
+            : cluster.isFeatured
+              ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-featured'
+              : 'ol-overlay-container ol-selectable ol-marker-overlay',
           positioning: 'center-center',
           stopEvent: true,
         });
@@ -356,7 +361,9 @@ export function OpenLayersEngine({
           element: markerEl,
           className: cluster.isSelected
             ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-selected'
-            : 'ol-overlay-container ol-selectable ol-marker-overlay',
+            : cluster.isFeatured
+              ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-featured'
+              : 'ol-overlay-container ol-selectable ol-marker-overlay',
           positioning: 'bottom-center',
           stopEvent: true,
         });

@@ -25,7 +25,12 @@ import {
 } from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
 import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
-import { MatchDetailView, MatchList, VenueModal } from '@/components/matches';
+import {
+  KioskSubmissionModal,
+  MatchDetailView,
+  MatchList,
+  VenueModal,
+} from '@/components/matches';
 import {
   ClubStoryHub,
   StoryMatchRouteContainer,
@@ -121,6 +126,14 @@ function MainView() {
   });
 
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [kioskModalMatch, setKioskModalMatch] = React.useState<Match | null>(null);
+
+  const showToastMessage = React.useCallback((message: string) => {
+    setToastMessage(message);
+    const timer = setTimeout(() => setToastMessage(null), 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handle location error feedback
   React.useEffect(() => {
@@ -343,7 +356,7 @@ function MainView() {
       {toastMessage && (
         <div
           role="status"
-          className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
+          className="fixed bottom-20 left-1/2 z-70 -translate-x-1/2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/95 px-4 py-2 text-xs text-foreground shadow-lg backdrop-blur-md"
         >
           <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>{toastMessage}</span>
@@ -491,6 +504,7 @@ function MainView() {
               selectedMatch={selectedMatch}
               venueMatches={selectedVenueMatches}
               onSelectMatch={(matchId) => setSelectedMatchId(matchId)}
+              onReportKioskInfo={(m) => setKioskModalMatch(m)}
               onClose={() => setSelectedMatchId(null)}
             />
           </div>
@@ -602,6 +616,7 @@ function MainView() {
                   actions.setViewMode('map');
                 }}
                 onHoverMatch={(match) => setSelectedMatchId(match.id)}
+                onReportKioskInfo={(match) => setKioskModalMatch(match)}
                 isLoading={isLoading}
                 radiusKm={filters.radiusKm}
                 onExpandRadius={handleExpandRadius}
@@ -668,6 +683,14 @@ function MainView() {
         onViewModeChange={actions.setViewMode}
         lastSyncedAt={lastSyncedAt}
         matchCount={matches.length}
+      />
+
+      {/* Kiosk & Venue Info Submission Modal */}
+      <KioskSubmissionModal
+        match={kioskModalMatch}
+        isOpen={kioskModalMatch !== null}
+        onClose={() => setKioskModalMatch(null)}
+        onSuccess={(msg) => showToastMessage(msg)}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}

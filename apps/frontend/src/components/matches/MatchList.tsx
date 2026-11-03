@@ -15,6 +15,7 @@ export interface MatchListProps {
   selectedMatchId?: number | null;
   onSelectMatch: (match: Match) => void;
   onHoverMatch?: (match: Match) => void;
+  onReportKioskInfo?: (match: Match) => void;
   isLoading?: boolean;
   radiusKm: number;
   onExpandRadius?: () => void;
@@ -27,6 +28,7 @@ export function MatchList({
   selectedMatchId,
   onSelectMatch,
   onHoverMatch,
+  onReportKioskInfo,
   isLoading = false,
   radiusKm,
   onExpandRadius,
@@ -50,6 +52,19 @@ export function MatchList({
       });
     }
   }, [selectedMatchId]);
+
+  const sortedMatches = React.useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const aFeatured = a.isFeatured ? 1 : 0;
+      const bFeatured = b.isFeatured ? 1 : 0;
+
+      if (aFeatured !== bFeatured) {
+        return bFeatured - aFeatured;
+      }
+
+      return 0;
+    });
+  }, [matches]);
 
   // Loading Skeleton State
   if (isLoading) {
@@ -134,7 +149,7 @@ export function MatchList({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {matches.map((match) => {
+      {sortedMatches.map((match) => {
         const isSelected = selectedMatchId === match.id;
 
         return (
@@ -144,6 +159,7 @@ export function MatchList({
             isSelected={isSelected}
             onClick={() => onSelectMatch(match)}
             onMouseEnter={() => onHoverMatch?.(match)}
+            onReportKioskInfo={onReportKioskInfo}
             ref={(node) => {
               if (node) {
                 cardElementsRef.current.set(match.id, node);
