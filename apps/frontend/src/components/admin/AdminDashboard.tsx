@@ -1612,6 +1612,34 @@ export function AdminDashboard() {
                                   <span>Bearbeiten</span>
                                 </Button>
 
+                                {sub.matchId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={togglingMatchId === sub.matchId}
+                                    data-testid={`feature-submission-btn-${sub.id}`}
+                                    onClick={async () => {
+                                      // SAFETY: synthetic minimal Match object sufficient for toggleFeature endpoint
+                                      const syntheticMatch = {
+                                        id: sub.matchId,
+                                        homeTeam: { name: sub.match?.homeTeam || `Team #${sub.matchId}` },
+                                        guestTeam: { name: sub.match?.guestTeam || 'Gast' },
+                                        leagueId: sub.match?.leagueId ?? 0,
+                                      } as Match;
+
+                                      await handleToggleFeature(syntheticMatch, true);
+                                    }}
+                                    className="h-7 gap-1 border-amber-500/40 bg-amber-500/10 px-2 text-xs text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
+                                  >
+                                    {togglingMatchId === sub.matchId ? (
+                                      <RefreshCw className="size-3 animate-spin" />
+                                    ) : (
+                                      <Star className="size-3" />
+                                    )}
+                                    <span>⭐ Featured</span>
+                                  </Button>
+                                )}
+
                                 <Button
                                   variant="outline"
                                   size="sm"
