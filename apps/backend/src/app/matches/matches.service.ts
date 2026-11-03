@@ -1,8 +1,94 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { aliasedTable, and, asc, eq, gte, ilike, inArray, lte, or, sql, SQL } from 'drizzle-orm';
-import { League, Match, NearbyMatchesQuery, TeamSuggestion } from '@sundayleague/shared-types';
+import {
+  CreateKioskSubmissionDto,
+  League,
+  Match,
+  NearbyMatchesQuery,
+  TeamSuggestion,
+  VenueSubmission,
+} from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
-import { LeagueRawData, leagues, matches, teams, venues } from '../database/schema';
+import {
+  LeagueRawData,
+  leagues,
+  matches,
+  teams,
+   venues,
+  VenueSubmissionData,
+  venueSubmissions,
+} from '../database/schema';
+import { TelegramNotifierService } from '../scraper/telegram-notifier.service';
+
+export interface ValidatedKioskSubmission {
+  admissionFee: string;
+  kioskDescription: string;
+  parkingNotes: string;
+  matchNotes: string;
+  submitterName: string;
+  submitterRole: string;
+}
+
+export function validateKioskSubmissionDto(
+  dto?: CreateKioskSubmissionDto | null
+): ValidatedKioskSubmission {
+  const admissionFee = dto?.admissionFee ? String(dto.admissionFee).trim() : '';
+  const kioskDescription = dto?.kioskDescription ? String(dto.kioskDescription).trim() : '';
+  const parkingNotes = dto?.parkingNotes ? String(dto.parkingNotes).trim() : '';
+  const matchNotes = dto?.matchNotes ? String(dto.matchNotes).trim() : '';
+  const submitterName = dto?.submitterName ? String(dto.submitterName).trim() : '';
+  const submitterRole = dto?.submitterRole ? String(dto.submitterRole).trim() : '';
+
+  if (admissionFee.length > 50) {
+    throw new BadRequestException('admissionFee must not exceed 50 characters');
+  }
+
+  if (kioskDescription.length > 200) {
+    throw new BadRequestException('kioskDescription must not exceed 200 characters');
+  }
+
+  if (parkingNotes.length > 200) {
+    throw new BadRequestException('parkingNotes must not exceed 200 characters');
+  }
+
+  if (matchNotes.length > 200) {
+    throw new BadRequestException('matchNotes must not exceed 200 characters');
+  }
+
+  if (submitterName.length > 50) {
+    throw new BadRequestException('submitterName must not exceed 50 characters');
+  }
+
+  if (submitterRole.length > 50) {
+    throw new BadRequestException('submitterRole must not exceed 50 characters');
+  }
+
+  const hasContent = Boolean(
+    admissionFee || kioskDescription || parkingNotes || matchNotes
+  );
+
+  if (!hasContent) {
+    throw new BadRequestException(
+      'At least one content field (admissionFee, kioskDescription, parkingNotes, or matchNotes) must be provided'
+    );
+  }
+
+  return {
+    admissionFee,
+    kioskDescription,
+    parkingNotes,
+    matchNotes,
+    submitterName,
+    submitterRole,
+  };
+}
 
 export interface RelationalMatchRow {
   match: {
@@ -64,7 +150,10 @@ export interface RelationalMatchRow {
 export class MatchesService {
   private readonly logger = new Logger(MatchesService.name);
 
-  constructor(@Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null) {}
+  constructor(
+    @Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null,
+    @Optional() private readonly telegramNotifier?: TelegramNotifierService
+  ) {}
 
   /**
    * Retrieve all synced leagues ordered alphabetically by name,
@@ -535,6 +624,76 @@ export class MatchesService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return Math.round(R * c * 10) / 10; // Round to 1 decimal place (e.g. 14.2 km)
+  }
+
+  /**
+   * Validates and stores a crowd-sourced kiosk/venue submission in venue_submissions with status 'pending',
+   * then sends a real-time Telegram alert to the admin.
+   */
+  async createKioskSubmission(
+    matchId: number,
+    dto: CreateKioskSubmissionDto
+  ): Promise<VenueSubmission> {
+    const validated = validateKioskSubmissionDto(dto);
+
+    if (!this.db) {
+      throw new Error('Database is not configured!');
+    }
+
+    const match = await this.findById(matchId);
+
+    if (!match) {
+      throw new NotFoundException(`Match with ID ${matchId} not found`);
+    }
+
+    const submittedData: VenueSubmissionData = {
+      admissionFee: validated.admissionFee || null,
+      kioskDescription: validated.kioskDescription || null,
+      parkingNotes: validated.parkingNotes || null,
+      matchNotes: validated.matchNotes || null,
+    };
+
+    const now = new Date();
+
+    const [inserted] = await this.db
+      .insert(venueSubmissions)
+      .values({
+        matchId: match.id,
+        venueId: match.venue?.id ?? null,
+        submitterName: validated.submitterName || null,
+        submitterRole: validated.submitterRole || null,
+        submittedData,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (this.telegramNotifier) {
+      await this.telegramNotifier.sendKioskSubmissionAlert({
+        submissionId: inserted.id,
+        homeTeam: match.homeTeam.name,
+        guestTeam: match.guestTeam.name,
+        leagueName: match.league?.name ?? `Liga #${match.leagueId}`,
+        venueName: match.venue?.name ?? null,
+        city: match.venue?.city ?? null,
+        admissionFee: submittedData.admissionFee,
+        kioskDescription: submittedData.kioskDescription,
+        parkingNotes: submittedData.parkingNotes,
+        matchNotes: submittedData.matchNotes,
+        submitterName: inserted.submitterName,
+        submitterRole: inserted.submitterRole,
+      });
+    }
+
+    return inserted;
+  }
+
+  async submitKioskInfo(
+    matchId: number,
+    dto: CreateKioskSubmissionDto
+  ): Promise<VenueSubmission> {
+    return this.createKioskSubmission(matchId, dto);
   }
 }
 

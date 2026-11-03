@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { AdminApiGuard } from './admin-api.guard';
 import { AdminController } from './admin.controller';
+import { AdminService } from './admin.service';
 import { DbbClientService } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
 import { ScraperAuthGuard } from './scraper-auth.guard';
@@ -20,6 +21,7 @@ import { TelegramNotifierService } from './telegram-notifier.service';
     ScraperSchedulerService,
     ScraperAuthGuard,
     AdminApiGuard,
+    AdminService,
     TelegramNotifierService,
   ],
   exports: [
@@ -29,6 +31,7 @@ import { TelegramNotifierService } from './telegram-notifier.service';
     ScraperSchedulerService,
     ScraperAuthGuard,
     AdminApiGuard,
+    AdminService,
     TelegramNotifierService,
   ],
 })
