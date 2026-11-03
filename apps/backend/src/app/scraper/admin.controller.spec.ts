@@ -1,7 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { matches, venues, venueSubmissions } from '../database/schema';
 import { AdminApiGuard } from './admin-api.guard';
 import { AdminController } from './admin.controller';
+import { AdminService } from './admin.service';
 import { ScraperService } from './scraper.service';
 import { TelegramNotifierService } from './telegram-notifier.service';
 import { DRIZZLE_DB } from '../database/database.module';
@@ -47,6 +49,9 @@ describe('AdminController', () => {
         success: true,
         message: 'Test message sent',
       }),
+      sendSubmissionApprovedConfirmation: jest.fn().mockResolvedValue({
+        ok: true,
+      }),
     };
 
     mockDb = {
@@ -56,6 +61,7 @@ describe('AdminController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AdminController],
       providers: [
+        AdminService,
         { provide: ScraperService, useValue: mockScraperService },
         { provide: TelegramNotifierService, useValue: mockTelegramNotifier },
         { provide: DRIZZLE_DB, useValue: mockDb },
@@ -166,6 +172,148 @@ describe('AdminController', () => {
 
       process.env['ENABLE_ADMIN_API'] = 'false';
       expect(() => guard.canActivate(mockContext)).toThrow(NotFoundException);
+    });
+  });
+
+  describe('submissions moderation (approve / reject)', () => {
+    let updatedTables: Array<{ table: any; values: any }>;
+    let mockSubmissionRow: any;
+
+    beforeEach(() => {
+      process.env['ADMIN_API_SECRET'] = 'top-secret-token';
+      updatedTables = [];
+      mockSubmissionRow = {
+        id: 15,
+        matchId: 101,
+        venueId: 901,
+        submitterName: 'Jonas',
+        submitterRole: 'Hallensprecher',
+        submittedData: {
+          admissionFee: 'Eintritt frei',
+          matchNotes: 'Spitzenspiel mit Hallensprecher',
+          kioskDescription: 'Frische Waffeln & Kaffee',
+          parkingNotes: 'Parkplatz hinter der Sporthalle',
+        },
+        status: 'pending',
+        createdAt: new Date('2026-11-01T10:00:00Z'),
+        updatedAt: new Date('2026-11-01T10:00:00Z'),
+      };
+
+      mockDb.select = jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockImplementation(async () =>
+              mockSubmissionRow ? [mockSubmissionRow] : []
+            ),
+          }),
+        }),
+      });
+
+      mockDb.update = jest.fn().mockImplementation((table: any) => ({
+        set: jest.fn().mockImplementation((values: any) => {
+          updatedTables.push({ table, values });
+
+          return {
+            where: jest.fn().mockImplementation(() => {
+              const promise = Promise.resolve();
+
+              const chain = {
+                returning: jest.fn().mockResolvedValue([
+                  {
+                    ...mockSubmissionRow,
+                    ...values,
+                  },
+                ]),
+              };
+
+              return Object.assign(promise, chain);
+            }),
+          };
+        }),
+      }));
+
+      mockDb.transaction = jest.fn().mockImplementation(async (cb: any) => cb(mockDb));
+    });
+
+    it('atomically updates match, venue, and submission status on approve and sends Telegram confirmation', async () => {
+      const result = await controller.approveSubmission(15, 'top-secret-token');
+
+      expect(result.status).toBe('approved');
+      expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+      expect(updatedTables).toHaveLength(3);
+
+      const matchUpdate = updatedTables.find((u) => u.table === matches);
+      expect(matchUpdate?.values).toEqual(
+        expect.objectContaining({
+          admissionFee: 'Eintritt frei',
+          matchNotes: 'Spitzenspiel mit Hallensprecher',
+        })
+      );
+
+      const venueUpdate = updatedTables.find((u) => u.table === venues);
+      expect(venueUpdate?.values).toEqual(
+        expect.objectContaining({
+          kioskDescription: 'Frische Waffeln & Kaffee',
+          parkingNotes: 'Parkplatz hinter der Sporthalle',
+        })
+      );
+
+      const submissionUpdate = updatedTables.find((u) => u.table === venueSubmissions);
+      expect(submissionUpdate?.values).toEqual(
+        expect.objectContaining({
+          status: 'approved',
+        })
+      );
+
+      expect(mockTelegramNotifier.sendSubmissionApprovedConfirmation).toHaveBeenCalledWith(15);
+    });
+
+    it('supports GET approve endpoint and Bearer header authentication', async () => {
+      const result = await controller.approveSubmissionGet(
+        15,
+        undefined,
+        'Bearer top-secret-token'
+      );
+
+      expect(result.status).toBe('approved');
+    });
+
+    it('marks submission as rejected without updating match or venue on reject', async () => {
+      const result = await controller.rejectSubmission(15, 'top-secret-token');
+
+      expect(result.status).toBe('rejected');
+      expect(updatedTables).toHaveLength(1);
+      expect(updatedTables[0].table).toBe(venueSubmissions);
+      expect(updatedTables[0].values).toEqual(
+        expect.objectContaining({
+          status: 'rejected',
+        })
+      );
+      expect(
+        mockTelegramNotifier.sendSubmissionApprovedConfirmation
+      ).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when token is missing or invalid', async () => {
+      await expect(controller.approveSubmission(15, 'wrong-token')).rejects.toThrow(
+        UnauthorizedException
+      );
+
+      await expect(controller.rejectSubmission(15, undefined)).rejects.toThrow(
+        UnauthorizedException
+      );
+    });
+
+    it('throws NotFoundException when submission does not exist', async () => {
+      mockSubmissionRow = null;
+
+      await expect(
+        controller.approveSubmission(999, 'top-secret-token')
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        controller.rejectSubmission(999, 'top-secret-token')
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

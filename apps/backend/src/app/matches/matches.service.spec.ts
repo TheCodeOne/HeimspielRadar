@@ -1,3 +1,4 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SQL } from 'drizzle-orm';
 import { PgDialect, PgTable } from 'drizzle-orm/pg-core';
@@ -75,6 +76,24 @@ class InMemoryMatchesDatabase {
   mockTeamRows: MockTeamRow[] = [];
   capturedWhereConditions: Array<SQL | undefined> = [];
   findFirstMatch: jest.Mock = jest.fn();
+  insertedSubmissions: any[] = [];
+
+  insert() {
+    return {
+      values: (val: any) => ({
+        returning: async () => {
+          const row = {
+            id: this.insertedSubmissions.length + 1,
+            ...val,
+          };
+
+          this.insertedSubmissions.push(row);
+
+          return [row];
+        },
+      }),
+    };
+  }
 
   select() {
     return {
@@ -961,6 +980,105 @@ describe('MatchesService', () => {
       expect(league.skName).toBe('Coalesced SK');
       expect(league.akName).toBe('Coalesced AK');
       expect(league.geschlecht).toBe('mixed');
+    });
+  });
+
+  describe('createKioskSubmission', () => {
+    it('validates DTO, stores pending submission in venue_submissions, and triggers Telegram alert', async () => {
+      const mockTelegramNotifier = {
+        sendKioskSubmissionAlert: jest.fn().mockResolvedValue({ ok: true, messageId: 88 }),
+      };
+
+      // SAFETY: InMemoryMatchesDatabase and partial TelegramNotifierService mock satisfy MatchesService dependencies in test
+      const dbMock = inMemoryDb as any;
+
+      // SAFETY: Partial mock of TelegramNotifierService for unit test
+      const telegramMock = mockTelegramNotifier as any;
+
+      const serviceWithTelegram = new MatchesService(dbMock, telegramMock);
+
+      inMemoryDb.findFirstMatch.mockResolvedValueOnce({
+        id: 101,
+        leagueId: 53941,
+        league: {
+          id: 53941,
+          dbbId: 53941,
+          name: 'Bezirksliga Herren',
+        },
+        matchDay: 1,
+        matchNo: 1001,
+        kickoffDate: '2026-10-25',
+        kickoffTime: '18:00',
+        homeTeam: { id: 1, dbbId: 501, name: 'TSG Stuttgart' },
+        guestTeam: { id: 2, dbbId: 502, name: 'MTV Ludwigsburg' },
+        venue: {
+          id: 901,
+          name: 'Arena Stuttgart',
+          street: 'Hauptstr. 1',
+          postalCode: '70173',
+          city: 'Stuttgart',
+          latitude: 48.7758,
+          longitude: 9.1829,
+          geocodedAt: new Date('2026-10-01T12:00:00Z'),
+        },
+        result: null,
+        confirmed: false,
+      });
+
+      const submission = await serviceWithTelegram.createKioskSubmission(101, {
+        admissionFee: '  3 EUR  ',
+        kioskDescription: '  Waffeln, Kaffee & Brezeln  ',
+        parkingNotes: '  Parkhaus P1  ',
+        submitterName: '  Anna  ',
+        submitterRole: '  Vereinsvertreterin  ',
+      });
+
+      expect(submission.id).toBe(1);
+      expect(submission.matchId).toBe(101);
+      expect(submission.venueId).toBe(901);
+      expect(submission.status).toBe('pending');
+      expect(submission.submitterName).toBe('Anna');
+      expect(submission.submitterRole).toBe('Vereinsvertreterin');
+      expect(submission.submittedData).toEqual({
+        admissionFee: '3 EUR',
+        kioskDescription: 'Waffeln, Kaffee & Brezeln',
+        parkingNotes: 'Parkhaus P1',
+        matchNotes: null,
+      });
+      expect(mockTelegramNotifier.sendKioskSubmissionAlert).toHaveBeenCalledWith({
+        submissionId: 1,
+        homeTeam: 'TSG Stuttgart',
+        guestTeam: 'MTV Ludwigsburg',
+        leagueName: 'Bezirksliga Herren',
+        venueName: 'Arena Stuttgart',
+        city: 'Stuttgart',
+        admissionFee: '3 EUR',
+        kioskDescription: 'Waffeln, Kaffee & Brezeln',
+        parkingNotes: 'Parkhaus P1',
+        matchNotes: null,
+        submitterName: 'Anna',
+        submitterRole: 'Vereinsvertreterin',
+      });
+    });
+
+    it('throws BadRequestException when all content fields are empty or whitespace', async () => {
+      await expect(
+        service.createKioskSubmission(101, {
+          admissionFee: '   ',
+          kioskDescription: '',
+          submitterName: 'Anna',
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when match does not exist', async () => {
+      inMemoryDb.findFirstMatch.mockResolvedValueOnce(null);
+
+      await expect(
+        service.createKioskSubmission(999999, {
+          kioskDescription: 'Kaffee & Kuchen',
+        })
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
