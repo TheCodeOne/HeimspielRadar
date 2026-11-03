@@ -170,6 +170,12 @@ export function VenueModal({
           <div className="space-y-2">
             {sortedMatches.map((venueMatch) => {
               const isActiveMatch = venueMatch.id === selectedMatch.id;
+              const isFeaturedMatch = Boolean(venueMatch.isFeatured);
+
+              const kioskTeaser =
+                venueMatch.venue?.kioskDescription ??
+                venue.kioskDescription ??
+                venueMatch.matchNotes;
 
               const matchLeagueName = formatLeagueName(
                 venueMatch.leagueId,
@@ -186,6 +192,7 @@ export function VenueModal({
               return (
                 <div
                   key={venueMatch.id}
+                  data-featured={isFeaturedMatch ? 'true' : undefined}
                   onClick={() => onSelectMatch(venueMatch.id)}
                   role="button"
                   tabIndex={0}
@@ -197,12 +204,28 @@ export function VenueModal({
                   }}
                   className={`cursor-pointer rounded-xl border p-3 text-xs transition-all ${
                     isActiveMatch
-                      ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40'
-                      : 'border-border/60 bg-card/60 hover:border-primary/40 hover:bg-card'
+                      ? isFeaturedMatch
+                        ? 'border-amber-400 bg-amber-500/15 shadow-sm ring-1 ring-amber-400/50'
+                        : 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40'
+                      : isFeaturedMatch
+                        ? 'border-amber-500/70 bg-amber-500/10 hover:border-amber-400'
+                        : 'border-border/60 bg-card/60 hover:border-primary/40 hover:bg-card'
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {isFeaturedMatch && (
+                        <Badge
+                          variant="featured"
+                          data-testid="featured-match-badge"
+                          className="text-[10px]"
+                        >
+                          <span className="mr-1" aria-hidden="true">
+                            ⭐
+                          </span>
+                          Spiel des Tages / Derby-Tipp
+                        </Badge>
+                      )}
                       <Badge variant="league" className="text-[10px]">
                         <Trophy className="mr-1 h-2.5 w-2.5" />
                         {matchLeagueName}
@@ -245,6 +268,19 @@ export function VenueModal({
                       className="mt-2 border-t border-border/30 pt-2"
                     />
                   )}
+
+                  {kioskTeaser &&
+                    !venueMatch.venue?.kioskDescription && (
+                      <div
+                        data-testid="match-kiosk-teaser"
+                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200"
+                      >
+                        <span className="shrink-0 leading-none" aria-hidden="true">
+                          🥨
+                        </span>
+                        <span className="truncate font-medium">{kioskTeaser}</span>
+                      </div>
+                    )}
 
                   <div className="mt-2.5 flex flex-col gap-2 border-t border-border/40 pt-2">
                     <div className="flex items-center justify-between gap-2">

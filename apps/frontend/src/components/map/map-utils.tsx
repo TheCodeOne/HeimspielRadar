@@ -7,6 +7,7 @@ export interface VenueGroup {
   venue: Venue;
   matches: Match[];
   isSelected: boolean;
+  isFeatured?: boolean;
 }
 
 export interface VenueCluster {
@@ -18,6 +19,7 @@ export interface VenueCluster {
   matches: Match[];
   matchCount: number;
   isSelected: boolean;
+  isFeatured: boolean;
   bounds: {
     minLat: number;
     maxLat: number;
@@ -74,12 +76,17 @@ export function groupMatchesByVenue(
       if (match.id === selectedMatchId) {
         existing.isSelected = true;
       }
+
+      if (match.isFeatured) {
+        existing.isFeatured = true;
+      }
     } else {
       groups.push({
         venueId: match.venue.id,
         venue: match.venue,
         matches: [match],
         isSelected: match.id === selectedMatchId,
+        isFeatured: Boolean(match.isFeatured),
       });
     }
   }
@@ -128,7 +135,7 @@ export function clusterVenueGroups(
 
   // If zoomed in close (zoom >= 15), keep all venues individual
   if (zoom >= 15) {
-    return validGroups.map((group) => ({
+    const singleClusters = validGroups.map((group) => ({
       id: `venue-${group.venueId}`,
       isCluster: false,
       latitude: group.venue.latitude,
@@ -137,6 +144,7 @@ export function clusterVenueGroups(
       matches: group.matches,
       matchCount: group.matches.length,
       isSelected: group.isSelected,
+      isFeatured: Boolean(group.isFeatured ?? group.matches.some((m) => m.isFeatured)),
       bounds: {
         minLat: group.venue.latitude,
         maxLat: group.venue.latitude,
@@ -144,6 +152,13 @@ export function clusterVenueGroups(
         maxLng: group.venue.longitude,
       },
     }));
+
+    return singleClusters.sort((a, b) => {
+      const aRank = a.isSelected ? 2 : a.isFeatured ? 1 : 0;
+      const bRank = b.isSelected ? 2 : b.isFeatured ? 1 : 0;
+
+      return aRank - bRank;
+    });
   }
 
   interface InternalCluster {
@@ -200,10 +215,11 @@ export function clusterVenueGroups(
     }
   }
 
-  return internalClusters.map((cluster, index) => {
+  const mappedClusters = internalClusters.map((cluster, index) => {
     const isCluster = cluster.groups.length > 1;
     const allMatches: Match[] = [];
     let isSelected = false;
+    let isFeatured = false;
     let sumLat = 0;
     let sumLng = 0;
 
@@ -212,6 +228,10 @@ export function clusterVenueGroups(
 
       if (g.isSelected) {
         isSelected = true;
+      }
+
+      if (g.isFeatured || g.matches.some((m) => m.isFeatured)) {
+        isFeatured = true;
       }
 
       sumLat += g.venue.latitude;
@@ -232,6 +252,7 @@ export function clusterVenueGroups(
       matches: allMatches,
       matchCount: allMatches.length,
       isSelected,
+      isFeatured,
       bounds: {
         minLat: cluster.minLat,
         maxLat: cluster.maxLat,
@@ -239,6 +260,13 @@ export function clusterVenueGroups(
         maxLng: cluster.maxLng,
       },
     };
+  });
+
+  return mappedClusters.sort((a, b) => {
+    const aRank = a.isSelected ? 2 : a.isFeatured ? 1 : 0;
+    const bRank = b.isSelected ? 2 : b.isFeatured ? 1 : 0;
+
+    return aRank - bRank;
   });
 }
 
@@ -305,13 +333,54 @@ export function createGeoJsonCircle(
   };
 }
 
-export function getBasketballPinSvg(isSelected: boolean): string {
+export function getBasketballPinSvg(isSelected: boolean, isFeatured = false): string {
+  if (isFeatured) {
+    const pinColor = isSelected ? '#2563eb' : '#f59e0b';
+    const strokeColor = isSelected ? '#fbbf24' : '#fef3c7';
+
+    return `<svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}" stroke="${strokeColor}" stroke-width="1.5"/><circle cx="18" cy="18" r="11" fill="#fffbeb"/><circle cx="18" cy="18" r="9.5" fill="#fbbf24" stroke="#78350f" stroke-width="0.9"/><polygon points="18,10.5 19.9,14.9 24.6,15.4 21,18.5 22.1,23.1 18,20.7 13.9,23.1 15,18.5 11.4,15.4 16.1,14.9" fill="#78350f"/></svg>`;
+  }
+
   const pinColor = isSelected ? '#2563eb' : '#0f172a';
 
   return `<svg width="34" height="40" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z" fill="${pinColor}"/><circle cx="18" cy="18" r="11" fill="#ffffff"/><circle cx="18" cy="18" r="9.5" fill="#f97316" stroke="#0f172a" stroke-width="0.8"/><line x1="18" y1="8.5" x2="18" y2="27.5" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/><line x1="8.5" y1="18" x2="27.5" y2="18" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round"/><path d="M 11.3 11.3 C 15.3 14.7 15.3 21.3 11.3 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/><path d="M 24.7 11.3 C 20.7 14.7 20.7 21.3 24.7 24.7" stroke="#0f172a" stroke-width="0.9" stroke-linecap="round" fill="none"/></svg>`;
 }
 
-export function BasketballPinSvg({ isSelected }: { isSelected: boolean }) {
+export function BasketballPinSvg({
+  isSelected,
+  isFeatured = false,
+}: {
+  isSelected: boolean;
+  isFeatured?: boolean;
+}) {
+  if (isFeatured) {
+    const pinColor = isSelected ? '#2563eb' : '#f59e0b';
+    const strokeColor = isSelected ? '#fbbf24' : '#fef3c7';
+
+    return (
+      <svg
+        width="34"
+        height="40"
+        viewBox="0 0 36 42"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M18 0C8.05888 0 0 8.05888 0 18C0 28.5 18 42 18 42C18 42 36 28.5 36 18C36 8.05888 27.9411 0 18 0Z"
+          fill={pinColor}
+          stroke={strokeColor}
+          strokeWidth="1.5"
+        />
+        <circle cx="18" cy="18" r="11" fill="#fffbeb" />
+        <circle cx="18" cy="18" r="9.5" fill="#fbbf24" stroke="#78350f" strokeWidth="0.9" />
+        <polygon
+          points="18,10.5 19.9,14.9 24.6,15.4 21,18.5 22.1,23.1 18,20.7 13.9,23.1 15,18.5 11.4,15.4 16.1,14.9"
+          fill="#78350f"
+        />
+      </svg>
+    );
+  }
+
   const pinColor = isSelected ? '#2563eb' : '#0f172a';
 
   return (
@@ -348,9 +417,28 @@ export function BasketballPinSvg({ isSelected }: { isSelected: boolean }) {
   );
 }
 
-export function getBasketballPinHtml(isSelected: boolean, matchCount: number): string {
-  const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
-  const zIndex = isSelected ? '30' : '10';
+export function getBasketballPinHtml(
+  isSelected: boolean,
+  matchCount: number,
+  isFeatured = false,
+): string {
+  const scale = isSelected ? 'scale(1.2)' : isFeatured ? 'scale(1.1)' : 'scale(1)';
+  const zIndex = isSelected ? '30' : isFeatured ? '20' : '10';
+
+  const dropShadow = isFeatured
+    ? 'filter:drop-shadow(0 0 10px rgba(245,158,11,0.85));'
+    : '';
+
+  const featuredClass = isFeatured ? 'featured-venue-marker' : '';
+  const featuredAttr = isFeatured ? 'data-featured="true"' : '';
+
+  const glowHtml = isFeatured
+    ? `<span class="featured-pin-glow" style="position:absolute;top:-5px;left:-5px;width:44px;height:44px;border-radius:9999px;border:2px solid #fbbf24;background:rgba(245,158,11,0.22);box-shadow:0 0 14px rgba(245,158,11,0.85);pointer-events:none;"></span>`
+    : '';
+
+  const starHtml = isFeatured
+    ? `<span class="featured-pin-star" style="position:absolute;top:-6px;left:-6px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#0f172a;font-size:10px;line-height:1;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:1.5px solid #fffbeb;box-shadow:0 2px 6px rgba(245,158,11,0.6);">⭐</span>`
+    : '';
 
   const badgeHtml =
     matchCount > 1
@@ -358,20 +446,32 @@ export function getBasketballPinHtml(isSelected: boolean, matchCount: number): s
       : '';
 
   return `
-    <div style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;z-index:${zIndex};">
-      ${getBasketballPinSvg(isSelected)}
+    <div class="${featuredClass}" ${featuredAttr} style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;z-index:${zIndex};${dropShadow}">
+      ${glowHtml}
+      ${getBasketballPinSvg(isSelected, isFeatured)}
+      ${starHtml}
       ${badgeHtml}
     </div>
   `;
 }
 
-export function getClusterBadgeHtml(matchCount: number, isSelected: boolean): string {
+export function getClusterBadgeHtml(
+  matchCount: number,
+  isSelected: boolean,
+  isFeatured = false,
+): string {
   const borderStyle = isSelected
     ? 'border:3px solid #2563eb;box-shadow:0 0 0 2px #ffffff, 0 4px 14px rgba(37,99,235,0.5);'
-    : 'border:3px solid #ffffff;box-shadow:0 4px 12px rgba(234,88,12,0.45), 0 2px 4px rgba(0,0,0,0.2);';
+    : isFeatured
+      ? 'border:3px solid #fbbf24;box-shadow:0 0 0 2px #78350f, 0 0 16px rgba(245,158,11,0.8);'
+      : 'border:3px solid #ffffff;box-shadow:0 4px 12px rgba(234,88,12,0.45), 0 2px 4px rgba(0,0,0,0.2);';
+
+  const bgGradient = isFeatured
+    ? 'background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%);'
+    : 'background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);';
 
   return `
-    <div class="cluster-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:46px;padding:0 8px;border-radius:9999px;background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);color:#ffffff;${borderStyle}cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;user-select:none;transform:scale(1);">
+    <div class="cluster-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:46px;padding:0 8px;border-radius:9999px;${bgGradient}color:#ffffff;${borderStyle}cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;user-select:none;transform:scale(1);">
       <div style="display:flex;align-items:center;gap:3px;">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;">
           <circle cx="10" cy="10" r="9" fill="#ffffff"/>
@@ -423,6 +523,7 @@ export function getUserLocationPinHtml(): string {
 
 export function createVenueMarkerElement(clusterOrGroup: {
   isSelected: boolean;
+  isFeatured?: boolean;
   matchCount?: number;
   matches?: Match[];
 }): HTMLElement {
@@ -431,10 +532,21 @@ export function createVenueMarkerElement(clusterOrGroup: {
 
   const isSelected = clusterOrGroup.isSelected;
 
+  const isFeatured = Boolean(
+    clusterOrGroup.isFeatured ?? clusterOrGroup.matches?.some((m) => m.isFeatured),
+  );
+
   const el = document.createElement('div');
-  el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = isSelected ? '30' : '10';
-  el.innerHTML = getBasketballPinHtml(isSelected, matchCount);
+  el.className = isFeatured
+    ? 'cursor-pointer transition-transform duration-200 featured-venue-marker-wrapper'
+    : 'cursor-pointer transition-transform duration-200';
+  el.style.zIndex = isSelected ? '30' : isFeatured ? '20' : '10';
+
+  if (isFeatured) {
+    el.dataset.featured = 'true';
+  }
+
+  el.innerHTML = getBasketballPinHtml(isSelected, matchCount, isFeatured);
 
   return el;
 }
@@ -442,11 +554,16 @@ export function createVenueMarkerElement(clusterOrGroup: {
 export function createClusterMarkerElement(cluster: {
   matchCount: number;
   isSelected: boolean;
+  isFeatured?: boolean;
 }): HTMLElement {
   const el = document.createElement('div');
   el.className = 'cursor-pointer transition-transform duration-200';
-  el.style.zIndex = cluster.isSelected ? '30' : '20';
-  el.innerHTML = getClusterBadgeHtml(cluster.matchCount, cluster.isSelected);
+  el.style.zIndex = cluster.isSelected ? '30' : cluster.isFeatured ? '25' : '20';
+  el.innerHTML = getClusterBadgeHtml(
+    cluster.matchCount,
+    cluster.isSelected,
+    Boolean(cluster.isFeatured),
+  );
 
   return el;
 }
@@ -470,18 +587,39 @@ export function createUserLocationMarkerElement(): HTMLElement {
 export function BasketballPinMarker({
   isSelected,
   matchCount,
+  isFeatured = false,
 }: {
   isSelected: boolean;
   matchCount: number;
+  isFeatured?: boolean;
 }) {
-  const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
+  const scale = isSelected ? 'scale(1.2)' : isFeatured ? 'scale(1.1)' : 'scale(1)';
 
   return (
     <div
-      className="relative flex items-center justify-center transition-transform duration-200"
-      style={{ transform: scale }}
+      data-featured={isFeatured ? 'true' : undefined}
+      className={`relative flex items-center justify-center transition-transform duration-200 ${
+        isFeatured ? 'featured-venue-marker' : ''
+      }`}
+      style={{
+        transform: scale,
+        zIndex: isSelected ? 30 : isFeatured ? 20 : 10,
+        filter: isFeatured ? 'drop-shadow(0 0 10px rgba(245,158,11,0.85))' : undefined,
+      }}
     >
-      <BasketballPinSvg isSelected={isSelected} />
+      {isFeatured && (
+        <span
+          className="featured-pin-glow pointer-events-none absolute -top-1.5 -left-1.5 h-11 w-11 rounded-full border-2 border-amber-400 bg-amber-500/20 shadow-[0_0_14px_rgba(245,158,11,0.85)]"
+        />
+      )}
+
+      <BasketballPinSvg isSelected={isSelected} isFeatured={isFeatured} />
+
+      {isFeatured && (
+        <span className="featured-pin-star absolute -top-1.5 -left-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-amber-100 bg-linear-to-br from-amber-400 to-amber-600 text-[10px] leading-none text-slate-950 shadow-sm">
+          ⭐
+        </span>
+      )}
 
       {matchCount > 1 && (
         <span className="pin-match-badge absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-[10px] font-bold text-white shadow-xs">
@@ -495,17 +633,25 @@ export function BasketballPinMarker({
 export function ClusterBadgeMarker({
   matchCount,
   isSelected,
+  isFeatured = false,
 }: {
   matchCount: number;
   isSelected: boolean;
+  isFeatured?: boolean;
 }) {
   const borderClasses = isSelected
     ? 'border-3 border-blue-600 shadow-[0_0_0_2px_#ffffff,0_4px_14px_rgba(37,99,235,0.5)]'
-    : 'border-3 border-white shadow-[0_4px_12px_rgba(234,88,12,0.45),0_2px_4px_rgba(0,0,0,0.2)]';
+    : isFeatured
+      ? 'border-3 border-amber-400 shadow-[0_0_0_2px_#78350f,0_0_16px_rgba(245,158,11,0.8)]'
+      : 'border-3 border-white shadow-[0_4px_12px_rgba(234,88,12,0.45),0_2px_4px_rgba(0,0,0,0.2)]';
+
+  const bgClasses = isFeatured
+    ? 'bg-linear-to-br from-amber-500 to-amber-600'
+    : 'bg-linear-to-br from-orange-500 to-orange-600';
 
   return (
     <div
-      className={`cluster-badge flex flex-col items-center justify-center min-w-[46px] h-[46px] px-2 rounded-full bg-linear-to-br from-orange-500 to-orange-600 text-white select-none transition-transform active:scale-95 cursor-pointer ${borderClasses}`}
+      className={`cluster-badge flex flex-col items-center justify-center min-w-[46px] h-[46px] px-2 rounded-full ${bgClasses} text-white select-none transition-transform active:scale-95 cursor-pointer ${borderClasses}`}
     >
       <div className="flex items-center gap-0.5">
         <svg

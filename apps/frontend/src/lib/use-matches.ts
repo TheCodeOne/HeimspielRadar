@@ -179,6 +179,13 @@ export function useMatches({
         }
 
         processed.sort((a, b) => {
+          const aFeatured = a.isFeatured ? 1 : 0;
+          const bFeatured = b.isFeatured ? 1 : 0;
+
+          if (aFeatured !== bFeatured) {
+            return bFeatured - aFeatured;
+          }
+
           if (teamQuery) {
             return compareMatchesChronologically(a, b);
           }
@@ -352,6 +359,13 @@ export function useMatches({
         }
 
         fallbackResults.sort((a, b) => {
+          const aFeatured = a.isFeatured ? 1 : 0;
+          const bFeatured = b.isFeatured ? 1 : 0;
+
+          if (aFeatured !== bFeatured) {
+            return bFeatured - aFeatured;
+          }
+
           if (teamQuery) {
             return compareMatchesChronologically(a, b);
           }

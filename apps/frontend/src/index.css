@@ -113,6 +113,25 @@
   animation: user-location-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
+@keyframes featured-pin-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.75;
+  }
+  70% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+.featured-pin-glow {
+  animation: featured-pin-pulse 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
 /* OpenLayers mobile touch, sizing, and overlay stacking fix */
 .ol-viewport,
 .ol-viewport canvas {
@@ -121,6 +140,10 @@
 
 .ol-marker-overlay {
   z-index: 10 !important;
+}
+
+.ol-marker-featured {
+  z-index: 20 !important;
 }
 
 .ol-marker-selected {

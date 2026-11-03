@@ -53,6 +53,19 @@ export function MatchList({
     }
   }, [selectedMatchId]);
 
+  const sortedMatches = React.useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const aFeatured = a.isFeatured ? 1 : 0;
+      const bFeatured = b.isFeatured ? 1 : 0;
+
+      if (aFeatured !== bFeatured) {
+        return bFeatured - aFeatured;
+      }
+
+      return 0;
+    });
+  }, [matches]);
+
   // Loading Skeleton State
   if (isLoading) {
     return (
@@ -136,7 +149,7 @@ export function MatchList({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {matches.map((match) => {
+      {sortedMatches.map((match) => {
         const isSelected = selectedMatchId === match.id;
 
         return (

@@ -101,7 +101,9 @@ export function getSampleMatches(): Match[] {
       kickoffTime: '20:15',
       confirmed: true,
       result: null,
+      isFeatured: true,
       admissionFee: '3,00 €',
+      matchNotes: 'Spitzenspiel der Oberliga Württemberg mit Hallensprecher & Halbzeit-Shootout',
       homeTeam: {
         id: 13,
         dbbId: 4013,
@@ -122,7 +124,7 @@ export function getSampleMatches(): Match[] {
         city: 'Stuttgart-Möhringen',
         latitude: 48.7233,
         longitude: 9.1483,
-        kioskDescription: 'Kuchenbuffet, Hotdogs & Spezi',
+        kioskDescription: 'Hallenkaffee, frische Waffeln, Brezeln & Kaltgetränke',
       },
     },
     {

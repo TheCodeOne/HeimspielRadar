@@ -258,17 +258,25 @@ export function PigeonEngine({
                 anchor={[cluster.latitude, cluster.longitude]}
                 offset={[23, 23]}
               >
-                <button
-                  type="button"
-                  onClick={() => handleClusterClick(cluster)}
-                  className="cursor-pointer focus:outline-none"
-                  aria-label={`Cluster mit ${cluster.matchCount} Spielen`}
+                <div
+                  className="relative"
+                  style={{
+                    zIndex: cluster.isSelected ? 30 : cluster.isFeatured ? 25 : 20,
+                  }}
                 >
-                  <ClusterBadgeMarker
-                    matchCount={cluster.matchCount}
-                    isSelected={cluster.isSelected}
-                  />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleClusterClick(cluster)}
+                    className="cursor-pointer focus:outline-none"
+                    aria-label={`Cluster mit ${cluster.matchCount} Spielen`}
+                  >
+                    <ClusterBadgeMarker
+                      matchCount={cluster.matchCount}
+                      isSelected={cluster.isSelected}
+                      isFeatured={cluster.isFeatured}
+                    />
+                  </button>
+                </div>
               </Overlay>
             );
           }
@@ -281,7 +289,9 @@ export function PigeonEngine({
             >
               <div
                 className="relative"
-                style={{ zIndex: cluster.isSelected ? 30 : 10 }}
+                style={{
+                  zIndex: cluster.isSelected ? 30 : cluster.isFeatured ? 20 : 10,
+                }}
               >
                 <button
                   type="button"
@@ -292,6 +302,7 @@ export function PigeonEngine({
                   <BasketballPinMarker
                     isSelected={cluster.isSelected}
                     matchCount={cluster.matchCount}
+                    isFeatured={cluster.isFeatured}
                   />
                 </button>
               </div>
