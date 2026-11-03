@@ -349,6 +349,12 @@ export function MapLibreEngine({
           .setLngLat([cluster.longitude, cluster.latitude])
           .addTo(map);
 
+        marker.getElement().style.zIndex = cluster.isSelected
+          ? '30'
+          : cluster.isFeatured
+            ? '25'
+            : '20';
+
         markersRef.current.push(marker);
       } else {
         const el = createVenueMarkerElement(cluster);
@@ -361,6 +367,12 @@ export function MapLibreEngine({
         const marker = new MapLibreMarker({ element: el, anchor: 'bottom' })
           .setLngLat([cluster.longitude, cluster.latitude])
           .addTo(map);
+
+        marker.getElement().style.zIndex = cluster.isSelected
+          ? '30'
+          : cluster.isFeatured
+            ? '20'
+            : '10';
 
         markersRef.current.push(marker);
 

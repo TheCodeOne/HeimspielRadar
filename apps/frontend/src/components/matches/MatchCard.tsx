@@ -32,14 +32,23 @@ export interface MatchCardProps {
 export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
   ({ match, isSelected = false, onClick, onMouseEnter, className = '' }, ref) => {
     const isFinished = Boolean(match.result);
+    const isFeatured = Boolean(match.isFeatured);
     const leagueName = formatLeagueName(match.leagueId, match.league?.name);
     const dateFormatted = formatDisplayDate(match.kickoffDate);
     const categoryParts = [match.league?.akName, match.league?.geschlecht].filter(Boolean);
+    const kioskTeaser = match.venue?.kioskDescription ?? match.matchNotes;
+
+    const cardStateClasses = isSelected
+      ? 'border-primary ring-2 ring-primary/40 bg-accent/25 shadow-md -translate-y-0.5'
+      : isFeatured
+        ? 'border-amber-500/80 ring-1 ring-amber-500/40 bg-linear-to-br from-amber-500/10 via-card to-amber-500/5 shadow-[0_0_20px_rgba(245,158,11,0.18)] hover:border-amber-400 hover:shadow-[0_0_24px_rgba(245,158,11,0.28)]'
+        : 'border-border/70 hover:border-primary/50 hover:bg-muted/20 hover:shadow-xs';
 
     return (
       <Card
         ref={ref}
         data-match-id={match.id}
+        data-featured={isFeatured ? 'true' : undefined}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         tabIndex={0}
@@ -50,15 +59,24 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
             onClick?.();
           }
         }}
-        className={`cursor-pointer transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-          isSelected
-            ? 'border-primary ring-2 ring-primary/40 bg-accent/25 shadow-md -translate-y-0.5'
-            : 'border-border/70 hover:border-primary/50 hover:bg-muted/20 hover:shadow-xs'
-        } ${className}`}
+        className={`cursor-pointer transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${cardStateClasses} ${className}`}
       >
         <CardHeader className="pb-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
+              {isFeatured && (
+                <Badge
+                  variant="featured"
+                  data-testid="featured-match-badge"
+                  className="text-[11px]"
+                >
+                  <span className="mr-1" aria-hidden="true">
+                    ⭐
+                  </span>
+                  Spiel des Tages / Derby-Tipp
+                </Badge>
+              )}
+
               <Badge variant="league" className="text-[11px]">
                 <Trophy className="mr-1 h-3 w-3" />
                 {leagueName}
@@ -141,6 +159,18 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
               <span className="shrink-0 font-mono text-[11px] font-medium text-primary">
                 {formatDistance(match.distanceKm)}
               </span>
+            </div>
+          )}
+
+          {kioskTeaser && (
+            <div
+              data-testid="match-kiosk-teaser"
+              className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200"
+            >
+              <span className="shrink-0 text-sm leading-none" aria-hidden="true">
+                🥨
+              </span>
+              <span className="truncate font-medium">{kioskTeaser}</span>
             </div>
           )}
         </CardContent>
