@@ -38,6 +38,8 @@ export interface Venue {
   latitude: number | null;
   longitude: number | null;
   geocodedAt?: string | null;
+  kioskDescription?: string | null;
+  parkingNotes?: string | null;
 }
 
 export interface Match {
@@ -54,7 +56,44 @@ export interface Match {
   isVenueVerified?: boolean;
   result?: string | null;
   confirmed: boolean;
+  admissionFee?: string | null;
+  matchNotes?: string | null;
+  isFeatured?: boolean;
+  featuredUntil?: string | null;
   distanceKm?: number;
+}
+
+export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface VenueSubmissionData {
+  admissionFee?: string | null;
+  kioskDescription?: string | null;
+  kiosk?: string | null;
+  parkingNotes?: string | null;
+  parking?: string | null;
+  matchNotes?: string | null;
+  notes?: string | null;
+}
+
+export interface VenueSubmission {
+  id: number;
+  matchId?: number | null;
+  venueId?: number | null;
+  submitterName?: string | null;
+  submitterRole?: string | null;
+  submittedData: VenueSubmissionData;
+  status: VenueSubmissionStatus;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+export interface CreateKioskSubmissionDto {
+  admissionFee?: string;
+  kioskDescription?: string;
+  parkingNotes?: string;
+  matchNotes?: string;
+  submitterName?: string;
+  submitterRole?: string;
 }
 
 export interface SyncResult {
