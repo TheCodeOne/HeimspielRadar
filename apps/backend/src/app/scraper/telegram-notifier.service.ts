@@ -87,7 +87,7 @@ export class TelegramNotifierService {
     this.chatId = process.env['TELEGRAM_CHAT_ID'] || null;
 
     const rawAdminUrl =
-      process.env['ADMIN_BASE_URL'] || 'http://raspberrypi.local:3000';
+      process.env['ADMIN_BASE_URL'] || 'http://10.10.10.10:3000';
 
     this.adminBaseUrl = rawAdminUrl.replace(/\/+$/, '');
   }
