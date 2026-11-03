@@ -241,4 +241,82 @@ describe('TelegramNotifierService', () => {
       expect(settingsMap.get('telegram_last_health_status')).toBe('healthy');
     });
   });
+
+  describe('sendKioskSubmissionAlert & sendSubmissionApprovedConfirmation', () => {
+    beforeEach(() => {
+      process.env['TELEGRAM_BOT_TOKEN'] = 'test-token';
+      process.env['TELEGRAM_CHAT_ID'] = '123456';
+      process.env['ADMIN_API_SECRET'] = 'secret-123';
+    });
+
+    it('sends formatted kiosk submission alert with approve and reject inline buttons', async () => {
+      getFetchMock().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, result: { message_id: 501 } }),
+      });
+
+      const service = new TelegramNotifierService(mockDb);
+
+      const res = await service.sendKioskSubmissionAlert({
+        submissionId: 42,
+        homeTeam: 'TSG Stuttgart',
+        guestTeam: 'MTV Ludwigsburg',
+        leagueName: 'Bezirksliga Herren',
+        venueName: 'Sporthalle Mitte',
+        city: 'Stuttgart',
+        admissionFee: 'Eintritt frei',
+        kioskDescription: 'Kaffee, Kuchen & Brezeln',
+        parkingNotes: 'Haupteingang über Pausenhof',
+        submitterName: 'Lukas',
+        submitterRole: 'Trainer',
+      });
+
+      expect(res.ok).toBe(true);
+      expect(res.messageId).toBe(501);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.telegram.org/bottest-token/sendMessage',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('🌭 Neue Kiosk-Info eingereicht!'),
+        })
+      );
+
+      const callBody = JSON.parse(getFetchMock().mock.calls[0][1].body);
+      expect(callBody.text).toContain('Spiel: TSG Stuttgart vs. MTV Ludwigsburg (Bezirksliga Herren)');
+      expect(callBody.text).toContain('Halle: Sporthalle Mitte, Stuttgart');
+      expect(callBody.text).toContain('Eintritt: Eintritt frei');
+      expect(callBody.text).toContain('Kiosk: Kaffee, Kuchen & Brezeln');
+      expect(callBody.text).toContain('Parken: Haupteingang über Pausenhof');
+      expect(callBody.text).toContain('Von: Lukas (Trainer)');
+      expect(callBody.reply_markup.inline_keyboard[0]).toEqual([
+        {
+          text: '✅ Freigeben',
+          url: expect.stringContaining('/api/admin/submissions/42/approve?token=secret-123'),
+        },
+        {
+          text: '❌ Ablehnen',
+          url: expect.stringContaining('/api/admin/submissions/42/reject?token=secret-123'),
+        },
+      ]);
+    });
+
+    it('sends approval confirmation message on sendSubmissionApprovedConfirmation', async () => {
+      getFetchMock().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, result: { message_id: 502 } }),
+      });
+
+      const service = new TelegramNotifierService(mockDb);
+      const res = await service.sendSubmissionApprovedConfirmation(42);
+
+      expect(res.ok).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.telegram.org/bottest-token/sendMessage',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('Eintrag #42 erfolgreich freigegeben und live geschaltet!'),
+        })
+      );
+    });
+  });
 });
