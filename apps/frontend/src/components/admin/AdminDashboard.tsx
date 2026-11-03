@@ -7,6 +7,7 @@ import {
   Clock,
   Cpu,
   Database,
+  Edit2,
   MapPin,
   RefreshCw,
   Search,
@@ -14,6 +15,7 @@ import {
   ShieldAlert,
   Star,
   Terminal,
+  Trash2,
   X,
   XCircle,
   Zap,
@@ -24,6 +26,9 @@ import {
   Match,
   SyncFailure,
   SyncRun,
+  UpdateSubmissionDto,
+  VenueSubmission,
+  VenueSubmissionFilterStatus,
 } from '@sundayleague/shared-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -143,8 +148,10 @@ export function AdminDashboard() {
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
 
-  // Navigation tab state ('overview' shows full dashboard + featured matches; 'featured' focuses on featured matches)
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'featured'>('overview');
+  // Navigation tab state ('overview' shows full dashboard + featured matches; 'featured' focuses on featured matches; 'submissions' shows moderation table)
+  const [activeTab, setActiveTab] = React.useState<
+    'overview' | 'featured' | 'submissions'
+  >('overview');
 
   // Featured Matches state
   const [featuredMatches, setFeaturedMatches] = React.useState<Match[]>([]);
@@ -153,6 +160,35 @@ export function AdminDashboard() {
   const [searchResults, setSearchResults] = React.useState<Match[]>([]);
   const [isSearchingMatches, setIsSearchingMatches] = React.useState<boolean>(false);
   const [togglingMatchId, setTogglingMatchId] = React.useState<number | null>(null);
+
+  // Submissions & Moderation state
+  const [submissions, setSubmissions] = React.useState<VenueSubmission[]>([]);
+
+  const [submissionFilter, setSubmissionFilter] =
+    React.useState<VenueSubmissionFilterStatus>('pending');
+
+  const [moderatingSubmissionId, setModeratingSubmissionId] = React.useState<
+    number | null
+  >(null);
+
+  // Edit Submission Modal state
+  const [editingSubmission, setEditingSubmission] =
+    React.useState<VenueSubmission | null>(null);
+
+  const [editFormData, setEditFormData] = React.useState<UpdateSubmissionDto>({
+    admissionFee: '',
+    kioskDescription: '',
+    parkingNotes: '',
+    matchNotes: '',
+    submitterName: '',
+    submitterRole: '',
+  });
+
+  const [isSavingEdit, setIsSavingEdit] = React.useState<boolean>(false);
+
+  const [deletingSubmissionId, setDeletingSubmissionId] = React.useState<
+    number | null
+  >(null);
 
   // Sync trigger form state
   const [selectedTarget, setSelectedTarget] = React.useState<string>('verband:1');
@@ -194,12 +230,16 @@ export function AdminDashboard() {
       }
 
       try {
-        const [statusRes, runsRes, failuresRes, featuredRes] = await Promise.all([
-          fetch('/api/admin/status'),
-          fetch('/api/admin/sync-runs?limit=20'),
-          fetch('/api/admin/failures'),
-          fetch('/api/admin/matches/featured').catch(() => null),
-        ]);
+        const [statusRes, runsRes, failuresRes, featuredRes, submissionsRes] =
+          await Promise.all([
+            fetch('/api/admin/status'),
+            fetch('/api/admin/sync-runs?limit=20'),
+            fetch('/api/admin/failures'),
+            fetch('/api/admin/matches/featured').catch(() => null),
+            fetch(`/api/admin/submissions?status=${submissionFilter}`).catch(
+              () => null
+            ),
+          ]);
 
         if (statusRes.ok) {
           // SAFETY: /api/admin/status returns AdminStatusResponse
@@ -231,6 +271,22 @@ export function AdminDashboard() {
             setFeaturedMatches(featuredData);
           }
         }
+
+        if (
+          submissionsRes &&
+          submissionsRes.ok &&
+          submissionsRes.headers
+            .get('content-type')
+            ?.includes('application/json')
+        ) {
+          // SAFETY: /api/admin/submissions returns VenueSubmission[]
+          const submissionsData =
+            (await submissionsRes.json()) as VenueSubmission[];
+
+          if (Array.isArray(submissionsData)) {
+            setSubmissions(submissionsData);
+          }
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         showFeedback('error', `Fehler beim Laden der Admin-Daten: ${msg}`);
@@ -239,7 +295,197 @@ export function AdminDashboard() {
         setIsRefreshing(false);
       }
     },
+    [showFeedback, submissionFilter]
+  );
+
+  const fetchSubmissions = React.useCallback(
+    async (filterStatus: VenueSubmissionFilterStatus) => {
+      try {
+        const res = await fetch(
+          `/api/admin/submissions?status=${encodeURIComponent(filterStatus)}`
+        );
+
+        if (
+          res.ok &&
+          res.headers.get('content-type')?.includes('application/json')
+        ) {
+          // SAFETY: /api/admin/submissions returns VenueSubmission[]
+          const data = (await res.json()) as VenueSubmission[];
+
+          if (Array.isArray(data)) {
+            setSubmissions(data);
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        showFeedback('error', `Fehler beim Laden der Einreichungen: ${msg}`);
+      }
+    },
     [showFeedback]
+  );
+
+  const handleSubmissionFilterChange = async (
+    nextFilter: VenueSubmissionFilterStatus
+  ) => {
+    setSubmissionFilter(nextFilter);
+    await fetchSubmissions(nextFilter);
+  };
+
+  const handleModerateSubmission = async (
+    submission: VenueSubmission,
+    action: 'approve' | 'reject'
+  ) => {
+    setModeratingSubmissionId(submission.id);
+
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlToken = searchParams.get('token');
+
+      const querySuffix = urlToken
+        ? `?token=${encodeURIComponent(urlToken)}`
+        : '';
+
+      const res = await fetch(
+        `/api/admin/submissions/${submission.id}/${action}${querySuffix}`,
+        {
+          method: 'POST',
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const nextStatus = action === 'approve' ? 'approved' : 'rejected';
+
+      setSubmissions((prev) =>
+        prev.map((item) =>
+          item.id === submission.id ? { ...item, status: nextStatus } : item
+        )
+      );
+
+      if (action === 'approve') {
+        showFeedback(
+          'success',
+          `✅ Einreichung #${submission.id} erfolgreich freigegeben und live geschaltet!`
+        );
+      } else {
+        showFeedback(
+          'success',
+          `❌ Einreichung #${submission.id} wurde abgelehnt.`
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback(
+        'error',
+        `Fehler bei der Moderation von #${submission.id}: ${msg}`
+      );
+    } finally {
+      setModeratingSubmissionId(null);
+    }
+  };
+
+  const handleStartEditSubmission = (sub: VenueSubmission) => {
+    setEditingSubmission(sub);
+    setEditFormData({
+      admissionFee: sub.submittedData?.admissionFee || '',
+      kioskDescription:
+        sub.submittedData?.kioskDescription ?? sub.submittedData?.kiosk ?? '',
+      parkingNotes:
+        sub.submittedData?.parkingNotes ?? sub.submittedData?.parking ?? '',
+      matchNotes:
+        sub.submittedData?.matchNotes ?? sub.submittedData?.notes ?? '',
+      submitterName: sub.submitterName || '',
+      submitterRole: sub.submitterRole || '',
+    });
+  };
+
+  const handleSaveEditSubmission = async () => {
+    if (!editingSubmission) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${editingSubmission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFormData),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // SAFETY: PATCH returns updated VenueSubmission
+      const updated = (await res.json()) as VenueSubmission;
+
+      setSubmissions((prev) =>
+        prev.map((item) => (item.id === editingSubmission.id ? updated : item))
+      );
+
+      showFeedback(
+        'success',
+        `✅ Einreichung #${editingSubmission.id} erfolgreich aktualisiert!`
+      );
+      setEditingSubmission(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback(
+        'error',
+        `Fehler beim Bearbeiten von #${editingSubmission.id}: ${msg}`
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteSubmission = async (sub: VenueSubmission) => {
+    const confirmDelete = window.confirm(
+      `Möchtest du Einreichung #${sub.id} wirklich unwiderruflich löschen?`
+    );
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    setDeletingSubmissionId(sub.id);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${sub.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      setSubmissions((prev) => prev.filter((item) => item.id !== sub.id));
+      showFeedback(
+        'success',
+        `🗑️ Einreichung #${sub.id} wurde erfolgreich gelöscht.`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback('error', `Fehler beim Löschen von #${sub.id}: ${msg}`);
+    } finally {
+      setDeletingSubmissionId(null);
+    }
+  };
+
+  const filteredSubmissions = React.useMemo(() => {
+    if (submissionFilter === 'all') {
+      return submissions;
+    }
+
+    return submissions.filter((sub) => sub.status === submissionFilter);
+  }, [submissions, submissionFilter]);
+
+  const pendingSubmissionsCount = React.useMemo(
+    () => submissions.filter((sub) => sub.status === 'pending').length,
+    [submissions]
   );
 
   // Initial fetch
@@ -710,6 +956,21 @@ export function AdminDashboard() {
               {featuredMatches.length}
             </Badge>
           </Button>
+
+          <Button
+            variant={activeTab === 'submissions' ? 'default' : 'outline'}
+            size="sm"
+            role="tab"
+            aria-selected={activeTab === 'submissions'}
+            data-testid="admin-tab-submissions"
+            onClick={() => setActiveTab('submissions')}
+            className="gap-1.5 text-xs"
+          >
+            <span>🌭 Submissions & Moderation</span>
+            <Badge variant="outline" className="ml-1 px-1.5 py-0 text-[10px]">
+              {pendingSubmissionsCount}
+            </Badge>
+          </Button>
         </div>
 
         {activeTab === 'overview' && (
@@ -950,6 +1211,7 @@ export function AdminDashboard() {
         )}
 
         {/* Featured Matches Section */}
+        {(activeTab === 'overview' || activeTab === 'featured') && (
         <Card
           id="featured-matches-section"
           data-testid="featured-matches-card"
@@ -1065,6 +1327,346 @@ export function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+        )}
+
+        {/* Submissions & Moderation Section */}
+        {activeTab === 'submissions' && (
+          <Card
+            id="submissions-moderation-section"
+            data-testid="submissions-moderation-card"
+            className="border-primary/30 bg-card/80"
+          >
+            <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-semibold">
+                  🌭 Submissions & Moderation
+                </CardTitle>
+                <Badge variant="outline" className="text-[11px]">
+                  {filteredSubmissions.length} Einträge
+                </Badge>
+              </div>
+
+              {/* Status Filter Pills */}
+              <div
+                role="group"
+                aria-label="Submissions Status-Filter"
+                className="flex flex-wrap items-center gap-1.5"
+              >
+                <Button
+                  variant={
+                    submissionFilter === 'pending' ? 'default' : 'outline'
+                  }
+                  size="sm"
+                  data-testid="submission-filter-pending"
+                  onClick={() => handleSubmissionFilterChange('pending')}
+                  className="h-7 px-2.5 text-xs"
+                >
+                  Ausstehend (pending)
+                </Button>
+                <Button
+                  variant={
+                    submissionFilter === 'approved' ? 'default' : 'outline'
+                  }
+                  size="sm"
+                  data-testid="submission-filter-approved"
+                  onClick={() => handleSubmissionFilterChange('approved')}
+                  className="h-7 px-2.5 text-xs"
+                >
+                  Freigegeben (approved)
+                </Button>
+                <Button
+                  variant={
+                    submissionFilter === 'rejected' ? 'default' : 'outline'
+                  }
+                  size="sm"
+                  data-testid="submission-filter-rejected"
+                  onClick={() => handleSubmissionFilterChange('rejected')}
+                  className="h-7 px-2.5 text-xs"
+                >
+                  Abgelehnt (rejected)
+                </Button>
+                <Button
+                  variant={submissionFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  data-testid="submission-filter-all"
+                  onClick={() => handleSubmissionFilterChange('all')}
+                  className="h-7 px-2.5 text-xs"
+                >
+                  Alle (all)
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              {filteredSubmissions.length === 0 ? (
+                <div
+                  data-testid="submissions-empty-state"
+                  className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-muted-foreground"
+                >
+                  Keine Einreichungen für den Filter „{submissionFilter}“
+                  gefunden.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table
+                    data-testid="submissions-table"
+                    className="w-full text-left text-xs"
+                  >
+                    <thead className="border-b border-border text-muted-foreground">
+                      <tr>
+                        <th className="py-2.5 pr-4 font-medium">Datum</th>
+                        <th className="py-2.5 pr-4 font-medium">
+                          Spiel & Halle
+                        </th>
+                        <th className="py-2.5 pr-4 font-medium">
+                          Name & Rolle
+                        </th>
+                        <th className="py-2.5 pr-4 font-medium">
+                          Eingereichte Felder
+                        </th>
+                        <th className="py-2.5 pr-4 font-medium">Status</th>
+                        <th className="py-2.5 font-medium">Aktionen</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {filteredSubmissions.map((sub) => {
+                        const isModerating = moderatingSubmissionId === sub.id;
+
+                        const admissionFee =
+                          sub.submittedData?.admissionFee || null;
+
+                        const kioskText =
+                          sub.submittedData?.kioskDescription ??
+                          sub.submittedData?.kiosk ??
+                          null;
+
+                        const parkingText =
+                          sub.submittedData?.parkingNotes ??
+                          sub.submittedData?.parking ??
+                          null;
+
+                        const notesText =
+                          sub.submittedData?.matchNotes ??
+                          sub.submittedData?.notes ??
+                          null;
+
+                        return (
+                          <tr
+                            key={sub.id}
+                            data-testid={`submission-row-${sub.id}`}
+                            className="align-top hover:bg-accent/30"
+                          >
+                            <td className="whitespace-nowrap py-3 pr-4 font-mono text-muted-foreground">
+                              <div>{formatDateTime(sub.createdAt)}</div>
+                              <div className="mt-0.5 text-[10px]">
+                                #{sub.id}
+                              </div>
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              {sub.match ? (
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-foreground">
+                                    {sub.match.homeTeam} vs.{' '}
+                                    {sub.match.guestTeam}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {sub.match.leagueName ||
+                                      `Liga #${sub.match.leagueId ?? ''}`}{' '}
+                                    •{' '}
+                                    {formatMatchKickoff(
+                                      sub.match.kickoffDate,
+                                      sub.match.kickoffTime
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-muted-foreground">
+                                  {sub.matchId
+                                    ? `Spiel #${sub.matchId}`
+                                    : 'Kein Spiel verknüpft'}
+                                </div>
+                              )}
+
+                              <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <MapPin className="size-3 shrink-0" />
+                                <span>
+                                  {sub.venue
+                                    ? `${sub.venue.name}${sub.venue.city ? `, ${sub.venue.city}` : ''}`
+                                    : sub.venueId
+                                      ? `Halle #${sub.venueId}`
+                                      : 'Halle offen'}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 pr-4">
+                              <div className="font-medium text-foreground">
+                                {sub.submitterName || 'Anonym'}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {sub.submitterRole || 'Keine Rolle'}
+                              </div>
+                            </td>
+
+                            <td className="max-w-md space-y-1 py-3 pr-4">
+                              <div>
+                                <span className="font-semibold text-muted-foreground">
+                                  Eintritt:{' '}
+                                </span>
+                                <span className="text-foreground">
+                                  {admissionFee || '–'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-muted-foreground">
+                                  Kiosk:{' '}
+                                </span>
+                                <span className="text-foreground">
+                                  {kioskText || '–'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-muted-foreground">
+                                  Parken:{' '}
+                                </span>
+                                <span className="text-foreground">
+                                  {parkingText || '–'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-muted-foreground">
+                                  Notizen:{' '}
+                                </span>
+                                <span className="text-foreground">
+                                  {notesText || '–'}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="whitespace-nowrap py-3 pr-4">
+                              {sub.status === 'pending' ? (
+                                <span
+                                  data-testid={`submission-status-${sub.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400"
+                                >
+                                  Ausstehend
+                                </span>
+                              ) : sub.status === 'approved' ? (
+                                <span
+                                  data-testid={`submission-status-${sub.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400"
+                                >
+                                  Freigegeben
+                                </span>
+                              ) : (
+                                <span
+                                  data-testid={`submission-status-${sub.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-400"
+                                >
+                                  Abgelehnt
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="whitespace-nowrap py-3">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {sub.status === 'pending' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={isModerating}
+                                      data-testid={`approve-submission-btn-${sub.id}`}
+                                      onClick={() =>
+                                        handleModerateSubmission(sub, 'approve')
+                                      }
+                                      className="h-7 gap-1 border-emerald-500/40 bg-emerald-500/10 px-2 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+                                    >
+                                      <span>✅ Freigeben</span>
+                                    </Button>
+
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={isModerating}
+                                      data-testid={`reject-submission-btn-${sub.id}`}
+                                      onClick={() =>
+                                        handleModerateSubmission(sub, 'reject')
+                                      }
+                                      className="h-7 gap-1 border-rose-500/40 bg-rose-500/10 px-2 text-xs text-rose-400 hover:bg-rose-500/20 hover:text-rose-300"
+                                    >
+                                      <span>❌ Ablehnen</span>
+                                    </Button>
+                                  </>
+                                )}
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  data-testid={`edit-submission-btn-${sub.id}`}
+                                  onClick={() => handleStartEditSubmission(sub)}
+                                  className="h-7 gap-1 border-border px-2 text-xs text-foreground hover:bg-accent"
+                                >
+                                  <Edit2 className="size-3" />
+                                  <span>Bearbeiten</span>
+                                </Button>
+
+                                {sub.matchId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={togglingMatchId === sub.matchId}
+                                    data-testid={`feature-submission-btn-${sub.id}`}
+                                    onClick={async () => {
+                                      // SAFETY: synthetic minimal Match object sufficient for toggleFeature endpoint
+                                      const syntheticMatch = {
+                                        id: sub.matchId,
+                                        homeTeam: { name: sub.match?.homeTeam || `Team #${sub.matchId}` },
+                                        guestTeam: { name: sub.match?.guestTeam || 'Gast' },
+                                        leagueId: sub.match?.leagueId ?? 0,
+                                      } as Match;
+
+                                      await handleToggleFeature(syntheticMatch, true);
+                                    }}
+                                    className="h-7 gap-1 border-amber-500/40 bg-amber-500/10 px-2 text-xs text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
+                                  >
+                                    {togglingMatchId === sub.matchId ? (
+                                      <RefreshCw className="size-3 animate-spin" />
+                                    ) : (
+                                      <Star className="size-3" />
+                                    )}
+                                    <span>⭐ Featured</span>
+                                  </Button>
+                                )}
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={deletingSubmissionId === sub.id}
+                                  data-testid={`delete-submission-btn-${sub.id}`}
+                                  onClick={() => handleDeleteSubmission(sub)}
+                                  className="h-7 gap-1 border-rose-500/30 px-2 text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+                                >
+                                  {deletingSubmissionId === sub.id ? (
+                                    <RefreshCw className="size-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3" />
+                                  )}
+                                  <span>Löschen</span>
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {activeTab === 'overview' && (
           <>
@@ -1252,6 +1854,201 @@ export function AdminDashboard() {
           </>
         )}
       </main>
+
+      {/* Edit Submission Modal */}
+      {editingSubmission && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-submission-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="size-4 text-primary" />
+                <h2
+                  id="edit-submission-title"
+                  className="text-sm font-semibold text-foreground"
+                >
+                  Einreichung #{editingSubmission.id} bearbeiten
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSubmission(null)}
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="edit-submitter-name"
+                    className="font-medium text-muted-foreground"
+                  >
+                    Name
+                  </label>
+                  <input
+                    id="edit-submitter-name"
+                    type="text"
+                    value={editFormData.submitterName || ''}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        submitterName: e.target.value,
+                      }))
+                    }
+                    placeholder="z.B. Lena"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label
+                    htmlFor="edit-submitter-role"
+                    className="font-medium text-muted-foreground"
+                  >
+                    Rolle
+                  </label>
+                  <input
+                    id="edit-submitter-role"
+                    type="text"
+                    value={editFormData.submitterRole || ''}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        submitterRole: e.target.value,
+                      }))
+                    }
+                    placeholder="z.B. Verein, Fan, Schiedsrichter"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-admission-fee"
+                  className="font-medium text-muted-foreground"
+                >
+                  Eintrittspreis
+                </label>
+                <input
+                  id="edit-admission-fee"
+                  type="text"
+                  value={editFormData.admissionFee || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      admissionFee: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Freier Eintritt oder 3 EUR"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-kiosk-description"
+                  className="font-medium text-muted-foreground"
+                >
+                  Kiosk & Verpflegung
+                </label>
+                <textarea
+                  id="edit-kiosk-description"
+                  rows={2}
+                  value={editFormData.kioskDescription || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      kioskDescription: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Kaffee, Kuchen & Kaltgetränke"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-parking-notes"
+                  className="font-medium text-muted-foreground"
+                >
+                  Parkhinweise
+                </label>
+                <textarea
+                  id="edit-parking-notes"
+                  rows={2}
+                  value={editFormData.parkingNotes || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      parkingNotes: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Parkplatz direkt hinter der Halle"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-match-notes"
+                  className="font-medium text-muted-foreground"
+                >
+                  Besondere Spiel-Notizen
+                </label>
+                <textarea
+                  id="edit-match-notes"
+                  rows={2}
+                  value={editFormData.matchNotes || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      matchNotes: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Einlass ab 18:00 Uhr"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isSavingEdit}
+                onClick={() => setEditingSubmission(null)}
+                className="text-xs"
+              >
+                Abbrechen
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                type="button"
+                disabled={isSavingEdit}
+                onClick={handleSaveEditSubmission}
+                className="gap-1.5 text-xs"
+              >
+                {isSavingEdit ? (
+                  <RefreshCw className="size-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-3.5" />
+                )}
+                <span>Änderungen speichern</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

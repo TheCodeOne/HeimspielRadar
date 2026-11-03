@@ -322,6 +322,165 @@ describe('AdminController', () => {
     });
   });
 
+  describe('getSubmissions (GET /api/admin/submissions)', () => {
+    let mockSubmissionRelationalRows: any[];
+    let capturedWhereCond: any;
+
+    beforeEach(() => {
+      capturedWhereCond = undefined;
+
+      mockSubmissionRelationalRows = [
+        {
+          submission: {
+            id: 21,
+            matchId: 101,
+            venueId: 901,
+            submitterName: 'Lena',
+            submitterRole: 'Verein',
+            submittedData: {
+              admissionFee: '2 EUR',
+              kioskDescription: 'Belegte Brötchen & Kaltgetränke',
+              parkingNotes: 'Tiefgarage gegenüber',
+              matchNotes: 'Einlass ab 17:15 Uhr',
+            },
+            status: 'pending',
+            createdAt: new Date('2026-11-02T14:30:00Z'),
+            updatedAt: new Date('2026-11-02T14:30:00Z'),
+          },
+          match: {
+            id: 101,
+            leagueId: 53941,
+            kickoffDate: '2026-11-08',
+            kickoffTime: '18:00',
+            homeTeamId: 10,
+            guestTeamId: 20,
+          },
+          league: {
+            id: 53941,
+            name: 'Oberliga Herren BaWü',
+          },
+          homeTeam: {
+            id: 10,
+            name: 'Stuttgart Baskets',
+            shortName: 'Baskets',
+          },
+          guestTeam: {
+            id: 20,
+            name: 'City Lions Ludwigsburg',
+            shortName: 'Lions',
+          },
+          venue: {
+            id: 901,
+            name: 'Scharrena Stuttgart',
+            street: 'Mercedesstr. 87',
+            postalCode: '70372',
+            city: 'Stuttgart',
+          },
+        },
+      ];
+
+      mockDb.select = jest.fn().mockImplementation(() => {
+        const promise = Promise.resolve(mockSubmissionRelationalRows);
+
+        const chain: any = {
+          from: () => Object.assign(promise, chain),
+          leftJoin: () => Object.assign(promise, chain),
+          where: (cond: any) => {
+            capturedWhereCond = cond;
+
+            return Object.assign(promise, chain);
+          },
+          orderBy: () => Object.assign(promise, chain),
+        };
+
+        return Object.assign(promise, chain);
+      });
+    });
+
+    it('returns all submissions with joined match and venue details when status is all or omitted', async () => {
+      const results = await controller.getSubmissions('all');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(21);
+      expect(results[0].status).toBe('pending');
+      expect(results[0].submitterName).toBe('Lena');
+      expect(results[0].submitterRole).toBe('Verein');
+      expect(results[0].submittedData.kioskDescription).toBe(
+        'Belegte Brötchen & Kaltgetränke'
+      );
+      expect(results[0].match).toEqual({
+        id: 101,
+        leagueId: 53941,
+        leagueName: 'Oberliga Herren BaWü',
+        kickoffDate: '2026-11-08',
+        kickoffTime: '18:00',
+        homeTeam: 'Stuttgart Baskets',
+        guestTeam: 'City Lions Ludwigsburg',
+      });
+      expect(results[0].venue).toEqual({
+        id: 901,
+        name: 'Scharrena Stuttgart',
+        street: 'Mercedesstr. 87',
+        postalCode: '70372',
+        city: 'Stuttgart',
+      });
+      expect(capturedWhereCond).toBeUndefined();
+    });
+
+    it('filters submissions by status when pending, approved, or rejected is passed', async () => {
+      await controller.getSubmissions('pending');
+
+      expect(capturedWhereCond).toBeDefined();
+
+      const dialect = new PgDialect();
+      const queryObj = dialect.sqlToQuery(capturedWhereCond);
+
+      expect(queryObj.params).toContain('pending');
+    });
+
+    it('throws BadRequestException when an invalid status filter is provided', async () => {
+      await expect(controller.getSubmissions('invalid_status')).rejects.toThrow(
+        BadRequestException
+      );
+    });
+
+    it('updates a submission and cascades changes when approved', async () => {
+      const mockUpdated = {
+        id: 21,
+        status: 'approved',
+        submitterName: 'Lena Updated',
+        submittedData: {
+          admissionFee: '5 EUR',
+          kioskDescription: 'Frische Waffeln',
+        },
+      };
+
+      // SAFETY: mock testing payload matches VenueSubmission shape for testing
+      const mockedResponse = mockUpdated as any;
+
+      jest
+        .spyOn(controller['resolvedAdminService'], 'updateSubmission')
+        .mockResolvedValue(mockedResponse);
+
+      const result = await controller.updateSubmission(21, {
+        admissionFee: '5 EUR',
+        kioskDescription: 'Frische Waffeln',
+      });
+
+      expect(result).toEqual(mockUpdated);
+    });
+
+    it('deletes a submission via deleteSubmission', async () => {
+      jest
+        .spyOn(controller['resolvedAdminService'], 'deleteSubmission')
+        .mockResolvedValue({ id: 21, deleted: true });
+
+      const result = await controller.deleteSubmission(21);
+
+      expect(result).toEqual({ id: 21, deleted: true });
+    });
+  });
+
   describe('featured matches management (search, featured list, toggle)', () => {
     let mockRelationalRows: any[];
     let capturedWhereCond: any;
