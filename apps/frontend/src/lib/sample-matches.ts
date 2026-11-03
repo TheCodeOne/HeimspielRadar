@@ -67,6 +67,7 @@ export function getSampleMatches(): Match[] {
       kickoffTime: '19:30',
       confirmed: true,
       result: '78:72',
+      admissionFee: 'Eintritt frei',
       homeTeam: {
         id: 11,
         dbbId: 4011,
@@ -87,6 +88,8 @@ export function getSampleMatches(): Match[] {
         city: 'Stuttgart',
         latitude: 48.7725,
         longitude: 9.1558,
+        kioskDescription: 'Kaffee, frische Waffeln, Brezeln & Kaltgetränke',
+        parkingNotes: 'Haupteingang über Pausenhof, Tiefgarage 150m entfernt',
       },
     },
     {
@@ -99,7 +102,7 @@ export function getSampleMatches(): Match[] {
       confirmed: true,
       result: null,
       isFeatured: true,
-      admissionFee: 'Eintritt frei',
+      admissionFee: '3,00 €',
       matchNotes: 'Spitzenspiel der Oberliga Württemberg mit Hallensprecher & Halbzeit-Shootout',
       homeTeam: {
         id: 13,
