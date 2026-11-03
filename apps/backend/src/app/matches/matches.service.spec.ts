@@ -77,6 +77,19 @@ class InMemoryMatchesDatabase {
   capturedWhereConditions: Array<SQL | undefined> = [];
   findFirstMatch: jest.Mock = jest.fn();
   insertedSubmissions: any[] = [];
+  updatedMatches: any[] = [];
+
+  update() {
+    return {
+      set: (val: any) => ({
+        where: async () => {
+          this.updatedMatches.push(val);
+
+          return [val];
+        },
+      }),
+    };
+  }
 
   insert() {
     return {
@@ -138,6 +151,7 @@ class InMemoryMatchesDatabase {
             return Object.assign(promise, chain);
           },
           orderBy: () => Object.assign(promise, chain),
+          limit: () => Object.assign(promise, chain),
         };
 
         return Object.assign(promise, chain);
@@ -1079,6 +1093,56 @@ describe('MatchesService', () => {
           kioskDescription: 'Kaffee & Kuchen',
         })
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('searchAdminMatches, findFeaturedMatches & toggleMatchFeature', () => {
+    it('searches matches by team, league or ID in searchAdminMatches', async () => {
+      const results = await service.searchAdminMatches('Stuttgart 101');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(101);
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+    });
+
+    it('returns active featured matches in findFeaturedMatches', async () => {
+      const results = await service.findFeaturedMatches();
+
+      expect(results).toHaveLength(1);
+      expect(inMemoryDb.capturedWhereConditions).toHaveLength(1);
+    });
+
+    it('toggles match feature status for 7 days and resets on false', async () => {
+      inMemoryDb.findFirstMatch.mockResolvedValue({
+        id: 101,
+        leagueId: 53941,
+        matchDay: 1,
+        kickoffDate: '2026-10-25',
+        kickoffTime: '18:00',
+        homeTeam: { id: 1, dbbId: 501, name: 'TSG Stuttgart' },
+        guestTeam: { id: 2, dbbId: 502, name: 'MTV Ludwigsburg' },
+        venue: null,
+        result: null,
+        confirmed: true,
+      });
+
+      const featured = await service.toggleMatchFeature(101, {
+        isFeatured: true,
+      });
+
+      expect(featured.isFeatured).toBe(true);
+      expect(featured.featuredUntil).toBeTruthy();
+      expect(inMemoryDb.updatedMatches[0].isFeatured).toBe(true);
+      expect(inMemoryDb.updatedMatches[0].featuredUntil).toBeInstanceOf(Date);
+
+      const unfeatured = await service.toggleMatchFeature(101, {
+        isFeatured: false,
+      });
+
+      expect(unfeatured.isFeatured).toBe(false);
+      expect(unfeatured.featuredUntil).toBeNull();
+      expect(inMemoryDb.updatedMatches[1].isFeatured).toBe(false);
+      expect(inMemoryDb.updatedMatches[1].featuredUntil).toBeNull();
     });
   });
 });
