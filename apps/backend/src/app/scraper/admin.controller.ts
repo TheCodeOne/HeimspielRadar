@@ -135,12 +135,8 @@ export class AdminController {
 
   @Post('submissions/:id/approve')
   async approveSubmission(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('token') token?: string,
-    @Headers('authorization') authHeader?: string
+    @Param('id', ParseIntPipe) id: number
   ) {
-    verifyAdminToken(token, authHeader);
-
     return this.resolvedAdminService.approveSubmission(id);
   }
 
@@ -150,17 +146,15 @@ export class AdminController {
     @Query('token') token?: string,
     @Headers('authorization') authHeader?: string
   ) {
-    return this.approveSubmission(id, token, authHeader);
+    verifyAdminToken(token, authHeader);
+
+    return this.resolvedAdminService.approveSubmission(id);
   }
 
   @Post('submissions/:id/reject')
   async rejectSubmission(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('token') token?: string,
-    @Headers('authorization') authHeader?: string
+    @Param('id', ParseIntPipe) id: number
   ) {
-    verifyAdminToken(token, authHeader);
-
     return this.resolvedAdminService.rejectSubmission(id);
   }
 
@@ -170,7 +164,9 @@ export class AdminController {
     @Query('token') token?: string,
     @Headers('authorization') authHeader?: string
   ) {
-    return this.rejectSubmission(id, token, authHeader);
+    verifyAdminToken(token, authHeader);
+
+    return this.resolvedAdminService.rejectSubmission(id);
   }
 
   @Patch('submissions/:id')
