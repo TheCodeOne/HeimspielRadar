@@ -14,12 +14,38 @@ export interface TelegramSyncSummary {
   errorMessage?: string | null;
 }
 
+export interface TelegramInlineButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
+}
+
+export interface TelegramInlineKeyboardMarkup {
+  inline_keyboard: TelegramInlineButton[][];
+}
+
 export interface TelegramPayload {
   chat_id: string | null;
   text: string;
   message_id?: number;
   parse_mode?: string;
   disable_web_page_preview?: boolean;
+  reply_markup?: TelegramInlineKeyboardMarkup;
+}
+
+export interface TelegramKioskSubmissionAlert {
+  submissionId: number;
+  homeTeam: string;
+  guestTeam: string;
+  leagueName: string;
+  venueName?: string | null;
+  city?: string | null;
+  admissionFee?: string | null;
+  kioskDescription?: string | null;
+  parkingNotes?: string | null;
+  matchNotes?: string | null;
+  submitterName?: string | null;
+  submitterRole?: string | null;
 }
 
 export function formatGermanDate(date: Date): string {
@@ -309,5 +335,96 @@ export class TelegramNotifierService {
       success: false,
       message: res.description || 'Unknown error sending Telegram test message',
     };
+  }
+
+  /**
+   * Sends a real-time alert when a user submits crowd-sourced kiosk/venue info for a match,
+   * including inline 1-click Approve and Reject links.
+   */
+  async sendKioskSubmissionAlert(
+    alert: TelegramKioskSubmissionAlert
+  ): Promise<{ ok: boolean; messageId?: number }> {
+    if (!this.isConfigured()) {
+      this.logger.debug('Telegram kiosk submission alert skipped (not configured).');
+
+      return { ok: false };
+    }
+
+    const venueDisplay = alert.venueName
+      ? alert.city
+        ? `${alert.venueName}, ${alert.city}`
+        : alert.venueName
+      : '-';
+
+    const submitterName = alert.submitterName || 'Anonym';
+
+    const submitterDisplay = alert.submitterRole
+      ? `${submitterName} (${alert.submitterRole})`
+      : submitterName;
+
+    const lines = [
+      '🌭 Neue Kiosk-Info eingereicht!',
+      `Spiel: ${alert.homeTeam} vs. ${alert.guestTeam} (${alert.leagueName})`,
+      `Halle: ${venueDisplay}`,
+      `Eintritt: ${alert.admissionFee || '-'}`,
+      `Kiosk: ${alert.kioskDescription || '-'}`,
+      `Parken: ${alert.parkingNotes || '-'}`,
+    ];
+
+    if (alert.matchNotes) {
+      lines.push(`Hinweise: ${alert.matchNotes}`);
+    }
+
+    lines.push(`Von: ${submitterDisplay}`);
+
+    const adminToken =
+      process.env['ADMIN_API_SECRET'] || process.env['ADMIN_TOKEN'] || '';
+
+    const tokenParam = adminToken
+      ? `?token=${encodeURIComponent(adminToken)}`
+      : '';
+
+    const approveUrl = `${this.adminBaseUrl}/api/admin/submissions/${alert.submissionId}/approve${tokenParam}`;
+    const rejectUrl = `${this.adminBaseUrl}/api/admin/submissions/${alert.submissionId}/reject${tokenParam}`;
+
+    const res = await this.callTelegramApi('sendMessage', {
+      chat_id: this.chatId,
+      text: lines.join('\n'),
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Freigeben', url: approveUrl },
+            { text: '❌ Ablehnen', url: rejectUrl },
+          ],
+        ],
+      },
+    });
+
+    return {
+      ok: res.ok,
+      messageId: res.result?.message_id,
+    };
+  }
+
+  /**
+   * Sends a confirmation message after an admin approves a submission.
+   */
+  async sendSubmissionApprovedConfirmation(
+    submissionId: number
+  ): Promise<{ ok: boolean }> {
+    if (!this.isConfigured()) {
+      this.logger.debug('Telegram approval confirmation skipped (not configured).');
+
+      return { ok: false };
+    }
+
+    const res = await this.callTelegramApi('sendMessage', {
+      chat_id: this.chatId,
+      text: `Eintrag #${submissionId} erfolgreich freigegeben und live geschaltet!`,
+      disable_web_page_preview: true,
+    });
+
+    return { ok: res.ok };
   }
 }

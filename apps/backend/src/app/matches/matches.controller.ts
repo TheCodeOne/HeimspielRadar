@@ -1,12 +1,15 @@
 import {
+  Body,
   Controller,
   Get,
   NotFoundException,
   Param,
   ParseIntPipe,
+  Post,
   Query,
 } from '@nestjs/common';
-import { MatchesService } from './matches.service';
+import type { CreateKioskSubmissionDto } from '@sundayleague/shared-types';
+import { MatchesService, validateKioskSubmissionDto } from './matches.service';
 
 function parseStringArrayParam(value?: string | string[]): string[] | undefined {
   if (!value) {
@@ -89,6 +92,16 @@ export class MatchesController {
     }
 
     return match;
+  }
+
+  @Post(':id/kiosk-submission')
+  async submitKioskInfo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateKioskSubmissionDto
+  ) {
+    validateKioskSubmissionDto(dto);
+
+    return this.matchesService.createKioskSubmission(id, dto);
   }
 }
 
