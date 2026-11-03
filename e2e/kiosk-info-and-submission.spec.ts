@@ -147,10 +147,19 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     const card1001 = page.locator('[data-match-id="1001"]');
     await expect(card1001).toBeVisible();
 
-    // 1. Verify Badges on Match 1001 (Eintritt frei, Kiosk vorhanden, Parkhinweis)
+    // 1. Verify Badges and Direct Info Tiles on Match 1001 (Eintritt frei, Kiosk, Parkhinweis)
     const admissionBadge1001 = card1001.locator('[data-badge="admission-fee"]');
     await expect(admissionBadge1001).toBeVisible();
     await expect(admissionBadge1001).toContainText('🎟️ Eintritt frei');
+
+    // Direct Info Tiles visible without click
+    const kioskTile1001 = card1001.locator('[data-tile="kiosk-info"]');
+    await expect(kioskTile1001).toBeVisible();
+    await expect(kioskTile1001).toContainText('Waffeln, Kuchen, Cola & Kaffee');
+
+    const parkingTile1001 = card1001.locator('[data-tile="parking-notes"]');
+    await expect(parkingTile1001).toBeVisible();
+    await expect(parkingTile1001).toContainText('Haupteingang über Pausenhof');
 
     const kioskBadge1001 = card1001.locator('[data-badge="kiosk-info"]');
     await expect(kioskBadge1001).toBeVisible();
