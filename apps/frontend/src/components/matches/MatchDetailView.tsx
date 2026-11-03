@@ -10,6 +10,8 @@ import {
 import type { Match } from '@sundayleague/shared-types';
 import { MapContainer } from '@/components/map';
 import { formatLeagueName } from '@/components/map/map-utils';
+import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
+import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
 import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
@@ -47,10 +49,11 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
   const [match, setMatch] = React.useState<Match | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [isKioskModalOpen, setIsKioskModalOpen] = React.useState(false);
 
   const showToast = React.useCallback((message: string) => {
     setToastMessage(message);
-    const timer = setTimeout(() => setToastMessage(null), 3000);
+    const timer = setTimeout(() => setToastMessage(null), 5000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -296,6 +299,14 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
                   {timeFormatted}
                 </span>
               </div>
+
+              {(Boolean(match.admissionFee?.trim()) ||
+                Boolean(match.venue?.kioskDescription?.trim()) ||
+                Boolean(match.venue?.parkingNotes?.trim())) && (
+                <div className="mt-2 pt-1.5 border-t border-border/30 flex justify-center">
+                  <KioskInfoBadges match={match} size="sm" />
+                </div>
+              )}
             </div>
 
             {/* Embedded Map Section */}
@@ -341,50 +352,71 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
             </div>
 
             {/* 3. Ticket Footer: Quick Actions / DBB Links */}
-            <div className="shrink-0 rounded-2xl bg-card/40 p-2 sm:p-2.5 border border-border/40 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleShare}
-                  className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-border/60"
-                >
-                  <Share2 className="h-3 w-3 text-primary" />
-                  <span>Teilen</span>
-                </Button>
+            <div className="shrink-0 rounded-2xl bg-card/40 p-2 sm:p-2.5 border border-border/40 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShare}
+                    className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-border/60"
+                  >
+                    <Share2 className="h-3 w-3 text-primary" />
+                    <span>Teilen</span>
+                  </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.history.pushState({}, '', `/story/${match.id}`);
-                      window.dispatchEvent(new PopStateEvent('popstate'));
-                    }
-                  }}
-                  className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-                >
-                  <Camera className="h-3 w-3" />
-                  <span>Story</span>
-                </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        window.history.pushState({}, '', `/story/${match.id}`);
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }
+                    }}
+                    className="h-7 px-2.5 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                  >
+                    <Camera className="h-3 w-3" />
+                    <span>Story</span>
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="hidden xs:inline text-[10px] font-mono uppercase text-muted-foreground mr-1">
+                    DBB Links:
+                  </span>
+                  <MatchQuickActions
+                    match={match}
+                    size="sm"
+                    onShareFeedback={showToast}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="hidden xs:inline text-[10px] font-mono uppercase text-muted-foreground mr-1">
-                  DBB Links:
-                </span>
-                <MatchQuickActions
-                  match={match}
-                  size="sm"
-                  onShareFeedback={showToast}
-                />
+              <div className="flex items-center justify-end border-t border-border/30 pt-1.5">
+                <button
+                  type="button"
+                  data-action="kiosk-submission"
+                  onClick={() => setIsKioskModalOpen(true)}
+                  className="inline-flex h-6 items-center gap-1 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+                >
+                  <span aria-hidden="true">🌭</span>
+                  <span>Kiosk- & Hallen-Info melden</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      <KioskSubmissionModal
+        match={match}
+        isOpen={isKioskModalOpen}
+        onClose={() => setIsKioskModalOpen(false)}
+        onSuccess={(msg) => showToast(msg)}
+      />
     </div>
   );
 }

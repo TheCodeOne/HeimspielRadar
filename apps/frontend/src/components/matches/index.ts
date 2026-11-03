@@ -8,3 +8,8 @@ export * from './VenueModal';
 
 export * from './MatchDetailView';
 
+export * from './KioskInfoBadges';
+
+export * from './KioskSubmissionModal';
+
+
