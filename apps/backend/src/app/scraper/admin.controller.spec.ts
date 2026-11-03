@@ -241,7 +241,7 @@ describe('AdminController', () => {
     });
 
     it('atomically updates match, venue, and submission status on approve and sends Telegram confirmation', async () => {
-      const result = await controller.approveSubmission(15, 'top-secret-token');
+      const result = await controller.approveSubmission(15);
 
       expect(result.status).toBe('approved');
       expect(mockDb.transaction).toHaveBeenCalledTimes(1);
@@ -284,7 +284,7 @@ describe('AdminController', () => {
     });
 
     it('marks submission as rejected without updating match or venue on reject', async () => {
-      const result = await controller.rejectSubmission(15, 'top-secret-token');
+      const result = await controller.rejectSubmission(15);
 
       expect(result.status).toBe('rejected');
       expect(updatedTables).toHaveLength(1);
@@ -299,25 +299,25 @@ describe('AdminController', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('throws UnauthorizedException when token is missing or invalid', async () => {
-      await expect(controller.approveSubmission(15, 'wrong-token')).rejects.toThrow(
-        UnauthorizedException
-      );
+    it('throws UnauthorizedException when token is missing or invalid on GET endpoints', async () => {
+      await expect(
+        controller.approveSubmissionGet(15, 'wrong-token')
+      ).rejects.toThrow(UnauthorizedException);
 
-      await expect(controller.rejectSubmission(15, undefined)).rejects.toThrow(
-        UnauthorizedException
-      );
+      await expect(
+        controller.rejectSubmissionGet(15, undefined)
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws NotFoundException when submission does not exist', async () => {
       mockSubmissionRow = null;
 
       await expect(
-        controller.approveSubmission(999, 'top-secret-token')
+        controller.approveSubmission(999)
       ).rejects.toThrow(NotFoundException);
 
       await expect(
-        controller.rejectSubmission(999, 'top-secret-token')
+        controller.rejectSubmission(999)
       ).rejects.toThrow(NotFoundException);
     });
   });
