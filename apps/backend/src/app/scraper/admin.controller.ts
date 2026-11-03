@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Inject,
   Optional,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -17,6 +19,7 @@ import {
   FeatureMatchDto,
   SyncRun,
   SyncTriggerDto,
+  UpdateSubmissionDto,
 } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { syncRuns } from '../database/schema';
@@ -125,6 +128,11 @@ export class AdminController {
     return this.telegramNotifier.sendTestMessage();
   }
 
+  @Get('submissions')
+  async getSubmissions(@Query('status') status?: string) {
+    return this.resolvedAdminService.getSubmissions(status);
+  }
+
   @Post('submissions/:id/approve')
   async approveSubmission(
     @Param('id', ParseIntPipe) id: number,
@@ -163,6 +171,19 @@ export class AdminController {
     @Headers('authorization') authHeader?: string
   ) {
     return this.rejectSubmission(id, token, authHeader);
+  }
+
+  @Patch('submissions/:id')
+  async updateSubmission(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSubmissionDto
+  ) {
+    return this.resolvedAdminService.updateSubmission(id, dto);
+  }
+
+  @Delete('submissions/:id')
+  async deleteSubmission(@Param('id', ParseIntPipe) id: number) {
+    return this.resolvedAdminService.deleteSubmission(id);
   }
 
   @Get('matches/search')
