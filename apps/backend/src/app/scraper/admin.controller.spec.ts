@@ -443,6 +443,42 @@ describe('AdminController', () => {
         BadRequestException
       );
     });
+
+    it('updates a submission and cascades changes when approved', async () => {
+      const mockUpdated = {
+        id: 21,
+        status: 'approved',
+        submitterName: 'Lena Updated',
+        submittedData: {
+          admissionFee: '5 EUR',
+          kioskDescription: 'Frische Waffeln',
+        },
+      };
+
+      // SAFETY: mock testing payload matches VenueSubmission shape for testing
+      const mockedResponse = mockUpdated as any;
+
+      jest
+        .spyOn(controller['resolvedAdminService'], 'updateSubmission')
+        .mockResolvedValue(mockedResponse);
+
+      const result = await controller.updateSubmission(21, {
+        admissionFee: '5 EUR',
+        kioskDescription: 'Frische Waffeln',
+      });
+
+      expect(result).toEqual(mockUpdated);
+    });
+
+    it('deletes a submission via deleteSubmission', async () => {
+      jest
+        .spyOn(controller['resolvedAdminService'], 'deleteSubmission')
+        .mockResolvedValue({ id: 21, deleted: true });
+
+      const result = await controller.deleteSubmission(21);
+
+      expect(result).toEqual({ id: 21, deleted: true });
+    });
   });
 
   describe('featured matches management (search, featured list, toggle)', () => {

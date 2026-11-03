@@ -118,6 +118,16 @@ export interface CreateKioskSubmissionDto {
   submitterRole?: string;
 }
 
+export interface UpdateSubmissionDto {
+  admissionFee?: string | null;
+  kioskDescription?: string | null;
+  parkingNotes?: string | null;
+  matchNotes?: string | null;
+  submitterName?: string | null;
+  submitterRole?: string | null;
+  status?: VenueSubmissionStatus;
+}
+
 export interface FeatureMatchDto {
   isFeatured: boolean;
   durationDays?: number;

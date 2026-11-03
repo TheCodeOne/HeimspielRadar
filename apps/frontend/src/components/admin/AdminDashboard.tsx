@@ -7,6 +7,7 @@ import {
   Clock,
   Cpu,
   Database,
+  Edit2,
   MapPin,
   RefreshCw,
   Search,
@@ -14,6 +15,7 @@ import {
   ShieldAlert,
   Star,
   Terminal,
+  Trash2,
   X,
   XCircle,
   Zap,
@@ -24,6 +26,7 @@ import {
   Match,
   SyncFailure,
   SyncRun,
+  UpdateSubmissionDto,
   VenueSubmission,
   VenueSubmissionFilterStatus,
 } from '@sundayleague/shared-types';
@@ -165,6 +168,25 @@ export function AdminDashboard() {
     React.useState<VenueSubmissionFilterStatus>('pending');
 
   const [moderatingSubmissionId, setModeratingSubmissionId] = React.useState<
+    number | null
+  >(null);
+
+  // Edit Submission Modal state
+  const [editingSubmission, setEditingSubmission] =
+    React.useState<VenueSubmission | null>(null);
+
+  const [editFormData, setEditFormData] = React.useState<UpdateSubmissionDto>({
+    admissionFee: '',
+    kioskDescription: '',
+    parkingNotes: '',
+    matchNotes: '',
+    submitterName: '',
+    submitterRole: '',
+  });
+
+  const [isSavingEdit, setIsSavingEdit] = React.useState<boolean>(false);
+
+  const [deletingSubmissionId, setDeletingSubmissionId] = React.useState<
     number | null
   >(null);
 
@@ -361,6 +383,95 @@ export function AdminDashboard() {
       );
     } finally {
       setModeratingSubmissionId(null);
+    }
+  };
+
+  const handleStartEditSubmission = (sub: VenueSubmission) => {
+    setEditingSubmission(sub);
+    setEditFormData({
+      admissionFee: sub.submittedData?.admissionFee || '',
+      kioskDescription:
+        sub.submittedData?.kioskDescription ?? sub.submittedData?.kiosk ?? '',
+      parkingNotes:
+        sub.submittedData?.parkingNotes ?? sub.submittedData?.parking ?? '',
+      matchNotes:
+        sub.submittedData?.matchNotes ?? sub.submittedData?.notes ?? '',
+      submitterName: sub.submitterName || '',
+      submitterRole: sub.submitterRole || '',
+    });
+  };
+
+  const handleSaveEditSubmission = async () => {
+    if (!editingSubmission) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${editingSubmission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFormData),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // SAFETY: PATCH returns updated VenueSubmission
+      const updated = (await res.json()) as VenueSubmission;
+
+      setSubmissions((prev) =>
+        prev.map((item) => (item.id === editingSubmission.id ? updated : item))
+      );
+
+      showFeedback(
+        'success',
+        `✅ Einreichung #${editingSubmission.id} erfolgreich aktualisiert!`
+      );
+      setEditingSubmission(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback(
+        'error',
+        `Fehler beim Bearbeiten von #${editingSubmission.id}: ${msg}`
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteSubmission = async (sub: VenueSubmission) => {
+    const confirmDelete = window.confirm(
+      `Möchtest du Einreichung #${sub.id} wirklich unwiderruflich löschen?`
+    );
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    setDeletingSubmissionId(sub.id);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${sub.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      setSubmissions((prev) => prev.filter((item) => item.id !== sub.id));
+      showFeedback(
+        'success',
+        `🗑️ Einreichung #${sub.id} wurde erfolgreich gelöscht.`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback('error', `Fehler beim Löschen von #${sub.id}: ${msg}`);
+    } finally {
+      setDeletingSubmissionId(null);
     }
   };
 
@@ -1459,39 +1570,64 @@ export function AdminDashboard() {
                             </td>
 
                             <td className="whitespace-nowrap py-3">
-                              {sub.status === 'pending' ? (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isModerating}
-                                    data-testid={`approve-submission-btn-${sub.id}`}
-                                    onClick={() =>
-                                      handleModerateSubmission(sub, 'approve')
-                                    }
-                                    className="h-7 gap-1 border-emerald-500/40 bg-emerald-500/10 px-2.5 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
-                                  >
-                                    <span>✅ Freigeben</span>
-                                  </Button>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {sub.status === 'pending' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={isModerating}
+                                      data-testid={`approve-submission-btn-${sub.id}`}
+                                      onClick={() =>
+                                        handleModerateSubmission(sub, 'approve')
+                                      }
+                                      className="h-7 gap-1 border-emerald-500/40 bg-emerald-500/10 px-2 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+                                    >
+                                      <span>✅ Freigeben</span>
+                                    </Button>
 
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isModerating}
-                                    data-testid={`reject-submission-btn-${sub.id}`}
-                                    onClick={() =>
-                                      handleModerateSubmission(sub, 'reject')
-                                    }
-                                    className="h-7 gap-1 border-rose-500/40 bg-rose-500/10 px-2.5 text-xs text-rose-400 hover:bg-rose-500/20 hover:text-rose-300"
-                                  >
-                                    <span>❌ Ablehnen</span>
-                                  </Button>
-                                </div>
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground">
-                                  Moderiert
-                                </span>
-                              )}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={isModerating}
+                                      data-testid={`reject-submission-btn-${sub.id}`}
+                                      onClick={() =>
+                                        handleModerateSubmission(sub, 'reject')
+                                      }
+                                      className="h-7 gap-1 border-rose-500/40 bg-rose-500/10 px-2 text-xs text-rose-400 hover:bg-rose-500/20 hover:text-rose-300"
+                                    >
+                                      <span>❌ Ablehnen</span>
+                                    </Button>
+                                  </>
+                                )}
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  data-testid={`edit-submission-btn-${sub.id}`}
+                                  onClick={() => handleStartEditSubmission(sub)}
+                                  className="h-7 gap-1 border-border px-2 text-xs text-foreground hover:bg-accent"
+                                >
+                                  <Edit2 className="size-3" />
+                                  <span>Bearbeiten</span>
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={deletingSubmissionId === sub.id}
+                                  data-testid={`delete-submission-btn-${sub.id}`}
+                                  onClick={() => handleDeleteSubmission(sub)}
+                                  className="h-7 gap-1 border-rose-500/30 px-2 text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+                                >
+                                  {deletingSubmissionId === sub.id ? (
+                                    <RefreshCw className="size-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3" />
+                                  )}
+                                  <span>Löschen</span>
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1690,6 +1826,201 @@ export function AdminDashboard() {
           </>
         )}
       </main>
+
+      {/* Edit Submission Modal */}
+      {editingSubmission && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-submission-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="size-4 text-primary" />
+                <h2
+                  id="edit-submission-title"
+                  className="text-sm font-semibold text-foreground"
+                >
+                  Einreichung #{editingSubmission.id} bearbeiten
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSubmission(null)}
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="edit-submitter-name"
+                    className="font-medium text-muted-foreground"
+                  >
+                    Name
+                  </label>
+                  <input
+                    id="edit-submitter-name"
+                    type="text"
+                    value={editFormData.submitterName || ''}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        submitterName: e.target.value,
+                      }))
+                    }
+                    placeholder="z.B. Lena"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label
+                    htmlFor="edit-submitter-role"
+                    className="font-medium text-muted-foreground"
+                  >
+                    Rolle
+                  </label>
+                  <input
+                    id="edit-submitter-role"
+                    type="text"
+                    value={editFormData.submitterRole || ''}
+                    onChange={(e) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        submitterRole: e.target.value,
+                      }))
+                    }
+                    placeholder="z.B. Verein, Fan, Schiedsrichter"
+                    className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-admission-fee"
+                  className="font-medium text-muted-foreground"
+                >
+                  Eintrittspreis
+                </label>
+                <input
+                  id="edit-admission-fee"
+                  type="text"
+                  value={editFormData.admissionFee || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      admissionFee: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Freier Eintritt oder 3 EUR"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-kiosk-description"
+                  className="font-medium text-muted-foreground"
+                >
+                  Kiosk & Verpflegung
+                </label>
+                <textarea
+                  id="edit-kiosk-description"
+                  rows={2}
+                  value={editFormData.kioskDescription || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      kioskDescription: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Kaffee, Kuchen & Kaltgetränke"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-parking-notes"
+                  className="font-medium text-muted-foreground"
+                >
+                  Parkhinweise
+                </label>
+                <textarea
+                  id="edit-parking-notes"
+                  rows={2}
+                  value={editFormData.parkingNotes || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      parkingNotes: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Parkplatz direkt hinter der Halle"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-match-notes"
+                  className="font-medium text-muted-foreground"
+                >
+                  Besondere Spiel-Notizen
+                </label>
+                <textarea
+                  id="edit-match-notes"
+                  rows={2}
+                  value={editFormData.matchNotes || ''}
+                  onChange={(e) =>
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      matchNotes: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. Einlass ab 18:00 Uhr"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-border pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isSavingEdit}
+                onClick={() => setEditingSubmission(null)}
+                className="text-xs"
+              >
+                Abbrechen
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                type="button"
+                disabled={isSavingEdit}
+                onClick={handleSaveEditSubmission}
+                className="gap-1.5 text-xs"
+              >
+                {isSavingEdit ? (
+                  <RefreshCw className="size-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-3.5" />
+                )}
+                <span>Änderungen speichern</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
