@@ -223,6 +223,18 @@ describe('map-utils', () => {
       expect(multiMatch).toContain('scale(1.2)');
     });
 
+    it('getBasketballPinHtml renders info badge dot when hasInfo is true and not featured', () => {
+      const pinWithInfo = getBasketballPinHtml(false, 1, false, true);
+      const pinFeaturedWithInfo = getBasketballPinHtml(false, 1, true, true);
+      const normalPin = getBasketballPinHtml(false, 1, false, false);
+
+      expect(pinWithInfo).toContain('pin-info-badge');
+      expect(pinWithInfo).toContain('data-has-info="true"');
+      expect(pinFeaturedWithInfo).not.toContain('pin-info-badge');
+      expect(pinFeaturedWithInfo).toContain('featured-pin-star');
+      expect(normalPin).not.toContain('pin-info-badge');
+    });
+
     it('getClusterBadgeHtml formats plural correctly', () => {
       const singleCluster = getClusterBadgeHtml(1, false);
       const multiCluster = getClusterBadgeHtml(4, true);

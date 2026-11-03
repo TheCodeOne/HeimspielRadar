@@ -323,7 +323,9 @@ export function OpenLayersEngine({
             ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-selected'
             : cluster.isFeatured
               ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-featured'
-              : 'ol-overlay-container ol-selectable ol-marker-overlay',
+              : cluster.hasInfo
+                ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-info'
+                : 'ol-overlay-container ol-selectable ol-marker-overlay',
           positioning: 'center-center',
           stopEvent: true,
         });
@@ -363,7 +365,9 @@ export function OpenLayersEngine({
             ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-selected'
             : cluster.isFeatured
               ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-featured'
-              : 'ol-overlay-container ol-selectable ol-marker-overlay',
+              : cluster.hasInfo
+                ? 'ol-overlay-container ol-selectable ol-marker-overlay ol-marker-info'
+                : 'ol-overlay-container ol-selectable ol-marker-overlay',
           positioning: 'bottom-center',
           stopEvent: true,
         });

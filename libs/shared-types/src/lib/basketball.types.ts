@@ -58,6 +58,8 @@ export interface Match {
   confirmed: boolean;
   admissionFee?: string | null;
   matchNotes?: string | null;
+  submitterName?: string | null;
+  submitterRole?: string | null;
   isFeatured?: boolean;
   featuredUntil?: string | null;
   distanceKm?: number;

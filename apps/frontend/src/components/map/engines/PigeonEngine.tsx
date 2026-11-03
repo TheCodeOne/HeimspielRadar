@@ -303,6 +303,7 @@ export function PigeonEngine({
                     isSelected={cluster.isSelected}
                     matchCount={cluster.matchCount}
                     isFeatured={cluster.isFeatured}
+                    hasInfo={cluster.hasInfo}
                   />
                 </button>
               </div>

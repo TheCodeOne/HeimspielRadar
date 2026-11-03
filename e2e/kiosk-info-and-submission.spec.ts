@@ -34,6 +34,9 @@ const MOCK_MATCHES = [
       parkingNotes: 'Haupteingang über Pausenhof',
     },
     admissionFee: 'Eintritt frei',
+    matchNotes: 'Einlass ab 17:15 Uhr',
+    submitterName: 'Lena',
+    submitterRole: 'Verein',
     result: null,
     confirmed: true,
     distanceKm: 2.1,
@@ -161,24 +164,26 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(parkingTile1001).toBeVisible();
     await expect(parkingTile1001).toContainText('Haupteingang über Pausenhof');
 
+    const notesTile1001 = card1001.locator('[data-tile="match-notes"]');
+    await expect(notesTile1001).toBeVisible();
+    await expect(notesTile1001).toContainText('Einlass ab 17:15 Uhr');
+
+    const submitterTile1001 = card1001.locator('[data-tile="submitter-info"]');
+    await expect(submitterTile1001).toBeVisible();
+    await expect(submitterTile1001).toContainText('Gemeldet von Lena (Verein)');
+
     const kioskBadge1001 = card1001.locator('[data-badge="kiosk-info"]');
     await expect(kioskBadge1001).toBeVisible();
     await expect(kioskBadge1001).toContainText('☕ Kiosk vorhanden');
     await expect(kioskBadge1001).toHaveAttribute('title', 'Waffeln, Kuchen, Cola & Kaffee');
 
-    // Click kiosk badge to reveal interactive tooltip without navigating to map
-    await kioskBadge1001.click();
-    const kioskTooltip = card1001.locator('[data-tooltip="kiosk-info"]');
-    await expect(kioskTooltip).toBeVisible();
-    await expect(kioskTooltip).toContainText('Waffeln, Kuchen, Cola & Kaffee');
-
     const parkingBadge1001 = card1001.locator('[data-badge="parking-notes"]');
     await expect(parkingBadge1001).toBeVisible();
     await expect(parkingBadge1001).toContainText('🅿️ Parkhinweis');
-    await parkingBadge1001.click();
-    const parkingTooltip = card1001.locator('[data-tooltip="parking-notes"]');
-    await expect(parkingTooltip).toBeVisible();
-    await expect(parkingTooltip).toContainText('Haupteingang über Pausenhof');
+
+    const submitterBadge1001 = card1001.locator('[data-badge="submitter-info"]');
+    await expect(submitterBadge1001).toBeVisible();
+    await expect(submitterBadge1001).toContainText('Gemeldet von Lena (Verein)');
 
     // 2. Verify Paid Admission Badge on Match 1002
     const card1002 = page.locator('[data-match-id="1002"]');
@@ -321,5 +326,32 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(page.getByRole('status')).toContainText(
       'Vielen Dank! Deine Info wurde an die Moderation übermittelt und wird in Kürze freigeschaltet.',
     );
+  });
+
+  test('displays info indicator badge on map pins across all 4 map engines when match has venue/kiosk info', async ({
+    page,
+  }) => {
+    const engines = ['openlayers', 'maplibre', 'leaflet', 'pigeon'] as const;
+
+    for (const engine of engines) {
+      await page.addInitScript((eng) => {
+        window.localStorage.setItem(
+          'heimspielradar:filters:v1',
+          JSON.stringify({
+            viewMode: 'map',
+            mapEngine: eng,
+            onlyUpcoming: false,
+            dateMode: 'all',
+          }),
+        );
+      }, engine);
+
+      await page.goto('/');
+
+      // Match 1001 has kiosk/parking info -> Pin should have pin-info-badge / info indicator
+      const infoIndicator = page.locator('[data-testid="pin-info-indicator"]').first();
+      await expect(infoIndicator).toBeVisible({ timeout: 10000 });
+      await expect(infoIndicator).toHaveText('ℹ️');
+    }
   });
 });

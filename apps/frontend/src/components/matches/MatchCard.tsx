@@ -64,7 +64,8 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
       match.admissionFee?.trim() ||
         match.venue?.kioskDescription?.trim() ||
         match.venue?.parkingNotes?.trim() ||
-        match.matchNotes?.trim(),
+        match.matchNotes?.trim() ||
+        match.submitterName?.trim(),
     );
 
     const handleOpenKioskModal = (e: React.MouseEvent) => {

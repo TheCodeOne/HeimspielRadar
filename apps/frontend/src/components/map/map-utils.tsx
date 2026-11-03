@@ -8,6 +8,7 @@ export interface VenueGroup {
   matches: Match[];
   isSelected: boolean;
   isFeatured?: boolean;
+  hasInfo?: boolean;
 }
 
 export interface VenueCluster {
@@ -20,6 +21,7 @@ export interface VenueCluster {
   matchCount: number;
   isSelected: boolean;
   isFeatured: boolean;
+  hasInfo: boolean;
   bounds: {
     minLat: number;
     maxLat: number;
@@ -57,6 +59,16 @@ export function isSameVenue(
   );
 }
 
+export function matchHasInfo(match: Match): boolean {
+  return Boolean(
+    match.admissionFee?.trim() ||
+      match.venue?.kioskDescription?.trim() ||
+      match.venue?.parkingNotes?.trim() ||
+      match.matchNotes?.trim() ||
+      match.submitterName?.trim(),
+  );
+}
+
 export function groupMatchesByVenue(
   matches: Match[],
   selectedMatchId?: number | null,
@@ -68,6 +80,7 @@ export function groupMatchesByVenue(
       continue;
     }
 
+    const matchInfo = matchHasInfo(match);
     const existing = groups.find((g) => isSameVenue(g.venue, match.venue));
 
     if (existing) {
@@ -80,6 +93,10 @@ export function groupMatchesByVenue(
       if (match.isFeatured) {
         existing.isFeatured = true;
       }
+
+      if (matchInfo) {
+        existing.hasInfo = true;
+      }
     } else {
       groups.push({
         venueId: match.venue.id,
@@ -87,6 +104,7 @@ export function groupMatchesByVenue(
         matches: [match],
         isSelected: match.id === selectedMatchId,
         isFeatured: Boolean(match.isFeatured),
+        hasInfo: matchInfo,
       });
     }
   }
@@ -145,6 +163,7 @@ export function clusterVenueGroups(
       matchCount: group.matches.length,
       isSelected: group.isSelected,
       isFeatured: Boolean(group.isFeatured ?? group.matches.some((m) => m.isFeatured)),
+      hasInfo: Boolean(group.hasInfo ?? group.matches.some(matchHasInfo)),
       bounds: {
         minLat: group.venue.latitude,
         maxLat: group.venue.latitude,
@@ -220,6 +239,7 @@ export function clusterVenueGroups(
     const allMatches: Match[] = [];
     let isSelected = false;
     let isFeatured = false;
+    let hasInfo = false;
     let sumLat = 0;
     let sumLng = 0;
 
@@ -232,6 +252,10 @@ export function clusterVenueGroups(
 
       if (g.isFeatured || g.matches.some((m) => m.isFeatured)) {
         isFeatured = true;
+      }
+
+      if (g.hasInfo || g.matches.some(matchHasInfo)) {
+        hasInfo = true;
       }
 
       sumLat += g.venue.latitude;
@@ -253,6 +277,7 @@ export function clusterVenueGroups(
       matchCount: allMatches.length,
       isSelected,
       isFeatured,
+      hasInfo,
       bounds: {
         minLat: cluster.minLat,
         maxLat: cluster.maxLat,
@@ -421,16 +446,20 @@ export function getBasketballPinHtml(
   isSelected: boolean,
   matchCount: number,
   isFeatured = false,
+  hasInfo = false,
 ): string {
   const scale = isSelected ? 'scale(1.2)' : isFeatured ? 'scale(1.1)' : 'scale(1)';
   const zIndex = isSelected ? '30' : isFeatured ? '20' : '10';
 
   const dropShadow = isFeatured
     ? 'filter:drop-shadow(0 0 10px rgba(245,158,11,0.85));'
-    : '';
+    : hasInfo
+      ? 'filter:drop-shadow(0 0 5px rgba(20,184,166,0.55));'
+      : '';
 
   const featuredClass = isFeatured ? 'featured-venue-marker' : '';
   const featuredAttr = isFeatured ? 'data-featured="true"' : '';
+  const infoAttr = hasInfo && !isFeatured ? 'data-has-info="true"' : '';
 
   const glowHtml = isFeatured
     ? `<span class="featured-pin-glow" style="position:absolute;top:-5px;left:-5px;width:44px;height:44px;border-radius:9999px;border:2px solid #fbbf24;background:rgba(245,158,11,0.22);box-shadow:0 0 14px rgba(245,158,11,0.85);pointer-events:none;"></span>`
@@ -440,16 +469,22 @@ export function getBasketballPinHtml(
     ? `<span class="featured-pin-star" style="position:absolute;top:-6px;left:-6px;background:linear-gradient(135deg,#fbbf24,#d97706);color:#0f172a;font-size:10px;line-height:1;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:1.5px solid #fffbeb;box-shadow:0 2px 6px rgba(245,158,11,0.6);">⭐</span>`
     : '';
 
+  const infoDotHtml =
+    hasInfo && !isFeatured
+      ? `<span class="pin-info-badge" data-testid="pin-info-indicator" title="Hallen- & Kioskinformationen vorhanden" style="position:absolute;top:-4px;left:-4px;background:#0d9488;color:#ffffff;font-size:9px;font-weight:700;width:16px;height:16px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:1.5px solid #ffffff;box-shadow:0 0 6px rgba(20,184,166,0.7);">ℹ️</span>`
+      : '';
+
   const badgeHtml =
     matchCount > 1
       ? `<span class="pin-match-badge" style="position:absolute;top:-4px;right:-4px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:9999px;display:flex;align-items:center;justify-content:center;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${matchCount}</span>`
       : '';
 
   return `
-    <div class="${featuredClass}" ${featuredAttr} style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;z-index:${zIndex};${dropShadow}">
+    <div class="${featuredClass}" ${featuredAttr} ${infoAttr} style="transform:${scale};transition:transform 0.2s;position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:40px;z-index:${zIndex};${dropShadow}">
       ${glowHtml}
       ${getBasketballPinSvg(isSelected, isFeatured)}
       ${starHtml}
+      ${infoDotHtml}
       ${badgeHtml}
     </div>
   `;
@@ -524,6 +559,7 @@ export function getUserLocationPinHtml(): string {
 export function createVenueMarkerElement(clusterOrGroup: {
   isSelected: boolean;
   isFeatured?: boolean;
+  hasInfo?: boolean;
   matchCount?: number;
   matches?: Match[];
 }): HTMLElement {
@@ -536,6 +572,10 @@ export function createVenueMarkerElement(clusterOrGroup: {
     clusterOrGroup.isFeatured ?? clusterOrGroup.matches?.some((m) => m.isFeatured),
   );
 
+  const hasInfo = Boolean(
+    clusterOrGroup.hasInfo ?? clusterOrGroup.matches?.some(matchHasInfo),
+  );
+
   const el = document.createElement('div');
   el.className = isFeatured
     ? 'cursor-pointer transition-transform duration-200 featured-venue-marker-wrapper'
@@ -546,7 +586,11 @@ export function createVenueMarkerElement(clusterOrGroup: {
     el.dataset.featured = 'true';
   }
 
-  el.innerHTML = getBasketballPinHtml(isSelected, matchCount, isFeatured);
+  if (hasInfo && !isFeatured) {
+    el.dataset.hasInfo = 'true';
+  }
+
+  el.innerHTML = getBasketballPinHtml(isSelected, matchCount, isFeatured, hasInfo);
 
   return el;
 }
@@ -588,23 +632,30 @@ export function BasketballPinMarker({
   isSelected,
   matchCount,
   isFeatured = false,
+  hasInfo = false,
 }: {
   isSelected: boolean;
   matchCount: number;
   isFeatured?: boolean;
+  hasInfo?: boolean;
 }) {
   const scale = isSelected ? 'scale(1.2)' : isFeatured ? 'scale(1.1)' : 'scale(1)';
 
   return (
     <div
       data-featured={isFeatured ? 'true' : undefined}
+      data-has-info={hasInfo && !isFeatured ? 'true' : undefined}
       className={`relative flex items-center justify-center transition-transform duration-200 ${
         isFeatured ? 'featured-venue-marker' : ''
       }`}
       style={{
         transform: scale,
         zIndex: isSelected ? 30 : isFeatured ? 20 : 10,
-        filter: isFeatured ? 'drop-shadow(0 0 10px rgba(245,158,11,0.85))' : undefined,
+        filter: isFeatured
+          ? 'drop-shadow(0 0 10px rgba(245,158,11,0.85))'
+          : hasInfo
+            ? 'drop-shadow(0 0 5px rgba(20,184,166,0.55))'
+            : undefined,
       }}
     >
       {isFeatured && (
@@ -618,6 +669,16 @@ export function BasketballPinMarker({
       {isFeatured && (
         <span className="featured-pin-star absolute -top-1.5 -left-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-amber-100 bg-linear-to-br from-amber-400 to-amber-600 text-[10px] leading-none text-slate-950 shadow-sm">
           ⭐
+        </span>
+      )}
+
+      {hasInfo && !isFeatured && (
+        <span
+          className="pin-info-badge absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-teal-600 text-[9px] font-bold text-white shadow-sm"
+          data-testid="pin-info-indicator"
+          title="Hallen- & Kioskinformationen vorhanden"
+        >
+          ℹ️
         </span>
       )}
 

@@ -258,7 +258,7 @@ export function countActiveFilters(state: PersistedFilterState): number {
     count += 1;
   }
 
-  if (state.dateMode !== 'today') {
+  if (state.dateMode !== DEFAULT_FILTER_STATE.dateMode) {
     count += 1;
   }
 
