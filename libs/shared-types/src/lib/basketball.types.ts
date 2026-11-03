@@ -65,6 +65,8 @@ export interface Match {
 
 export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';
 
+export type VenueSubmissionFilterStatus = VenueSubmissionStatus | 'all';
+
 export interface VenueSubmissionData {
   admissionFee?: string | null;
   kioskDescription?: string | null;
@@ -73,6 +75,24 @@ export interface VenueSubmissionData {
   parking?: string | null;
   matchNotes?: string | null;
   notes?: string | null;
+}
+
+export interface AdminSubmissionMatchInfo {
+  id: number;
+  leagueId?: number;
+  leagueName?: string | null;
+  kickoffDate: string | null;
+  kickoffTime: string | null;
+  homeTeam: string;
+  guestTeam: string;
+}
+
+export interface AdminSubmissionVenueInfo {
+  id: number;
+  name: string;
+  street?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
 }
 
 export interface VenueSubmission {
@@ -85,6 +105,8 @@ export interface VenueSubmission {
   status: VenueSubmissionStatus;
   createdAt: string | Date;
   updatedAt: string | Date;
+  match?: AdminSubmissionMatchInfo | null;
+  venue?: AdminSubmissionVenueInfo | null;
 }
 
 export interface CreateKioskSubmissionDto {

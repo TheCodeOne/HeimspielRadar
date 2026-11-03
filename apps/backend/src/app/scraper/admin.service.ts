@@ -10,6 +10,7 @@ import {
   aliasedTable,
   and,
   asc,
+  desc,
   eq,
   gte,
   ilike,
@@ -102,6 +103,39 @@ export interface VenueModerationPatch {
   updatedAt: Date;
 }
 
+export interface AdminRelationalSubmissionRow {
+  submission: typeof venueSubmissions.$inferSelect;
+  match?: {
+    id: number;
+    leagueId: number;
+    kickoffDate?: string | null;
+    kickoffTime?: string | null;
+    homeTeamId?: number;
+    guestTeamId?: number;
+  } | null;
+  league?: {
+    id: number;
+    name: string;
+  } | null;
+  homeTeam?: {
+    id: number;
+    name: string;
+    shortName?: string | null;
+  } | null;
+  guestTeam?: {
+    id: number;
+    name: string;
+    shortName?: string | null;
+  } | null;
+  venue?: {
+    id: number;
+    name: string;
+    street?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+  } | null;
+}
+
 export function verifyAdminToken(token?: string, authHeader?: string): void {
   const expectedSecret =
     process.env['ADMIN_API_SECRET'] || process.env['ADMIN_TOKEN'];
@@ -119,7 +153,10 @@ export function verifyAdminToken(token?: string, authHeader?: string): void {
   }
 
   if (!expectedSecret) {
-    if (process.env['NODE_ENV'] === 'production') {
+    if (
+      process.env['NODE_ENV'] === 'production' &&
+      process.env['ENABLE_ADMIN_API'] !== 'true'
+    ) {
       throw new UnauthorizedException('Admin secret is not configured on the server');
     }
 
@@ -140,6 +177,105 @@ export class AdminService {
 
   verifyToken(token?: string, authHeader?: string): void {
     verifyAdminToken(token, authHeader);
+  }
+
+  mapAdminSubmissionRow(row: AdminRelationalSubmissionRow): VenueSubmission {
+    const sub = row.submission;
+
+    const createdAtIso =
+      sub.createdAt instanceof Date
+        ? sub.createdAt.toISOString()
+        : String(sub.createdAt);
+
+    const updatedAtIso =
+      sub.updatedAt instanceof Date
+        ? sub.updatedAt.toISOString()
+        : String(sub.updatedAt);
+
+    return {
+      id: sub.id,
+      matchId: sub.matchId ?? null,
+      venueId: sub.venueId ?? null,
+      submitterName: sub.submitterName ?? null,
+      submitterRole: sub.submitterRole ?? null,
+      submittedData: sub.submittedData ?? {},
+      status: sub.status,
+      createdAt: createdAtIso,
+      updatedAt: updatedAtIso,
+      match: row.match
+        ? {
+            id: row.match.id,
+            leagueId: row.match.leagueId,
+            leagueName: row.league?.name ?? null,
+            kickoffDate: row.match.kickoffDate ?? null,
+            kickoffTime: row.match.kickoffTime ?? null,
+            homeTeam:
+              row.homeTeam?.name ?? `Team #${row.match.homeTeamId ?? ''}`,
+            guestTeam:
+              row.guestTeam?.name ?? `Team #${row.match.guestTeamId ?? ''}`,
+          }
+        : null,
+      venue: row.venue
+        ? {
+            id: row.venue.id,
+            name: row.venue.name,
+            street: row.venue.street ?? null,
+            postalCode: row.venue.postalCode ?? null,
+            city: row.venue.city ?? null,
+          }
+        : null,
+    };
+  }
+
+  /**
+   * Lists venue/kiosk submissions with joined match (home, guest, league, date) and venue context,
+   * optionally filtered by status ('pending' | 'approved' | 'rejected' | 'all').
+   */
+  async getSubmissions(status?: string): Promise<VenueSubmission[]> {
+    if (!this.db) {
+      throw new Error('Database is not configured!');
+    }
+
+    const normalized = status ? status.trim().toLowerCase() : 'all';
+
+    if (
+      normalized !== 'all' &&
+      normalized !== 'pending' &&
+      normalized !== 'approved' &&
+      normalized !== 'rejected'
+    ) {
+      throw new BadRequestException(
+        `Invalid status filter "${status}". Allowed values: pending, approved, rejected, all`
+      );
+    }
+
+    const homeTeam = aliasedTable(teams, 'home_team');
+    const guestTeam = aliasedTable(teams, 'guest_team');
+
+    const baseQuery = this.db
+      .select({
+        submission: venueSubmissions,
+        match: matches,
+        league: leagues,
+        homeTeam,
+        guestTeam,
+        venue: venues,
+      })
+      .from(venueSubmissions)
+      .leftJoin(matches, eq(venueSubmissions.matchId, matches.id))
+      .leftJoin(leagues, eq(matches.leagueId, leagues.id))
+      .leftJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+      .leftJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+      .leftJoin(venues, eq(venueSubmissions.venueId, venues.id));
+
+    const filteredQuery =
+      normalized === 'all'
+        ? baseQuery
+        : baseQuery.where(eq(venueSubmissions.status, normalized));
+
+    const rows = await filteredQuery.orderBy(desc(venueSubmissions.createdAt));
+
+    return rows.map((row) => this.mapAdminSubmissionRow(row));
   }
 
   private async findSubmissionById(

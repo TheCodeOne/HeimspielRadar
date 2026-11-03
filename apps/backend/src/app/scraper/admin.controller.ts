@@ -125,6 +125,11 @@ export class AdminController {
     return this.telegramNotifier.sendTestMessage();
   }
 
+  @Get('submissions')
+  async getSubmissions(@Query('status') status?: string) {
+    return this.resolvedAdminService.getSubmissions(status);
+  }
+
   @Post('submissions/:id/approve')
   async approveSubmission(
     @Param('id', ParseIntPipe) id: number,

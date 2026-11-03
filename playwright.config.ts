@@ -33,7 +33,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npx vite apps/frontend --port ${port}`,
+    command: `VITE_ENABLE_ADMIN_UI=true npx vite apps/frontend --port ${port}`,
     url: baseURL,
     reuseExistingServer: Boolean(process.env.PLAYWRIGHT_REUSE_SERVER),
     timeout: 60000,
