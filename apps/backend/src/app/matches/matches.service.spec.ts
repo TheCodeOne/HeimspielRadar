@@ -902,6 +902,48 @@ describe('MatchesService', () => {
       expect(result.distanceKm).toBeUndefined();
     });
 
+    it('maps kiosk, parking, admission fee, match notes, and featured fields on relational match row', () => {
+      const featuredUntilDate = new Date('2026-11-15T20:00:00Z');
+
+      const row: RelationalMatchRow = {
+        match: {
+          id: 102,
+          leagueId: 200,
+          matchDay: 2,
+          kickoffDate: '2026-11-15',
+          kickoffTime: '17:00',
+          confirmed: true,
+          admissionFee: 'Eintritt frei',
+          matchNotes: 'Derby mit Tombola in der Halbzeitpause',
+          isFeatured: true,
+          featuredUntil: featuredUntilDate,
+        },
+        homeTeam: { id: 1, dbbId: 10, name: 'Home' },
+        guestTeam: { id: 2, dbbId: 20, name: 'Guest' },
+        venue: {
+          id: 50,
+          name: 'Test Arena',
+          street: 'Main St 1',
+          postalCode: '70173',
+          city: 'Stuttgart',
+          latitude: 48.77,
+          longitude: 9.18,
+          geocodedAt: new Date('2026-10-01T12:00:00Z'),
+          kioskDescription: 'Kaffee & Kuchen, Kaltgetränke, Brezeln',
+          parkingNotes: 'Parkhaus P2 nutzen, Halle hat nur 10 Stellplätze',
+        },
+      };
+
+      const result = service.mapRelationalMatch(row);
+
+      expect(result.admissionFee).toBe('Eintritt frei');
+      expect(result.matchNotes).toBe('Derby mit Tombola in der Halbzeitpause');
+      expect(result.isFeatured).toBe(true);
+      expect(result.featuredUntil).toBe('2026-11-15T20:00:00.000Z');
+      expect(result.venue?.kioskDescription).toBe('Kaffee & Kuchen, Kaltgetränke, Brezeln');
+      expect(result.venue?.parkingNotes).toBe('Parkhaus P2 nutzen, Halle hat nur 10 Stellplätze');
+    });
+
     it('coalesces league rawData when dedicated columns are null', () => {
       const league = service.mapLeague({
         id: 300,

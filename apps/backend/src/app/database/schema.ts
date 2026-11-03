@@ -140,6 +140,8 @@ export const venues = pgTable(
     longitude: doublePrecision('longitude'),
     location: geography('location', { type: 'Point', srid: 4326 }),
     geocodedAt: timestamp('geocoded_at'),
+    kioskDescription: text('kiosk_description'),
+    parkingNotes: text('parking_notes'),
     rawData: jsonb('raw_data'),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -169,6 +171,10 @@ export const matches = pgTable(
     isVenueVerified: boolean('is_venue_verified').default(false).notNull(),
     result: text('result'),
     confirmed: boolean('confirmed').default(false).notNull(),
+    admissionFee: text('admission_fee'),
+    matchNotes: text('match_notes'),
+    isFeatured: boolean('is_featured').default(false).notNull(),
+    featuredUntil: timestamp('featured_until'),
     rawData: jsonb('raw_data'),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -179,6 +185,30 @@ export const matches = pgTable(
     index('matches_kickoff_date_idx').on(table.kickoffDate),
   ]
 );
+
+export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface VenueSubmissionData {
+  admissionFee?: string | null;
+  kioskDescription?: string | null;
+  kiosk?: string | null;
+  parkingNotes?: string | null;
+  parking?: string | null;
+  matchNotes?: string | null;
+  notes?: string | null;
+}
+
+export const venueSubmissions = pgTable('venue_submissions', {
+  id: serial('id').primaryKey(),
+  matchId: integer('match_id').references(() => matches.id, { onDelete: 'set null' }),
+  venueId: integer('venue_id').references(() => venues.id, { onDelete: 'set null' }),
+  submitterName: text('submitter_name'),
+  submitterRole: text('submitter_role'),
+  submittedData: jsonb('submitted_data').$type<VenueSubmissionData>().notNull(),
+  status: text('status').$type<VenueSubmissionStatus>().default('pending').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 
 export const systemSettings = pgTable('system_settings', {
   key: text('key').primaryKey(),
@@ -235,9 +265,10 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
 
 export const venuesRelations = relations(venues, ({ many }) => ({
   matches: many(matches),
+  submissions: many(venueSubmissions),
 }));
 
-export const matchesRelations = relations(matches, ({ one }) => ({
+export const matchesRelations = relations(matches, ({ one, many }) => ({
   league: one(leagues, {
     fields: [matches.leagueId],
     references: [leagues.id],
@@ -254,6 +285,18 @@ export const matchesRelations = relations(matches, ({ one }) => ({
   }),
   venue: one(venues, {
     fields: [matches.venueId],
+    references: [venues.id],
+  }),
+  submissions: many(venueSubmissions),
+}));
+
+export const venueSubmissionsRelations = relations(venueSubmissions, ({ one }) => ({
+  match: one(matches, {
+    fields: [venueSubmissions.matchId],
+    references: [matches.id],
+  }),
+  venue: one(venues, {
+    fields: [venueSubmissions.venueId],
     references: [venues.id],
   }),
 }));

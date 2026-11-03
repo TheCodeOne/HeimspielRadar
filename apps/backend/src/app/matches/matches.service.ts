@@ -14,6 +14,10 @@ export interface RelationalMatchRow {
     kickoffTime?: string | null;
     result?: string | null;
     confirmed: boolean;
+    admissionFee?: string | null;
+    matchNotes?: string | null;
+    isFeatured?: boolean;
+    featuredUntil?: Date | null;
   };
   league?: {
     id: number;
@@ -50,6 +54,8 @@ export interface RelationalMatchRow {
     latitude?: number | null;
     longitude?: number | null;
     geocodedAt?: Date | null;
+    kioskDescription?: string | null;
+    parkingNotes?: string | null;
   } | null;
   distanceKm?: number | string | null;
 }
@@ -465,10 +471,16 @@ export class MatchesService {
             latitude: row.venue.latitude ?? null,
             longitude: row.venue.longitude ?? null,
             geocodedAt: row.venue.geocodedAt ? row.venue.geocodedAt.toISOString() : null,
+            kioskDescription: row.venue.kioskDescription ?? undefined,
+            parkingNotes: row.venue.parkingNotes ?? undefined,
           }
         : null,
       result: row.match.result ?? null,
       confirmed: row.match.confirmed,
+      admissionFee: row.match.admissionFee ?? undefined,
+      matchNotes: row.match.matchNotes ?? undefined,
+      isFeatured: row.match.isFeatured ?? undefined,
+      featuredUntil: row.match.featuredUntil ? row.match.featuredUntil.toISOString() : undefined,
       distanceKm,
     };
   }

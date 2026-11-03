@@ -57,6 +57,13 @@
       "when": 1792919467414,
       "tag": "0007_normal_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793736203221,
+      "tag": "0008_youthful_sphinx",
+      "breakpoints": true
     }
   ]
 }
