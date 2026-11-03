@@ -63,8 +63,9 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   const admissionFee = match.admissionFee?.trim() || null;
   const kioskDescription = match.venue?.kioskDescription?.trim() || null;
   const parkingNotes = match.venue?.parkingNotes?.trim() || null;
+  const matchNotes = match.matchNotes?.trim() || null;
 
-  if (!admissionFee && !kioskDescription && !parkingNotes) {
+  if (!admissionFee && !kioskDescription && !parkingNotes && !matchNotes) {
     return null;
   }
 
@@ -88,8 +89,59 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
       onClick={stopPropagation}
       data-testid="kiosk-info-badges"
     >
+      {/* 1. Direct Information Tiles (Kiosk, Parking, Match Notes) */}
+      {(kioskDescription || parkingNotes || matchNotes) && (
+        <div className="flex flex-col gap-1.5" data-testid="kiosk-info-tiles">
+          {kioskDescription && (
+            <div
+              data-tile="kiosk-info"
+              className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200"
+            >
+              <span className="shrink-0 text-sm leading-none" aria-hidden="true">
+                🌭
+              </span>
+              <div className="min-w-0 flex-1 leading-snug">
+                <span className="font-semibold text-amber-300">Kiosk: </span>
+                <span className="text-amber-100">{kioskDescription}</span>
+              </div>
+            </div>
+          )}
+
+          {parkingNotes && (
+            <div
+              data-tile="parking-notes"
+              className="flex items-start gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-xs text-sky-200"
+            >
+              <span className="shrink-0 text-sm leading-none" aria-hidden="true">
+                🅿️
+              </span>
+              <div className="min-w-0 flex-1 leading-snug">
+                <span className="font-semibold text-sky-300">Parkhinweis: </span>
+                <span className="text-sky-100">{parkingNotes}</span>
+              </div>
+            </div>
+          )}
+
+          {matchNotes && (
+            <div
+              data-tile="match-notes"
+              className="flex items-start gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-200"
+            >
+              <span className="shrink-0 text-sm leading-none" aria-hidden="true">
+                📝
+              </span>
+              <div className="min-w-0 flex-1 leading-snug">
+                <span className="font-semibold text-indigo-300">Info: </span>
+                <span className="text-indigo-100">{matchNotes}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2. Compact summary badge line (Admission, plus quick toggle badges for parity / a11y) */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {/* 1. Admission Fee Badge */}
+        {/* Admission Fee Badge */}
         {admissionFee && (
           <Badge
             variant={isFreeAdmission(admissionFee) ? 'success' : 'outline'}
@@ -105,7 +157,7 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           </Badge>
         )}
 
-        {/* 2. Kiosk Info Badge with Hover & Click Tooltip */}
+        {/* Kiosk Info Badge with Hover & Click Tooltip */}
         {kioskDescription && (
           <div className="relative inline-flex">
             <button
@@ -131,7 +183,7 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           </div>
         )}
 
-        {/* 3. Parking & Hall Notes Badge with Hover & Click Tooltip */}
+        {/* Parking & Hall Notes Badge with Hover & Click Tooltip */}
         {parkingNotes && (
           <div className="relative inline-flex">
             <button
