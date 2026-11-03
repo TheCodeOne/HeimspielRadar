@@ -84,7 +84,7 @@ services:
       - SCRAPER_SECRET=${SCRAPER_SECRET:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-      - ADMIN_BASE_URL=${ADMIN_BASE_URL:-http://raspberrypi.local:3000}
+      - ADMIN_BASE_URL=${ADMIN_BASE_URL:-http://10.10.10.10:3000}
       - ENABLE_ADMIN_API=${ENABLE_ADMIN_API:-true}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
