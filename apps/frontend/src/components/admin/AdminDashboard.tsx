@@ -4,6 +4,8 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Cpu,
   Database,
@@ -24,6 +26,7 @@ import {
   AdminStatusResponse,
   GERMAN_BASKETBALL_VERBAENDE,
   Match,
+  PaginatedMatchesResponse,
   SyncFailure,
   SyncRun,
   UpdateSubmissionDto,
@@ -156,6 +159,10 @@ export function AdminDashboard() {
 
   // Featured Matches state
   const [featuredMatches, setFeaturedMatches] = React.useState<Match[]>([]);
+  const [featuredPage, setFeaturedPage] = React.useState<number>(1);
+  const [featuredTotal, setFeaturedTotal] = React.useState<number>(0);
+  const [featuredTotalPages, setFeaturedTotalPages] = React.useState<number>(0);
+  const [isFeaturedLoading, setIsFeaturedLoading] = React.useState<boolean>(false);
   const [matchSearchQuery, setMatchSearchQuery] = React.useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState<string>('');
   const [searchResults, setSearchResults] = React.useState<Match[]>([]);
@@ -238,7 +245,7 @@ export function AdminDashboard() {
             fetch('/api/admin/status'),
             fetch('/api/admin/sync-runs?limit=20'),
             fetch('/api/admin/failures'),
-            fetch('/api/admin/matches/featured').catch(() => null),
+            fetch('/api/admin/matches/featured?page=1&limit=25').catch(() => null),
             fetch(`/api/admin/submissions?status=${submissionFilter}`).catch(
               () => null
             ),
@@ -267,11 +274,23 @@ export function AdminDashboard() {
           featuredRes.ok &&
           featuredRes.headers.get('content-type')?.includes('application/json')
         ) {
-          // SAFETY: /api/admin/matches/featured returns Match[]
-          const featuredData = (await featuredRes.json()) as Match[];
+          // SAFETY: /api/admin/matches/featured returns PaginatedMatchesResponse (or legacy Match[])
+          const featuredData = (await featuredRes.json()) as
+            | PaginatedMatchesResponse
+            | Match[];
 
           if (Array.isArray(featuredData)) {
             setFeaturedMatches(featuredData);
+            setFeaturedTotal(featuredData.length);
+            setFeaturedPage(1);
+            setFeaturedTotalPages(
+              Math.max(1, Math.ceil(featuredData.length / 25))
+            );
+          } else if (featuredData && Array.isArray(featuredData.data)) {
+            setFeaturedMatches(featuredData.data);
+            setFeaturedTotal(featuredData.total ?? 0);
+            setFeaturedPage(featuredData.page ?? 1);
+            setFeaturedTotalPages(featuredData.totalPages ?? 0);
           }
         }
 
@@ -670,6 +689,74 @@ export function AdminDashboard() {
     };
   }, [debouncedSearchQuery, showFeedback]);
 
+  // Fetch paginated active featured matches from server
+  const fetchFeaturedMatches = React.useCallback(
+    async (pageToFetch: number, queryToSearch?: string) => {
+      setIsFeaturedLoading(true);
+
+      try {
+        const query =
+          queryToSearch !== undefined ? queryToSearch : debouncedSearchQuery;
+
+        const trimmed = query.trim();
+
+        const params = new URLSearchParams({
+          page: String(pageToFetch),
+          limit: '25',
+        });
+
+        if (trimmed) {
+          params.set('query', trimmed);
+        }
+
+        const res = await fetch(`/api/admin/matches/featured?${params.toString()}`);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        // SAFETY: /api/admin/matches/featured returns PaginatedMatchesResponse (or legacy Match[])
+        const data = (await res.json()) as
+          | PaginatedMatchesResponse
+          | Match[];
+
+        if (Array.isArray(data)) {
+          setFeaturedMatches(data);
+          setFeaturedTotal(data.length);
+          setFeaturedPage(1);
+          setFeaturedTotalPages(
+            Math.max(1, Math.ceil(data.length / 25))
+          );
+        } else if (data && Array.isArray(data.data)) {
+          setFeaturedMatches(data.data);
+          setFeaturedTotal(data.total ?? 0);
+          setFeaturedPage(data.page ?? pageToFetch);
+          setFeaturedTotalPages(data.totalPages ?? 0);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        showFeedback('error', `Fehler beim Laden der Featured Matches: ${msg}`);
+      } finally {
+        setIsFeaturedLoading(false);
+      }
+    },
+    [debouncedSearchQuery, showFeedback]
+  );
+
+  const isInitialFeaturedSearchRef = React.useRef(true);
+
+  // Search input triggers debounced server-side search and resets to page 1
+  React.useEffect(() => {
+    if (isInitialFeaturedSearchRef.current) {
+      isInitialFeaturedSearchRef.current = false;
+
+      return;
+    }
+
+    setFeaturedPage(1);
+    fetchFeaturedMatches(1, debouncedSearchQuery);
+  }, [debouncedSearchQuery, fetchFeaturedMatches]);
+
   // Handle Toggle Featured Match (7-day default)
   const handleToggleFeature = async (match: Match, nextFeatured: boolean) => {
     setTogglingMatchId(match.id);
@@ -704,27 +791,19 @@ export function AdminDashboard() {
       );
 
       if (nextFeatured) {
-        setFeaturedMatches((prev) => {
-          const exists = prev.some((m) => m.id === match.id);
-
-          if (exists) {
-            return prev.map((m) => (m.id === match.id ? mergedMatch : m));
-          }
-
-          return [...prev, mergedMatch];
-        });
-
         showFeedback(
           'success',
           `⭐ "${match.homeTeam.name} vs. ${match.guestTeam.name}" für 7 Tage als Featured Match markiert!`
         );
       } else {
-        setFeaturedMatches((prev) => prev.filter((m) => m.id !== match.id));
         showFeedback(
           'success',
           `Hervorhebung für "${match.homeTeam.name} vs. ${match.guestTeam.name}" entfernt.`
         );
       }
+
+      // Reload current page of featured matches
+      await fetchFeaturedMatches(featuredPage, debouncedSearchQuery);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showFeedback('error', `Fehler beim Aktualisieren des Featured-Status: ${msg}`);
@@ -767,16 +846,7 @@ export function AdminDashboard() {
       }
 
       // Refresh featured matches list
-      const featuredRes = await fetch('/api/admin/matches/featured');
-
-      if (featuredRes.ok) {
-        // SAFETY: /api/admin/matches/featured returns Match[]
-        const featuredData = (await featuredRes.json()) as Match[];
-
-        if (Array.isArray(featuredData)) {
-          setFeaturedMatches(featuredData);
-        }
-      }
+      await fetchFeaturedMatches(1, debouncedSearchQuery);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showFeedback('error', `Fehler bei der Neuberechnung der Topspiele: ${msg}`);
@@ -1009,7 +1079,7 @@ export function AdminDashboard() {
             <Star className="size-3.5 text-amber-400" />
             <span>⭐ Featured Matches</span>
             <Badge variant="outline" className="ml-1 px-1.5 py-0 text-[10px]">
-              {featuredMatches.length}
+              {featuredTotal}
             </Badge>
           </Button>
 
@@ -1283,7 +1353,7 @@ export function AdminDashboard() {
                 variant="outline"
                 className="border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-400"
               >
-                {featuredMatches.length} aktiv
+                {featuredTotal} aktiv
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -1387,21 +1457,104 @@ export function AdminDashboard() {
             {/* Active Featured Matches List */}
             <div className="space-y-2.5" data-testid="active-featured-matches">
               <div className="flex items-center justify-between border-t border-border/60 pt-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Aktuell aktive Featured Matches ({featuredMatches.length})
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Aktuell aktive Featured Matches
+                  </h3>
+                  <Badge variant="outline" className="text-[10px]">
+                    {featuredTotal} {debouncedSearchQuery.trim() ? 'Treffer' : 'aktiv'}
+                  </Badge>
+                </div>
+                {isFeaturedLoading && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <RefreshCw className="size-3 animate-spin text-amber-400" />
+                    <span>Aktualisiere...</span>
+                  </div>
+                )}
               </div>
 
-              {featuredMatches.length === 0 ? (
+              {isFeaturedLoading && featuredMatches.length === 0 ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                  <RefreshCw className="size-4 animate-spin text-amber-400" />
+                  <span>Lade Featured Matches...</span>
+                </div>
+              ) : featuredMatches.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border py-5 text-center text-xs text-muted-foreground">
-                  Derzeit sind keine Featured Matches aktiv. Nutze die Suche oben, um ein Highlight-Spiel für 7 Tage hervorzuheben.
+                  {debouncedSearchQuery.trim()
+                    ? `Keine passenden Featured Matches für „${debouncedSearchQuery.trim()}“ gefunden.`
+                    : 'Derzeit sind keine Featured Matches aktiv. Nutze die Suche oben, um ein Highlight-Spiel für 7 Tage hervorzuheben.'}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {featuredMatches.map((match) =>
-                    renderMatchRow(match, 'active-featured')
-                  )}
-                </div>
+                <>
+                  <div className="space-y-2">
+                    {featuredMatches.map((match) =>
+                      renderMatchRow(match, 'active-featured')
+                    )}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3 text-xs text-muted-foreground"
+                    data-testid="featured-pagination-controls"
+                  >
+                    <div className="text-xs">
+                      <span>
+                        Gesamt: <strong>{featuredTotal}</strong> Treffer
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const prevPage = Math.max(1, featuredPage - 1);
+                          setFeaturedPage(prevPage);
+                          fetchFeaturedMatches(prevPage, debouncedSearchQuery);
+                        }}
+                        disabled={featuredPage <= 1 || isFeaturedLoading}
+                        data-testid="featured-pagination-prev"
+                        className="h-8 gap-1 px-3 text-xs cursor-pointer"
+                      >
+                        <ChevronLeft className="size-3.5" />
+                        <span>Vorherige Seite</span>
+                      </Button>
+
+                      <span
+                        data-testid="featured-pagination-info"
+                        className="px-2 text-xs font-medium text-foreground"
+                      >
+                        Seite {featuredPage} von {Math.max(1, featuredTotalPages)}
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const nextPage = Math.min(
+                            featuredTotalPages,
+                            featuredPage + 1
+                          );
+
+                          setFeaturedPage(nextPage);
+                          fetchFeaturedMatches(nextPage, debouncedSearchQuery);
+                        }}
+                        disabled={
+                          featuredPage >= featuredTotalPages ||
+                          featuredTotalPages === 0 ||
+                          isFeaturedLoading
+                        }
+                        data-testid="featured-pagination-next"
+                        className="h-8 gap-1 px-3 text-xs cursor-pointer"
+                      >
+                        <span>Nächste Seite</span>
+                        <ChevronRight className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </CardContent>
