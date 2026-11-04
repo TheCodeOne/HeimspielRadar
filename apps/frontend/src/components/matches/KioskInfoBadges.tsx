@@ -171,10 +171,9 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
         </div>
       )}
 
-      {/* 2. Compact static badges (Admission, Kiosk, Parking) without hover or click tooltips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {/* Admission Fee Badge */}
-        {admissionFee && (
+      {/* 2. Compact static badges (Admission) */}
+      {admissionFee && (
+        <div className="flex flex-wrap items-center gap-1.5">
           <Badge
             variant={isFreeAdmission(admissionFee) ? 'success' : 'outline'}
             data-badge="admission-fee"
@@ -187,47 +186,8 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           >
             {formatAdmissionBadgeText(admissionFee)}
           </Badge>
-        )}
-
-        {/* Static Kiosk Info Badge */}
-        {kioskDescription && (
-          <Badge
-            variant="outline"
-            data-badge="kiosk-info"
-            title={kioskDescription}
-            aria-label={`Kiosk vorhanden: ${kioskDescription}`}
-            className={`inline-flex items-center gap-1 border-amber-500/35 bg-amber-500/15 font-medium text-amber-300 ${textSizeClass}`}
-          >
-            <span>☕ Kiosk vorhanden</span>
-          </Badge>
-        )}
-
-        {/* Static Parking & Hall Notes Badge */}
-        {parkingNotes && (
-          <Badge
-            variant="outline"
-            data-badge="parking-notes"
-            title={parkingNotes}
-            aria-label={`Park- und Hallenhinweise: ${parkingNotes}`}
-            className={`inline-flex items-center gap-1 border-sky-500/35 bg-sky-500/15 font-medium text-sky-300 ${textSizeClass}`}
-          >
-            <span>🅿️ Parkhinweis</span>
-          </Badge>
-        )}
-
-        {/* Static Submitter Badge if present */}
-        {submitterInfo && (
-          <Badge
-            variant="outline"
-            data-badge="submitter-info"
-            title={submitterInfo}
-            aria-label={submitterInfo}
-            className={`inline-flex items-center gap-1 border-teal-500/35 bg-teal-500/15 font-medium text-teal-300 ${textSizeClass}`}
-          >
-            <span>👤 {submitterInfo}</span>
-          </Badge>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

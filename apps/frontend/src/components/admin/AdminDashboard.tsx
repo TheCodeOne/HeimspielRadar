@@ -33,6 +33,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -1509,39 +1510,80 @@ export function AdminDashboard() {
                               </div>
                             </td>
 
-                            <td className="max-w-md space-y-1 py-3 pr-4">
-                              <div>
-                                <span className="font-semibold text-muted-foreground">
-                                  Eintritt:{' '}
-                                </span>
-                                <span className="text-foreground">
-                                  {admissionFee || '–'}
-                                </span>
+                            <td className="max-w-md space-y-2 py-3 pr-4">
+                              <div className="space-y-1">
+                                <div>
+                                  <span className="font-semibold text-muted-foreground">
+                                    Eintritt:{' '}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {admissionFee || '–'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-muted-foreground">
+                                    Kiosk:{' '}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {kioskText || '–'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-muted-foreground">
+                                    Parken:{' '}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {parkingText || '–'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-muted-foreground">
+                                    Notizen:{' '}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {notesText || '–'}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                <span className="font-semibold text-muted-foreground">
-                                  Kiosk:{' '}
-                                </span>
-                                <span className="text-foreground">
-                                  {kioskText || '–'}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="font-semibold text-muted-foreground">
-                                  Parken:{' '}
-                                </span>
-                                <span className="text-foreground">
-                                  {parkingText || '–'}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="font-semibold text-muted-foreground">
-                                  Notizen:{' '}
-                                </span>
-                                <span className="text-foreground">
-                                  {notesText || '–'}
-                                </span>
-                              </div>
+
+                              {(admissionFee || kioskText || parkingText || notesText) && (
+                                <div
+                                  className="mt-2 rounded-lg border border-border/60 bg-background/50 p-2"
+                                  data-testid={`submission-preview-${sub.id}`}
+                                >
+                                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    MatchCard Kachel-Vorschau
+                                  </div>
+                                  <KioskInfoBadges
+                                    size="sm"
+                                    match={{
+                                      id: sub.matchId ?? sub.id,
+                                      leagueId: sub.match?.leagueId ?? 0,
+                                      matchDay: 0,
+                                      kickoffDate: sub.match?.kickoffDate ?? null,
+                                      kickoffTime: sub.match?.kickoffTime ?? null,
+                                      homeTeam: { id: 0, dbbId: 0, name: sub.match?.homeTeam || 'Heim' },
+                                      guestTeam: { id: 0, dbbId: 0, name: sub.match?.guestTeam || 'Gast' },
+                                      confirmed: true,
+                                      admissionFee: admissionFee || undefined,
+                                      venue: {
+                                        id: sub.venueId ?? 0,
+                                        name: sub.venue?.name || '',
+                                        street: sub.venue?.street || '',
+                                        postalCode: sub.venue?.postalCode || '',
+                                        city: sub.venue?.city || '',
+                                        latitude: null,
+                                        longitude: null,
+                                        kioskDescription: kioskText || undefined,
+                                        parkingNotes: parkingText || undefined,
+                                      },
+                                      matchNotes: notesText || undefined,
+                                      submitterName: sub.submitterName || undefined,
+                                      submitterRole: sub.submitterRole || undefined,
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </td>
 
                             <td className="whitespace-nowrap py-3 pr-4">
@@ -2016,6 +2058,67 @@ export function AdminDashboard() {
                   placeholder="z.B. Einlass ab 18:00 Uhr"
                   className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 />
+              </div>
+
+              {/* Live Preview of MatchCard info tiles */}
+              <div
+                className="mt-3 rounded-lg border border-border/80 bg-background/60 p-3"
+                data-testid="edit-submission-preview"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Live-Vorschau (MatchCard Kacheln)
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Aktualisiert in Echtzeit
+                  </span>
+                </div>
+                {editFormData.kioskDescription ||
+                editFormData.parkingNotes ||
+                editFormData.matchNotes ||
+                editFormData.admissionFee ||
+                editFormData.submitterName ? (
+                  <KioskInfoBadges
+                    match={{
+                      id: editingSubmission.matchId ?? editingSubmission.id,
+                      leagueId: editingSubmission.match?.leagueId ?? 0,
+                      matchDay: 0,
+                      kickoffDate: editingSubmission.match?.kickoffDate ?? null,
+                      kickoffTime: editingSubmission.match?.kickoffTime ?? null,
+                      homeTeam: {
+                        id: 0,
+                        dbbId: 0,
+                        name: editingSubmission.match?.homeTeam || 'Heimteam',
+                      },
+                      guestTeam: {
+                        id: 0,
+                        dbbId: 0,
+                        name: editingSubmission.match?.guestTeam || 'Gastteam',
+                      },
+                      confirmed: true,
+                      admissionFee: editFormData.admissionFee || undefined,
+                      venue: {
+                        id: editingSubmission.venueId ?? 0,
+                        name: editingSubmission.venue?.name || 'Halle',
+                        street: editingSubmission.venue?.street || '',
+                        postalCode: editingSubmission.venue?.postalCode || '',
+                        city: editingSubmission.venue?.city || '',
+                        latitude: null,
+                        longitude: null,
+                        kioskDescription:
+                          editFormData.kioskDescription || undefined,
+                        parkingNotes: editFormData.parkingNotes || undefined,
+                      },
+                      matchNotes: editFormData.matchNotes || undefined,
+                      submitterName: editFormData.submitterName || undefined,
+                      submitterRole: editFormData.submitterRole || undefined,
+                    }}
+                  />
+                ) : (
+                  <div className="py-2 text-center text-xs italic text-muted-foreground">
+                    Keine Kiosk-, Hallen- oder Eintrittsinformationen angegeben.
+                  </div>
+                )}
               </div>
             </div>
 
