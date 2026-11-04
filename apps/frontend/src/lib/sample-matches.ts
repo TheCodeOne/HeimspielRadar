@@ -68,6 +68,8 @@ export function getSampleMatches(): Match[] {
       confirmed: true,
       result: '78:72',
       admissionFee: 'Eintritt frei',
+      submitterName: 'Lena',
+      submitterRole: 'Verein',
       homeTeam: {
         id: 11,
         dbbId: 4011,

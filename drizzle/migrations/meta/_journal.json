@@ -71,6 +71,13 @@
       "when": 1793821508522,
       "tag": "0009_eminent_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793823492987,
+      "tag": "0010_superb_husk",
+      "breakpoints": true
     }
   ]
 }

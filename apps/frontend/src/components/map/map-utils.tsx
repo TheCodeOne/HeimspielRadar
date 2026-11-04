@@ -67,7 +67,8 @@ export function matchHasInfo(match: Match): boolean {
       match.parkingNotes?.trim() ||
       match.venue?.parkingNotes?.trim() ||
       match.matchNotes?.trim() ||
-      match.submitterName?.trim(),
+      match.submitterName?.trim() ||
+      match.submitterRole?.trim(),
   );
 }
 

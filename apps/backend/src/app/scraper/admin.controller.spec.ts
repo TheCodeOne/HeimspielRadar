@@ -252,6 +252,8 @@ describe('AdminController', () => {
         expect.objectContaining({
           admissionFee: 'Eintritt frei',
           matchNotes: 'Spitzenspiel mit Hallensprecher',
+          submitterName: 'Jonas',
+          submitterRole: 'Hallensprecher',
         })
       );
 
@@ -288,6 +290,8 @@ describe('AdminController', () => {
         ...mockSubmissionRow,
         id: 16,
         matchId: 102,
+        submitterName: 'Jonas',
+        submitterRole: 'Hallensprecher',
         scope: 'match',
         submittedData: {
           admissionFee: '4 EUR',
@@ -310,6 +314,8 @@ describe('AdminController', () => {
           kioskDescription: 'Gourmet Burger Special',
           parkingNotes: 'Parkhaus P2 nutzen',
           matchNotes: 'Topspiel der Woche',
+          submitterName: 'Jonas',
+          submitterRole: 'Hallensprecher',
         })
       );
 

@@ -102,6 +102,8 @@ export interface MatchModerationPatch {
   kioskDescription?: string | null;
   parkingNotes?: string | null;
   matchNotes?: string | null;
+  submitterName?: string | null;
+  submitterRole?: string | null;
   updatedAt: Date;
 }
 
@@ -329,6 +331,8 @@ export class AdminService {
       const matchNotes = data.matchNotes ?? data.notes ?? undefined;
       const kioskDescription = data.kioskDescription ?? data.kiosk ?? undefined;
       const parkingNotes = data.parkingNotes ?? data.parking ?? undefined;
+      const submitterName = submission.submitterName ?? undefined;
+      const submitterRole = submission.submitterRole ?? undefined;
       const scope: VenueSubmissionScope = submission.scope ?? 'matchday';
 
       if (scope === 'match') {
@@ -352,6 +356,14 @@ export class AdminService {
             matchUpdates.parkingNotes = parkingNotes;
           }
 
+          if (submitterName !== undefined && submitterName !== null) {
+            matchUpdates.submitterName = submitterName;
+          }
+
+          if (submitterRole !== undefined && submitterRole !== null) {
+            matchUpdates.submitterRole = submitterRole;
+          }
+
           await tx
             .update(matches)
             .set(matchUpdates)
@@ -359,11 +371,13 @@ export class AdminService {
         }
       } else {
         // Scope "matchday":
-        // 1. Admission fee and match notes are always match-specific
+        // 1. Admission fee, match notes and submitter attribution are always match-specific
         if (
           submission.matchId &&
           ((admissionFee !== undefined && admissionFee !== null) ||
-            (matchNotes !== undefined && matchNotes !== null))
+            (matchNotes !== undefined && matchNotes !== null) ||
+            (submitterName !== undefined && submitterName !== null) ||
+            (submitterRole !== undefined && submitterRole !== null))
         ) {
           const matchUpdates: MatchModerationPatch = { updatedAt: now };
 
@@ -373,6 +387,14 @@ export class AdminService {
 
           if (matchNotes !== undefined && matchNotes !== null) {
             matchUpdates.matchNotes = matchNotes;
+          }
+
+          if (submitterName !== undefined && submitterName !== null) {
+            matchUpdates.submitterName = submitterName;
+          }
+
+          if (submitterRole !== undefined && submitterRole !== null) {
+            matchUpdates.submitterRole = submitterRole;
           }
 
           await tx
@@ -641,6 +663,12 @@ export class AdminService {
           dto.parkingNotes !== undefined ||
           (parkingNotes !== undefined && parkingNotes !== null);
 
+        const hasSubmitterPatch =
+          dto.submitterName !== undefined ||
+          dto.submitterRole !== undefined ||
+          (nextSubmitterName !== undefined && nextSubmitterName !== null) ||
+          (nextSubmitterRole !== undefined && nextSubmitterRole !== null);
+
         if (nextScope === 'match') {
           if (submission.matchId) {
             const matchUpdates: MatchModerationPatch = { updatedAt: now };
@@ -661,11 +689,17 @@ export class AdminService {
               matchUpdates.parkingNotes = parkingNotes ?? null;
             }
 
+            if (hasSubmitterPatch) {
+              matchUpdates.submitterName = nextSubmitterName ?? null;
+              matchUpdates.submitterRole = nextSubmitterRole ?? null;
+            }
+
             if (
               hasAdmissionPatch ||
               hasNotesPatch ||
               hasKioskPatch ||
-              hasParkingPatch
+              hasParkingPatch ||
+              hasSubmitterPatch
             ) {
               await tx
                 .update(matches)
@@ -675,7 +709,10 @@ export class AdminService {
           }
         } else {
           // Scope 'matchday'
-          if (submission.matchId && (hasAdmissionPatch || hasNotesPatch)) {
+          if (
+            submission.matchId &&
+            (hasAdmissionPatch || hasNotesPatch || hasSubmitterPatch)
+          ) {
             const matchUpdates: MatchModerationPatch = { updatedAt: now };
 
             if (hasAdmissionPatch) {
@@ -684,6 +721,11 @@ export class AdminService {
 
             if (hasNotesPatch) {
               matchUpdates.matchNotes = matchNotes ?? null;
+            }
+
+            if (hasSubmitterPatch) {
+              matchUpdates.submitterName = nextSubmitterName ?? null;
+              matchUpdates.submitterRole = nextSubmitterRole ?? null;
             }
 
             await tx
