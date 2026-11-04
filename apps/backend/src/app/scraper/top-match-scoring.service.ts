@@ -64,6 +64,65 @@ export function calculateHaversineDistanceKm(
   return Math.round(R * c * 10) / 10;
 }
 
+/**
+ * Comparator to sort evaluated match results deterministically:
+ * 1. Higher score first
+ * 2. Shorter derby distance first (e.g. 5.0 km before 13.2 km)
+ * 3. Lower match ID as stable fallback
+ */
+export function compareMatchScoreResults(
+  a: MatchScoreResult,
+  b: MatchScoreResult
+): number {
+  // Tiebreaker 1: Höherer Score
+  if (b.score !== a.score) {
+    return b.score - a.score;
+  }
+
+  // Tiebreaker 2: Bei reinem Distanz-Bonus gewinnt das Spiel mit der KÜRZEREN Derby-Distanz (z. B. 5.0 km vor 13.2 km)
+  if (a.distanceKm != null && b.distanceKm != null) {
+    if (a.distanceKm !== b.distanceKm) {
+      return a.distanceKm - b.distanceKm;
+    }
+  } else if (a.distanceKm != null) {
+    return -1;
+  } else if (b.distanceKm != null) {
+    return 1;
+  }
+
+  // Tiebreaker 3: Niedrigere Match-ID als stabiler deterministischer Fallback
+  return a.matchId - b.matchId;
+}
+
+/**
+ * Selects up to 2 featured top matches for a matchday:
+ * - Exactly 1 match standard (highest score).
+ * - A 2nd match qualifies only if its score is within 5 points of the top score AND score > 0.
+ * - If multiple matches qualify or tie, compareMatchScoreResults tiebreakers apply and the result is capped at 2.
+ */
+export function selectTopMatches(
+  evaluatedMatches: MatchScoreResult[]
+): MatchScoreResult[] {
+  if (evaluatedMatches.length === 0) {
+    return [];
+  }
+
+  const sorted = [...evaluatedMatches].sort(compareMatchScoreResults);
+  const topScore = sorted[0].score;
+
+  // Standardmäßig genau 1 Spiel (das mit dem höchsten Score).
+  // Ein 2. Spiel darf sich nur qualifizieren, wenn sein Score innerhalb von 5 Punkten zum Top-Score liegt UND der Score > 0 ist.
+  const candidates = sorted.filter(
+    (m) => m.score >= topScore - 5 && m.score > 0
+  );
+
+  if (candidates.length > 0) {
+    return candidates.slice(0, 2);
+  }
+
+  return [sorted[0]];
+}
+
 interface MetaWithOptionalType {
   type?: string;
 }
@@ -96,7 +155,9 @@ export class TopMatchScoringService {
       };
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Berlin',
+    }).format(new Date());
 
     // Fetch all leagues that have upcoming matches
     const activeLeagues = await this.db
@@ -243,27 +304,7 @@ export class TopMatchScoringService {
           continue;
         }
 
-        // Sort descending by score
-        evaluatedMatches.sort((a, b) => b.score - a.score);
-        const topScore = evaluatedMatches[0].score;
-
-        // If topScore <= 0 and fallback has no distance bonus, check if there's any qualifying factor
-        const qualifyingTopMatches: MatchScoreResult[] = [];
-
-        for (const m of evaluatedMatches) {
-          // Top match qualification:
-          // 1. Must be within 5 points of the top score (or top match)
-          // 2. Score must be positive (> 0) to qualify as a genuine Topspiel
-          if (m.score >= topScore - 5 && m.score > 0) {
-            qualifyingTopMatches.push(m);
-          }
-        }
-
-        // If no match has score > 0 (e.g. no standings, no geocoords), pick the best available match only if topScore >= 0
-        if (qualifyingTopMatches.length === 0 && evaluatedMatches.length > 0) {
-          qualifyingTopMatches.push(evaluatedMatches[0]);
-        }
-
+        const qualifyingTopMatches = selectTopMatches(evaluatedMatches);
         const topMatchIds = new Set(qualifyingTopMatches.map((m) => m.matchId));
 
         // Update matches in DB for this matchday
@@ -336,8 +377,7 @@ export class TopMatchScoringService {
       homeRank != null &&
       guestRank != null &&
       totalTeams != null &&
-      totalTeams > 0 &&
-      matchDay > 3;
+      totalTeams > 0;
 
     if (hasStandings) {
       // 1. Rangsumme / Basis-Score aus Ligatabelle
