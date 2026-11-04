@@ -22,6 +22,7 @@ import { formatDistance } from '@/lib/geo-utils';
 import { KioskInfoBadges } from './KioskInfoBadges';
 import { KioskSubmissionModal } from './KioskSubmissionModal';
 import { MatchQuickActions } from './MatchQuickActions';
+import { TopMatchInfoModal } from './TopMatchInfoModal';
 
 export interface MatchCardProps {
   match: Match;
@@ -45,6 +46,7 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
     ref,
   ) => {
     const [isLocalModalOpen, setIsLocalModalOpen] = React.useState(false);
+    const [isTopMatchModalOpen, setIsTopMatchModalOpen] = React.useState(false);
     const [localToast, setLocalToast] = React.useState<string | null>(null);
 
     const isFinished = Boolean(match.result);
@@ -107,8 +109,21 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                 <Badge
                   variant="featured"
                   data-testid="featured-match-badge"
-                  className="text-[11px]"
-                  title={match.featuredReason ?? undefined}
+                  className="text-[11px] cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+                  title={match.featuredReason ?? 'Topspiel-Details & Berechnungsgrundlage anzeigen'}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsTopMatchModalOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsTopMatchModalOpen(true);
+                    }
+                  }}
                 >
                   <span className="mr-1" aria-hidden="true">
                     ⭐
@@ -206,6 +221,7 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
           {hasKioskOrVenueInfo && (
             <KioskInfoBadges
               match={match}
+              onOpenTopMatchInfo={() => setIsTopMatchModalOpen(true)}
               className="mt-2.5 border-t border-border/30 pt-2.5"
             />
           )}
@@ -291,6 +307,13 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
           )}
         </>
       )}
+
+      {/* Top Match Calculation Info Modal */}
+      <TopMatchInfoModal
+        match={match}
+        isOpen={isTopMatchModalOpen}
+        onClose={() => setIsTopMatchModalOpen(false)}
+      />
       </>
     );
   },

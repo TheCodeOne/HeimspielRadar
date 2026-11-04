@@ -23,6 +23,7 @@ import type {
   FeatureMatchDto,
   League,
   Match,
+  TopMatchMeta,
   UpdateSubmissionDto,
   VenueSubmission,
   VenueSubmissionData,
@@ -943,7 +944,8 @@ export class AdminService {
       isFeatured: Boolean(row.match.isFeatured),
       featuredUntil: featuredUntilIso,
       featuredReason: row.match.featuredReason ?? undefined,
-      featuredMeta: row.match.featuredMeta ?? undefined,
+      // SAFETY: DB jsonb featured_meta stores TopMatchMeta
+      featuredMeta: (row.match.featuredMeta as TopMatchMeta) ?? undefined,
     };
   }
 
@@ -1160,7 +1162,8 @@ export class AdminService {
           ? updated.featuredUntil.toISOString()
           : (updated.featuredUntil ?? null),
       featuredReason: updated.featuredReason ?? undefined,
-      featuredMeta: updated.featuredMeta ?? undefined,
+      // SAFETY: DB jsonb featured_meta stores TopMatchMeta
+      featuredMeta: (updated.featuredMeta as TopMatchMeta) ?? undefined,
     };
   }
 

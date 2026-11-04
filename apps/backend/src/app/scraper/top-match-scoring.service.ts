@@ -2,23 +2,10 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { leagues, matches, teams, venues } from '../database/schema';
+import type { TopMatchFactor, TopMatchScoringMeta } from '@sundayleague/shared-types';
 import type { DbbTabelleEntry } from './dbb-client.service';
 
-export interface TopMatchFactor {
-  name: string;
-  points: number;
-  description: string;
-}
-
-export interface TopMatchScoringMeta {
-  type: 'algorithm';
-  score: number;
-  factors: TopMatchFactor[];
-  distanceKm?: number | null;
-  homeRank?: number | null;
-  guestRank?: number | null;
-  totalTeams?: number | null;
-}
+export type { TopMatchFactor, TopMatchScoringMeta };
 
 export interface MatchScoreResult {
   matchId: number;
