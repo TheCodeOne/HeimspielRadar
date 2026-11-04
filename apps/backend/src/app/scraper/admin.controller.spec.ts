@@ -623,8 +623,12 @@ describe('AdminController', () => {
         featuredUntil: new Date('2026-11-10T20:00:00Z'),
       };
 
-      mockDb.select = jest.fn().mockImplementation(() => {
-        const promise = Promise.resolve(mockRelationalRows);
+      mockDb.select = jest.fn().mockImplementation((selection?: any) => {
+        const isCount = Boolean(selection && 'count' in selection);
+
+        const promise = Promise.resolve(
+          isCount ? [{ count: mockRelationalRows.length }] : mockRelationalRows
+        );
 
         const chain: any = {
           from: () => Object.assign(promise, chain),
@@ -637,6 +641,7 @@ describe('AdminController', () => {
           },
           orderBy: () => Object.assign(promise, chain),
           limit: () => Object.assign(promise, chain),
+          offset: () => Object.assign(promise, chain),
         };
 
         return Object.assign(promise, chain);
@@ -684,17 +689,41 @@ describe('AdminController', () => {
       expect(queryObj.params).toContain(101);
     });
 
-    it('lists active featured matches via GET /api/admin/matches/featured', async () => {
+    it('lists active featured matches via GET /api/admin/matches/featured with pagination and defaults', async () => {
       const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
       mockRelationalRows[0].match.isFeatured = true;
       mockRelationalRows[0].match.featuredUntil = futureDate;
 
       const results = await controller.getFeaturedMatches();
 
-      expect(results).toHaveLength(1);
-      expect(results[0].id).toBe(101);
-      expect(results[0].isFeatured).toBe(true);
-      expect(results[0].featuredUntil).toBe(futureDate.toISOString());
+      expect(results.data).toHaveLength(1);
+      expect(results.data[0].id).toBe(101);
+      expect(results.data[0].isFeatured).toBe(true);
+      expect(results.data[0].featuredUntil).toBe(futureDate.toISOString());
+      expect(results.total).toBe(1);
+      expect(results.page).toBe(1);
+      expect(results.limit).toBe(25);
+      expect(results.totalPages).toBe(1);
+    });
+
+    it('supports custom pagination and search query in GET /api/admin/matches/featured', async () => {
+      const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+      mockRelationalRows[0].match.isFeatured = true;
+      mockRelationalRows[0].match.featuredUntil = futureDate;
+
+      const results = await controller.getFeaturedMatches('2', '10', 'Baskets 101');
+
+      expect(results.data).toHaveLength(1);
+      expect(results.page).toBe(2);
+      expect(results.limit).toBe(10);
+      expect(results.total).toBe(1);
+      expect(results.totalPages).toBe(1);
+
+      const dialect = new PgDialect();
+      const queryObj = dialect.sqlToQuery(capturedWhereCond);
+
+      expect(queryObj.params).toContain('%Baskets%');
+      expect(queryObj.params).toContain(101);
     });
 
     it('enables isFeatured with 7-day default expiration on POST /api/admin/matches/:id/feature', async () => {
