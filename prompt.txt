@@ -1,0 +1,35 @@
+Du bist der autonome Coding-Agent für Issue #176 im Worktree /home/dimik/Documents/git/HeimspielRadar/.worktrees/issue-176.
+Aufgabe: Integration der Unified Search (Städte & Vereine) in die AKTIVE Filter-Komponente apps/frontend/src/components/filters/prototypes/VariantD_BottomBarSheet.tsx.
+
+Hintergrund:
+In App.tsx wird als aktive Hauptansicht VariantD_BottomBarSheet gerendert (Desktop-Sidebar links + Floating Bottom Bar unten). Bislang existiert dort nur eine reine Teamsuche. Die Städtesuche (z.B. "Tübingen" 50km Umkreis) fehlt dort komplett!
+
+Anforderungen:
+1. In apps/frontend/src/components/filters/prototypes/VariantD_BottomBarSheet.tsx:
+   - Ersetze den Bereich "VEREIN / TEAM" in der Desktop-Sidebar und im Mobile Bottom Sheet durch das kombinierte Suchfeld ("Stadt, PLZ oder Verein suchen...").
+   - Dropdown mit 2 gruppierten Abschnitten:
+     * 📍 Städte & Orte (aus apps/frontend/src/lib/cities.ts + optionalem Nominatim-Fallback)
+     * 🏀 Vereine & Teams (aus der Team-API /api/matches/teams + lokalem Fallback)
+   - Exklusive Auswahl:
+     * Klick auf eine Stadt (z.B. Tübingen):
+       - Ruft setLocation({ lat, lng, name: Stadtname }) auf.
+       - Zentriert die Karte und filtert im bestehenden Radius (z.B. 30/50 km).
+       - Cleart teamQuery (setTeamQuery(undefined)).
+       - Zeigt den aktiven Chip "📍 {Stadtname} (Radius: {radius} km) [x]".
+     * Klick auf ein Team:
+       - Setzt teamQuery auf den Namen des Teams.
+       - Zeigt den aktiven Chip "🏀 {Teamname} [x]".
+   - Floating Bottom Bar Kapsel (unten auf der Karte):
+     * Zeigt den Text "Stadt, PLZ oder Verein suchen..." bzw. den aktiven Chip.
+2. Quality Gates:
+   - npx oxlint (0 errors, 0 warnings)
+   - npx nx build frontend
+3. Visual Verification:
+   - Starte die App: PORT=42176 npx nx serve frontend --port 42176
+   - Nimm per Playwright Screenshots auf (Desktop 1280x800 & Mobile 390x844):
+     * Geöffnetes Dropdown mit Städten und Vereinen in der Desktop-Sidebar.
+     * Zustand nach Auswahl einer Stadt (z.B. Tübingen) mit Radius.
+4. Commit & PR:
+   - Commit: feat(frontend): integrate unified search into active VariantD_BottomBarSheet (closes #176)
+   - Push branch feat/issue-176-variant-d-unified-search
+   - PR via gh pr create --fill
