@@ -183,6 +183,7 @@ export function AdminDashboard() {
     matchNotes: '',
     submitterName: '',
     submitterRole: '',
+    scope: 'matchday',
   });
 
   const [isSavingEdit, setIsSavingEdit] = React.useState<boolean>(false);
@@ -399,6 +400,7 @@ export function AdminDashboard() {
         sub.submittedData?.matchNotes ?? sub.submittedData?.notes ?? '',
       submitterName: sub.submitterName || '',
       submitterRole: sub.submitterRole || '',
+      scope: sub.scope ?? 'matchday',
     });
   };
 
@@ -1425,6 +1427,7 @@ export function AdminDashboard() {
                         <th className="py-2.5 pr-4 font-medium">
                           Eingereichte Felder
                         </th>
+                        <th className="py-2.5 pr-4 font-medium">Geltungsbereich</th>
                         <th className="py-2.5 pr-4 font-medium">Status</th>
                         <th className="py-2.5 font-medium">Aktionen</th>
                       </tr>
@@ -1583,6 +1586,26 @@ export function AdminDashboard() {
                                     }}
                                   />
                                 </div>
+                              )}
+                            </td>
+
+                            <td className="whitespace-nowrap py-3 pr-4">
+                              {sub.scope === 'match' ? (
+                                <Badge
+                                  variant="outline"
+                                  data-testid={`submission-scope-${sub.id}`}
+                                  className="border-indigo-500/40 bg-indigo-500/10 text-indigo-300 text-[10px]"
+                                >
+                                  Nur dieses Spiel
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  data-testid={`submission-scope-${sub.id}`}
+                                  className="border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px]"
+                                >
+                                  Spieltag
+                                </Badge>
                               )}
                             </td>
 
@@ -1970,6 +1993,31 @@ export function AdminDashboard() {
                     className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="edit-scope"
+                  className="font-medium text-muted-foreground"
+                >
+                  Geltungsbereich (Scope)
+                </label>
+                <select
+                  id="edit-scope"
+                  data-testid="edit-scope-select"
+                  value={editFormData.scope || 'matchday'}
+                  onChange={(e) => {
+                    const nextScope = e.target.value === 'match' ? 'match' : 'matchday';
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      scope: nextScope,
+                    }));
+                  }}
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                >
+                  <option value="matchday">Spieltag (Halle am Spieltag / alle Spiele)</option>
+                  <option value="match">Nur dieses Spiel</option>
+                </select>
               </div>
 
               <div className="space-y-1">

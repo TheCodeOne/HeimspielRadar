@@ -172,6 +172,8 @@ export const matches = pgTable(
     result: text('result'),
     confirmed: boolean('confirmed').default(false).notNull(),
     admissionFee: text('admission_fee'),
+    kioskDescription: text('kiosk_description'),
+    parkingNotes: text('parking_notes'),
     matchNotes: text('match_notes'),
     isFeatured: boolean('is_featured').default(false).notNull(),
     featuredUntil: timestamp('featured_until'),
@@ -185,6 +187,8 @@ export const matches = pgTable(
     index('matches_kickoff_date_idx').on(table.kickoffDate),
   ]
 );
+
+export type VenueSubmissionScope = 'match' | 'matchday';
 
 export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';
 
@@ -205,6 +209,7 @@ export const venueSubmissions = pgTable('venue_submissions', {
   submitterName: text('submitter_name'),
   submitterRole: text('submitter_role'),
   submittedData: jsonb('submitted_data').$type<VenueSubmissionData>().notNull(),
+  scope: text('scope').$type<VenueSubmissionScope>().default('matchday').notNull(),
   status: text('status').$type<VenueSubmissionStatus>().default('pending').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

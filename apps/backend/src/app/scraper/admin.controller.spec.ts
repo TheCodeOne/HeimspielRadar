@@ -283,6 +283,66 @@ describe('AdminController', () => {
       expect(result.status).toBe('approved');
     });
 
+    it('approves submission with scope "match" and updates only the specific match', async () => {
+      mockSubmissionRow = {
+        ...mockSubmissionRow,
+        id: 16,
+        matchId: 102,
+        scope: 'match',
+        submittedData: {
+          admissionFee: '4 EUR',
+          kioskDescription: 'Gourmet Burger Special',
+          parkingNotes: 'Parkhaus P2 nutzen',
+          matchNotes: 'Topspiel der Woche',
+        },
+      };
+
+      const result = await controller.approveSubmission(16);
+
+      expect(result.status).toBe('approved');
+      // In scope 'match', only matches and venueSubmissions are updated (venues is NOT updated)
+      expect(updatedTables).toHaveLength(2);
+
+      const matchUpdate = updatedTables.find((u) => u.table === matches);
+      expect(matchUpdate?.values).toEqual(
+        expect.objectContaining({
+          admissionFee: '4 EUR',
+          kioskDescription: 'Gourmet Burger Special',
+          parkingNotes: 'Parkhaus P2 nutzen',
+          matchNotes: 'Topspiel der Woche',
+        })
+      );
+
+      const venueUpdate = updatedTables.find((u) => u.table === venues);
+      expect(venueUpdate).toBeUndefined();
+    });
+
+    it('approves submission with scope "matchday" and updates matches on date and venue record', async () => {
+      mockSubmissionRow = {
+        ...mockSubmissionRow,
+        id: 17,
+        matchId: 101,
+        venueId: 901,
+        scope: 'matchday',
+        submittedData: {
+          admissionFee: 'Frei',
+          kioskDescription: 'Ganztags Kiosk geöffnet',
+          parkingNotes: 'Hallenparkplatz',
+        },
+      };
+
+      const result = await controller.approveSubmission(17);
+
+      expect(result.status).toBe('approved');
+      const venueUpdate = updatedTables.find((u) => u.table === venues);
+      expect(venueUpdate?.values).toEqual(
+        expect.objectContaining({
+          kioskDescription: 'Ganztags Kiosk geöffnet',
+          parkingNotes: 'Hallenparkplatz',
+        })
+      );
+    });
+
     it('marks submission as rejected without updating match or venue on reject', async () => {
       const result = await controller.rejectSubmission(15);
 

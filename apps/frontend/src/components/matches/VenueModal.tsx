@@ -172,9 +172,18 @@ export function VenueModal({
               const isActiveMatch = venueMatch.id === selectedMatch.id;
               const isFeaturedMatch = Boolean(venueMatch.isFeatured);
 
-              const kioskTeaser =
+              const effectiveKiosk =
+                venueMatch.kioskDescription ??
                 venueMatch.venue?.kioskDescription ??
-                venue.kioskDescription ??
+                venue.kioskDescription;
+
+              const effectiveParking =
+                venueMatch.parkingNotes ??
+                venueMatch.venue?.parkingNotes ??
+                venue.parkingNotes;
+
+              const kioskTeaser =
+                effectiveKiosk ??
                 venueMatch.matchNotes;
 
               const matchLeagueName = formatLeagueName(
@@ -260,8 +269,8 @@ export function VenueModal({
                   )}
 
                   {(Boolean(venueMatch.admissionFee?.trim()) ||
-                    Boolean(venueMatch.venue?.kioskDescription?.trim()) ||
-                    Boolean(venueMatch.venue?.parkingNotes?.trim())) && (
+                    Boolean(effectiveKiosk?.trim()) ||
+                    Boolean(effectiveParking?.trim())) && (
                     <KioskInfoBadges
                       match={venueMatch}
                       size="sm"
@@ -270,7 +279,7 @@ export function VenueModal({
                   )}
 
                   {kioskTeaser &&
-                    !venueMatch.venue?.kioskDescription && (
+                    !effectiveKiosk && (
                       <div
                         data-testid="match-kiosk-teaser"
                         className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200"

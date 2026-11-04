@@ -57,6 +57,8 @@ export interface Match {
   result?: string | null;
   confirmed: boolean;
   admissionFee?: string | null;
+  kioskDescription?: string | null;
+  parkingNotes?: string | null;
   matchNotes?: string | null;
   submitterName?: string | null;
   submitterRole?: string | null;
@@ -64,6 +66,8 @@ export interface Match {
   featuredUntil?: string | null;
   distanceKm?: number;
 }
+
+export type VenueSubmissionScope = 'match' | 'matchday';
 
 export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';
 
@@ -104,6 +108,7 @@ export interface VenueSubmission {
   submitterName?: string | null;
   submitterRole?: string | null;
   submittedData: VenueSubmissionData;
+  scope?: VenueSubmissionScope;
   status: VenueSubmissionStatus;
   createdAt: string | Date;
   updatedAt: string | Date;
@@ -118,6 +123,7 @@ export interface CreateKioskSubmissionDto {
   matchNotes?: string;
   submitterName?: string;
   submitterRole?: string;
+  scope?: VenueSubmissionScope;
 }
 
 export interface UpdateSubmissionDto {
@@ -127,6 +133,7 @@ export interface UpdateSubmissionDto {
   matchNotes?: string | null;
   submitterName?: string | null;
   submitterRole?: string | null;
+  scope?: VenueSubmissionScope;
   status?: VenueSubmissionStatus;
 }
 
