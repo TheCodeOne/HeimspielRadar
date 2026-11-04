@@ -122,6 +122,8 @@ export interface RelationalMatchRow {
     submitterRole?: string | null;
     isFeatured?: boolean;
     featuredUntil?: Date | null;
+    featuredReason?: string | null;
+    featuredMeta?: unknown;
   };
   league?: {
     id: number;
@@ -594,6 +596,8 @@ export class MatchesService {
       submitterRole: row.match.submitterRole ?? undefined,
       isFeatured: row.match.isFeatured ?? undefined,
       featuredUntil: row.match.featuredUntil ? row.match.featuredUntil.toISOString() : undefined,
+      featuredReason: row.match.featuredReason ?? undefined,
+      featuredMeta: row.match.featuredMeta ?? undefined,
       distanceKm,
     };
   }

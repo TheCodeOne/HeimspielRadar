@@ -10,6 +10,7 @@ import { ScraperController } from './scraper.controller';
 import { ScraperSchedulerService } from './scraper-scheduler.service';
 import { ScraperService } from './scraper.service';
 import { TelegramNotifierService } from './telegram-notifier.service';
+import { TopMatchScoringService } from './top-match-scoring.service';
 
 @Module({
   imports: [DatabaseModule],
@@ -23,6 +24,7 @@ import { TelegramNotifierService } from './telegram-notifier.service';
     AdminApiGuard,
     AdminService,
     TelegramNotifierService,
+    TopMatchScoringService,
   ],
   exports: [
     ScraperService,
@@ -33,6 +35,7 @@ import { TelegramNotifierService } from './telegram-notifier.service';
     AdminApiGuard,
     AdminService,
     TelegramNotifierService,
+    TopMatchScoringService,
   ],
 })
 export class ScraperModule {}

@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import {
   GERMAN_BASKETBALL_VERBAENDE,
   VerbandInfo,
 } from '@sundayleague/shared-types';
 import { getActiveVerbaende, ScraperService } from './scraper.service';
+import { TopMatchScoringService } from './top-match-scoring.service';
 
 export interface ActiveVerband {
   id: number;
@@ -29,7 +30,10 @@ export class ScraperSchedulerService {
   private readonly logger = new Logger(ScraperSchedulerService.name);
   private isSyncRunning = false;
 
-  constructor(private readonly scraperService: ScraperService) {}
+  constructor(
+    private readonly scraperService: ScraperService,
+    @Optional() private readonly topMatchScoringService?: TopMatchScoringService
+  ) {}
 
   get isRunning(): boolean {
     return this.isSyncRunning || this.scraperService.isSyncActive();
@@ -145,5 +149,36 @@ export class ScraperSchedulerService {
    */
   async handleWeekendMatchSync(): Promise<void> {
     return this.handleDailyDeltaSync();
+  }
+
+  /**
+   * Daily Top Match Scoring: Evaluates and marks top matches per league at 02:00 Europe/Berlin daily.
+   */
+  @Cron('0 2 * * *', { name: 'daily-top-match-scoring', timeZone: 'Europe/Berlin' })
+  async handleDailyTopMatchScoring(): Promise<void> {
+    if (this.isCronDisabled()) {
+      this.logger.log('Daily top match scoring skipped (cron is disabled).');
+
+      return;
+    }
+
+    if (!this.topMatchScoringService) {
+      this.logger.warn('TopMatchScoringService is not available.');
+
+      return;
+    }
+
+    this.logger.log('Starting daily deterministic top match scoring at 02:00 Europe/Berlin...');
+
+    try {
+      const summary = await this.topMatchScoringService.calculateTopMatches();
+      this.logger.log(
+        `Top match scoring completed: ${summary.topMatchesFeatured} top matches featured across ` +
+          `${summary.leaguesProcessed} leagues (${summary.matchesEvaluated} matches evaluated, ` +
+          `${summary.preservedAdminCount} admin picks preserved).`
+      );
+    } catch (error) {
+      this.logger.error('Daily top match scoring failed:', error);
+    }
   }
 }

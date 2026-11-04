@@ -714,6 +714,8 @@ describe('AdminController', () => {
 
       expect(actualMs).toBeGreaterThanOrEqual(expectedMin);
       expect(actualMs).toBeLessThanOrEqual(expectedMax);
+      expect(updatedMatchValues.featuredReason).toBe('Von Admin ausgewählt');
+      expect(updatedMatchValues.featuredMeta).toEqual({ type: 'admin' });
     });
 
     it('resets isFeatured to false and featuredUntil to null when disabling feature', async () => {
@@ -741,6 +743,13 @@ describe('AdminController', () => {
       await expect(
         controller.featureMatch(999999, { isFeatured: true })
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('calculates top matches via POST /api/admin/top-matches/calculate', async () => {
+      const res = await controller.calculateTopMatches();
+
+      expect(res.success).toBe(false);
+      expect(res.message).toBe('TopMatchScoringService not available');
     });
   });
 });

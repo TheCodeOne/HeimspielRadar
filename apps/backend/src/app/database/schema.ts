@@ -179,6 +179,8 @@ export const matches = pgTable(
     submitterRole: text('submitter_role'),
     isFeatured: boolean('is_featured').default(false).notNull(),
     featuredUntil: timestamp('featured_until'),
+    featuredReason: text('featured_reason'),
+    featuredMeta: jsonb('featured_meta'),
     rawData: jsonb('raw_data'),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

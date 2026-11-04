@@ -161,6 +161,7 @@ export function AdminDashboard() {
   const [searchResults, setSearchResults] = React.useState<Match[]>([]);
   const [isSearchingMatches, setIsSearchingMatches] = React.useState<boolean>(false);
   const [togglingMatchId, setTogglingMatchId] = React.useState<number | null>(null);
+  const [isCalculatingTopMatches, setIsCalculatingTopMatches] = React.useState<boolean>(false);
 
   // Submissions & Moderation state
   const [submissions, setSubmissions] = React.useState<VenueSubmission[]>([]);
@@ -732,6 +733,58 @@ export function AdminDashboard() {
     }
   };
 
+  // Handle deterministic top match recalculation
+  const handleCalculateTopMatches = async () => {
+    setIsCalculatingTopMatches(true);
+
+    try {
+      const res = await fetch('/api/admin/top-matches/calculate', {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      // SAFETY: /api/admin/top-matches/calculate returns json summary
+      const data = (await res.json()) as {
+        success: boolean;
+        summary?: {
+          leaguesProcessed: number;
+          matchesEvaluated: number;
+          topMatchesFeatured: number;
+          preservedAdminCount: number;
+        };
+      };
+
+      if (data.success && data.summary) {
+        showFeedback(
+          'success',
+          `⚡ Topspiele erfolgreich neu berechnet! ${data.summary.topMatchesFeatured} Topspiele in ${data.summary.leaguesProcessed} Ligen ermittelt (${data.summary.preservedAdminCount} Admin-Picks beibehalten).`
+        );
+      } else {
+        showFeedback('success', '⚡ Topspiele erfolgreich neu berechnet!');
+      }
+
+      // Refresh featured matches list
+      const featuredRes = await fetch('/api/admin/matches/featured');
+
+      if (featuredRes.ok) {
+        // SAFETY: /api/admin/matches/featured returns Match[]
+        const featuredData = (await featuredRes.json()) as Match[];
+
+        if (Array.isArray(featuredData)) {
+          setFeaturedMatches(featuredData);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showFeedback('error', `Fehler bei der Neuberechnung der Topspiele: ${msg}`);
+    } finally {
+      setIsCalculatingTopMatches(false);
+    }
+  };
+
   const renderMatchRow = (match: Match, contextPrefix: string) => {
     const isFeatured = match.isFeatured === true;
     const isToggling = togglingMatchId === match.id;
@@ -1233,9 +1286,32 @@ export function AdminDashboard() {
                 {featuredMatches.length} aktiv
               </Badge>
             </div>
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              Standard-Laufzeit: 7 Tage
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCalculateTopMatches}
+                disabled={isCalculatingTopMatches}
+                className="border-amber-500/40 bg-amber-500/10 text-xs text-amber-300 hover:bg-amber-500/20 hover:text-amber-200 cursor-pointer"
+                data-testid="calculate-top-matches-button"
+              >
+                {isCalculatingTopMatches ? (
+                  <>
+                    <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
+                    <span>Berechne...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-1.5 size-3.5 text-amber-400" />
+                    <span>⚡ Topspiele neu berechnen</span>
+                  </>
+                )}
+              </Button>
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                Standard-Laufzeit: 7 Tage
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Debounced Live Search Bar */}
