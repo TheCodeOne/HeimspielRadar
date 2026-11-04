@@ -53,6 +53,7 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
 - `npm run lockfile:check` (when `package.json` or `package-lock.json` is modified)
 - `npm run test:backend` & `npm run build`
 - **Frontend Visual & E2E Check** (when `apps/frontend/` is modified): Run `PLAYWRIGHT_PORT=42<id> npm run test:e2e` to boot the worktree's local Vite server, test the changed UI interactively on Desktop (`1280x800`) and Mobile (`390x844`), and inspect the generated screenshots in `test-results/` via `view_file`.
+- **PR Screenshot Requirement for UI Changes**: Whenever files in `apps/frontend/` are touched, the agent MUST boot the local server inside the worktree, capture a screenshot of the change (Desktop & Mobile), and attach the screenshots or visual evidence directly to the Pull Request body description!
 
 ---
 
@@ -77,5 +78,10 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
     - Screen/Log des Agenten lesen: `hc read windows/agent-<task>`
     - Anweisungen an den Agenten senden: `hc send windows/agent-<task> "<neue anweisung>"`
   - **Direkte Builds & Tests**: `hc exec --on windows "wsl -d Ubuntu -- <command>"`
+  - **Synthetische `<hc>` Terminal-Exit Messages**:
+    - Herdr injiziert beim Beenden eines gestarteten Terminals automatisch ein Status-Event (`<hc>windows/<name> exited (exit N)...</hc>`) als synthetische Nachricht in den Chat.
+    - Diese Nachrichten stammen vom Herdr-Dämon, **nicht vom menschlichen User**.
+    - Fehlgeschlagene oder beendete Terminals sofort per `hc rm windows/<name>` aufräumen.
+    - Niemals durch solche Exit-Meldungen verwirren lassen; stattdessen immer den primär aktiven Agenten (`hc ls` / Transcript) prüfen.
 
 
