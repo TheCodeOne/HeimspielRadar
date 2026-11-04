@@ -172,18 +172,9 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(submitterTile1001).toBeVisible();
     await expect(submitterTile1001).toContainText('Gemeldet von Lena (Verein)');
 
-    const kioskBadge1001 = card1001.locator('[data-badge="kiosk-info"]');
-    await expect(kioskBadge1001).toBeVisible();
-    await expect(kioskBadge1001).toContainText('☕ Kiosk vorhanden');
-    await expect(kioskBadge1001).toHaveAttribute('title', 'Waffeln, Kuchen, Cola & Kaffee');
-
-    const parkingBadge1001 = card1001.locator('[data-badge="parking-notes"]');
-    await expect(parkingBadge1001).toBeVisible();
-    await expect(parkingBadge1001).toContainText('🅿️ Parkhinweis');
-
-    const submitterBadge1001 = card1001.locator('[data-badge="submitter-info"]');
-    await expect(submitterBadge1001).toBeVisible();
-    await expect(submitterBadge1001).toContainText('Gemeldet von Lena (Verein)');
+    // Issue #152: Redundant badges 'kiosk-info' and 'parking-notes' are removed to reduce clutter
+    await expect(card1001.locator('[data-badge="kiosk-info"]')).toHaveCount(0);
+    await expect(card1001.locator('[data-badge="parking-notes"]')).toHaveCount(0);
 
     // 2. Verify Paid Admission Badge on Match 1002
     const card1002 = page.locator('[data-match-id="1002"]');
@@ -298,12 +289,14 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(venueModal.locator('[data-badge="admission-fee"]')).toContainText(
       '🎟️ Eintritt frei',
     );
-    await expect(venueModal.locator('[data-badge="kiosk-info"]')).toContainText(
-      '☕ Kiosk vorhanden',
+    await expect(venueModal.locator('[data-tile="kiosk-info"]')).toContainText(
+      'Waffeln, Kuchen, Cola & Kaffee',
     );
-    await expect(venueModal.locator('[data-badge="parking-notes"]')).toContainText(
-      '🅿️ Parkhinweis',
+    await expect(venueModal.locator('[data-tile="parking-notes"]')).toContainText(
+      'Haupteingang über Pausenhof',
     );
+    await expect(venueModal.locator('[data-badge="kiosk-info"]')).toHaveCount(0);
+    await expect(venueModal.locator('[data-badge="parking-notes"]')).toHaveCount(0);
 
     const isMobile = testInfo.project.name.includes('mobile');
     await page.screenshot({
