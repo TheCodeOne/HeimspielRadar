@@ -61,16 +61,15 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
 
 - **Dedicated Remote Runner (`windows`)**: Der Windows-PC (`DIMI-PC`) ist per Herdr Core (`hc`) angebunden.
 - **REMOTE AGENT EXECUTION POLICY (MANDATORY)**:
-  - **Sämtliche Agenten (Subagenten, Task-Worker, Coding-Sessions)** werden **auf dem Windows-PC (`--on windows`) gespawnt**, NICHT lokal auf dem Mac!
+  - **Sämtliche Agenten (Subagenten, Task-Worker, Coding-Sessions)** werden **auf dem Windows-PC (`--on windows`) im WSL Ubuntu** gespawnt, NICHT lokal auf dem Mac!
+  - **MANDATORY MODEL FLAG**: Alle `agy`-Agenten MÜSSEN ZWINGEND mit `--model gemini-3.8-flash-medium` gestartet werden (`agy --model gemini-3.8-flash-medium --dangerously-skip-permissions ...`)! Niemals das Default-Modell (Argon) verwenden, da dieses sofort ins Quota-Limit läuft!
   - Lokale Agenten auf dem Mac dienen nur als Dispatcher/Koordinator.
   - Sobald eine Aufgabe, ein Feature, ein Refactoring oder ein Testlauf an einen Agenten übergeben wird, startet dieser remote auf Windows.
 - **Herdr Remote Commands**:
-  - **Agent auf Windows starten**:
+  - **Agent auf Windows / WSL starten**:
     ```bash
-    # z. B. Antigravity CLI Agent (agy) im Hintergrund auf Windows starten:
-    hc run --bg --name agent-<task> --on windows "agy --dangerously-skip-permissions --prompt '<anweisung>'"
-    # oder im WSL Ubuntu:
-    hc run --bg --name agent-<task> --on windows "wsl -d Ubuntu -- <agent-command>"
+    # Im WSL Ubuntu mit gemini-3.8-flash-medium:
+    hc run --bg --name agent-<task> --on windows "wsl -d Ubuntu -- agy --model gemini-3.8-flash-medium --dangerously-skip-permissions -p '<anweisung>'"
     ```
   - **Agent-Status & Kommunikation**:
     - Status & laufende Agenten: `hc ls`
