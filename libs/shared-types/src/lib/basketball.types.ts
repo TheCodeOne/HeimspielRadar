@@ -64,6 +64,8 @@ export interface Match {
   submitterRole?: string | null;
   isFeatured?: boolean;
   featuredUntil?: string | null;
+  featuredReason?: string | null;
+  featuredMeta?: unknown;
   distanceKm?: number;
 }
 

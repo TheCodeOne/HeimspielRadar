@@ -56,6 +56,8 @@ export interface AdminRelationalMatchRow {
     matchNotes?: string | null;
     isFeatured?: boolean;
     featuredUntil?: Date | string | null;
+    featuredReason?: string | null;
+    featuredMeta?: unknown;
   };
   league?: {
     id: number;
@@ -940,6 +942,8 @@ export class AdminService {
       matchNotes: row.match.matchNotes ?? undefined,
       isFeatured: Boolean(row.match.isFeatured),
       featuredUntil: featuredUntilIso,
+      featuredReason: row.match.featuredReason ?? undefined,
+      featuredMeta: row.match.featuredMeta ?? undefined,
     };
   }
 
@@ -1071,11 +1075,16 @@ export class AdminService {
       ? new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
       : null;
 
+    const featuredReason = dto.isFeatured ? 'Von Admin ausgewählt' : null;
+    const featuredMeta = dto.isFeatured ? { type: 'admin' } : null;
+
     const [updated] = await this.db
       .update(matches)
       .set({
         isFeatured: dto.isFeatured,
         featuredUntil,
+        featuredReason,
+        featuredMeta,
         updatedAt: now,
       })
       .where(eq(matches.id, matchId))
@@ -1150,6 +1159,8 @@ export class AdminService {
         updated.featuredUntil instanceof Date
           ? updated.featuredUntil.toISOString()
           : (updated.featuredUntil ?? null),
+      featuredReason: updated.featuredReason ?? undefined,
+      featuredMeta: updated.featuredMeta ?? undefined,
     };
   }
 

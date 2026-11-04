@@ -63,7 +63,8 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
         : 'border-border/70 hover:border-primary/50 hover:bg-muted/20 hover:shadow-xs';
 
     const hasKioskOrVenueInfo = Boolean(
-      match.admissionFee?.trim() ||
+      isFeatured ||
+        match.admissionFee?.trim() ||
         effectiveKiosk?.trim() ||
         effectiveParking?.trim() ||
         match.matchNotes?.trim() ||
@@ -107,11 +108,12 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                   variant="featured"
                   data-testid="featured-match-badge"
                   className="text-[11px]"
+                  title={match.featuredReason ?? undefined}
                 >
                   <span className="mr-1" aria-hidden="true">
                     ⭐
                   </span>
-                  Spiel des Tages / Derby-Tipp
+                  {match.featuredReason ? `Topspiel: ${match.featuredReason}` : 'Spiel des Tages / Derby-Tipp'}
                 </Badge>
               )}
 

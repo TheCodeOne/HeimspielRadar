@@ -27,6 +27,7 @@ import { AdminApiGuard } from './admin-api.guard';
 import { AdminService, verifyAdminToken } from './admin.service';
 import { ScraperService } from './scraper.service';
 import { TelegramNotifierService } from './telegram-notifier.service';
+import { TopMatchScoringService } from './top-match-scoring.service';
 
 function toSyncRunDto(row: typeof syncRuns.$inferSelect | null): SyncRun | null {
   if (!row) {
@@ -60,7 +61,8 @@ export class AdminController {
     private readonly scraperService: ScraperService,
     private readonly telegramNotifier: TelegramNotifierService,
     @Optional() @Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null,
-    @Optional() private readonly adminService?: AdminService
+    @Optional() private readonly adminService?: AdminService,
+    @Optional() private readonly topMatchScoringService?: TopMatchScoringService
   ) {
     this.resolvedAdminService =
       this.adminService ?? new AdminService(this.db, this.telegramNotifier);
@@ -198,5 +200,23 @@ export class AdminController {
     @Body() dto: FeatureMatchDto
   ) {
     return this.resolvedAdminService.featureMatch(id, dto);
+  }
+
+  @Post('top-matches/calculate')
+  async calculateTopMatches() {
+    if (!this.topMatchScoringService) {
+      return {
+        success: false,
+        message: 'TopMatchScoringService not available',
+        summary: null,
+      };
+    }
+
+    const summary = await this.topMatchScoringService.calculateTopMatches();
+
+    return {
+      success: true,
+      summary,
+    };
   }
 }

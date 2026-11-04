@@ -104,6 +104,8 @@ export function getSampleMatches(): Match[] {
       confirmed: true,
       result: null,
       isFeatured: true,
+      featuredReason: 'Tabellenplatzierung (+18) • Spitzenspiel (+15) • Tabellennachbarn (+10)',
+      featuredMeta: { type: 'algorithm', score: 43 },
       admissionFee: '3,00 €',
       matchNotes: 'Spitzenspiel der Oberliga Württemberg mit Hallensprecher & Halbzeit-Shootout',
       homeTeam: {

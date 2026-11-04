@@ -84,13 +84,22 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   className = '',
   size = 'default',
 }) => {
+  const isFeatured = Boolean(match.isFeatured);
+  const featuredReason = match.featuredReason?.trim() || null;
   const admissionFee = match.admissionFee?.trim() || null;
   const kioskDescription = (match.kioskDescription ?? match.venue?.kioskDescription)?.trim() || null;
   const parkingNotes = (match.parkingNotes ?? match.venue?.parkingNotes)?.trim() || null;
   const matchNotes = match.matchNotes?.trim() || null;
   const submitterInfo = formatSubmitterInfo(match);
 
-  if (!admissionFee && !kioskDescription && !parkingNotes && !matchNotes && !submitterInfo) {
+  if (
+    !isFeatured &&
+    !admissionFee &&
+    !kioskDescription &&
+    !parkingNotes &&
+    !matchNotes &&
+    !submitterInfo
+  ) {
     return null;
   }
 
@@ -106,9 +115,24 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
       onClick={stopPropagation}
       data-testid="kiosk-info-badges"
     >
-      {/* 1. Direct Information Tiles (Kiosk, Parking, Match Notes, Submitter) */}
-      {(kioskDescription || parkingNotes || matchNotes || submitterInfo) && (
+      {/* 1. Direct Information Tiles (Topspiel, Kiosk, Parking, Match Notes, Submitter) */}
+      {(isFeatured || kioskDescription || parkingNotes || matchNotes || submitterInfo) && (
         <div className="flex flex-col gap-1.5" data-testid="kiosk-info-tiles">
+          {isFeatured && (
+            <div
+              data-tile="top-match-info"
+              className="flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1.5 text-xs text-amber-200 shadow-xs"
+            >
+              <span className="shrink-0 text-sm leading-none" aria-hidden="true">
+                ⭐
+              </span>
+              <div className="min-w-0 flex-1 leading-snug">
+                <span className="font-semibold text-amber-300">Topspiel: </span>
+                <span className="text-amber-100">{featuredReason ?? 'Von Admin ausgewählt'}</span>
+              </div>
+            </div>
+          )}
+
           {kioskDescription && (
             <div
               data-tile="kiosk-info"
