@@ -948,6 +948,8 @@ describe('MatchesService', () => {
           confirmed: true,
           admissionFee: 'Eintritt frei',
           matchNotes: 'Derby mit Tombola in der Halbzeitpause',
+          submitterName: 'Lena',
+          submitterRole: 'Verein',
           isFeatured: true,
           featuredUntil: featuredUntilDate,
         },
@@ -971,6 +973,8 @@ describe('MatchesService', () => {
 
       expect(result.admissionFee).toBe('Eintritt frei');
       expect(result.matchNotes).toBe('Derby mit Tombola in der Halbzeitpause');
+      expect(result.submitterName).toBe('Lena');
+      expect(result.submitterRole).toBe('Verein');
       expect(result.isFeatured).toBe(true);
       expect(result.featuredUntil).toBe('2026-11-15T20:00:00.000Z');
       expect(result.venue?.kioskDescription).toBe('Kaffee & Kuchen, Kaltgetränke, Brezeln');

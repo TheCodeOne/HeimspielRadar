@@ -118,6 +118,8 @@ export interface RelationalMatchRow {
     kioskDescription?: string | null;
     parkingNotes?: string | null;
     matchNotes?: string | null;
+    submitterName?: string | null;
+    submitterRole?: string | null;
     isFeatured?: boolean;
     featuredUntil?: Date | null;
   };
@@ -588,6 +590,8 @@ export class MatchesService {
       parkingNotes:
         row.match.parkingNotes ?? row.venue?.parkingNotes ?? undefined,
       matchNotes: row.match.matchNotes ?? undefined,
+      submitterName: row.match.submitterName ?? undefined,
+      submitterRole: row.match.submitterRole ?? undefined,
       isFeatured: row.match.isFeatured ?? undefined,
       featuredUntil: row.match.featuredUntil ? row.match.featuredUntil.toISOString() : undefined,
       distanceKm,

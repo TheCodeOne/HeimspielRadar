@@ -175,6 +175,8 @@ export const matches = pgTable(
     kioskDescription: text('kiosk_description'),
     parkingNotes: text('parking_notes'),
     matchNotes: text('match_notes'),
+    submitterName: text('submitter_name'),
+    submitterRole: text('submitter_role'),
     isFeatured: boolean('is_featured').default(false).notNull(),
     featuredUntil: timestamp('featured_until'),
     rawData: jsonb('raw_data'),
