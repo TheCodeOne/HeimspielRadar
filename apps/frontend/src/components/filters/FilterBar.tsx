@@ -968,7 +968,7 @@ export function FilterBar({
               </Badge>
             </div>
 
-            <div>
+            <div className="w-full space-y-1.5">
               <Slider
                 value={[radiusKm]}
                 min={5}
@@ -982,9 +982,10 @@ export function FilterBar({
                   }
                 }}
                 aria-label="Suchradius in Kilometern"
+                className="w-full"
               />
 
-              <div className="mt-1 flex justify-between text-[10px] font-mono text-muted-foreground">
+              <div className="flex w-full items-center justify-between text-[10px] font-mono text-muted-foreground select-none">
                 <span>5 km</span>
                 <span>25 km</span>
                 <span>50 km</span>

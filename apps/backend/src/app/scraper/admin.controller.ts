@@ -17,6 +17,7 @@ import { sql } from 'drizzle-orm';
 import {
   AdminStatusResponse,
   FeatureMatchDto,
+  PaginatedMatchesResponse,
   SyncRun,
   SyncTriggerDto,
   UpdateSubmissionDto,
@@ -190,8 +191,21 @@ export class AdminController {
   }
 
   @Get('matches/featured')
-  async getFeaturedMatches() {
-    return this.resolvedAdminService.getFeaturedMatches();
+  async getFeaturedMatches(
+    @Query('page') pageQuery?: string,
+    @Query('limit') limitQuery?: string,
+    @Query('query') queryParam?: string,
+    @Query('q') qParam?: string
+  ): Promise<PaginatedMatchesResponse> {
+    const page = pageQuery !== undefined ? parseInt(pageQuery, 10) : 1;
+    const limit = limitQuery !== undefined ? parseInt(limitQuery, 10) : 25;
+    const query = queryParam ?? qParam;
+
+    return this.resolvedAdminService.getFeaturedMatches({
+      page: isNaN(page) ? 1 : page,
+      limit: isNaN(limit) ? 25 : limit,
+      query,
+    });
   }
 
   @Post('matches/:id/feature')

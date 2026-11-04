@@ -23,6 +23,7 @@ import type {
   FeatureMatchDto,
   League,
   Match,
+  PaginatedMatchesResponse,
   TopMatchMeta,
   UpdateSubmissionDto,
   VenueSubmission,
@@ -1014,39 +1015,104 @@ export class AdminService {
   }
 
   /**
-   * Lists all currently active Featured Matches (`is_featured = true` and not yet expired).
+   * Lists active Featured Matches (`is_featured = true` and not yet expired) with server-side pagination and search.
    */
-  async getFeaturedMatches(): Promise<Match[]> {
+  async getFeaturedMatches(options?: {
+    page?: number;
+    limit?: number;
+    query?: string;
+  }): Promise<PaginatedMatchesResponse> {
     if (!this.db) {
       throw new Error('Database is not configured!');
     }
+
+    const page = Math.max(1, Math.floor(Number(options?.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(options?.limit) || 25)));
+    const offset = (page - 1) * limit;
 
     const now = new Date();
     const homeTeam = aliasedTable(teams, 'home_team');
     const guestTeam = aliasedTable(teams, 'guest_team');
 
-    const rows = await this.db
-      .select({
-        match: matches,
-        league: leagues,
-        homeTeam,
-        guestTeam,
-        venue: venues,
-      })
-      .from(matches)
-      .innerJoin(leagues, eq(matches.leagueId, leagues.id))
-      .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
-      .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
-      .leftJoin(venues, eq(matches.venueId, venues.id))
-      .where(
-        and(
-          eq(matches.isFeatured, true),
-          or(isNull(matches.featuredUntil), gte(matches.featuredUntil, now))
-        )
-      )
-      .orderBy(asc(matches.kickoffDate), asc(matches.kickoffTime));
+    const conditions: SQL[] = [
+      eq(matches.isFeatured, true),
+      or(isNull(matches.featuredUntil), gte(matches.featuredUntil, now))!,
+    ];
 
-    return rows.map((row) => this.mapAdminMatchRow(row));
+    const trimmed = options?.query ? options.query.trim() : '';
+
+    if (trimmed) {
+      const tokens = trimmed.split(/\s+/).filter(Boolean);
+
+      const tokenConditions = tokens.map((token) => {
+        const pattern = `%${token}%`;
+
+        const orClauses: SQL[] = [
+          ilike(homeTeam.name, pattern),
+          ilike(homeTeam.shortName, pattern),
+          ilike(guestTeam.name, pattern),
+          ilike(guestTeam.shortName, pattern),
+          ilike(leagues.name, pattern),
+          ilike(sql`coalesce(${leagues.skName}, ${leagues.rawData}->>'skName')`, pattern),
+          ilike(sql`coalesce(${leagues.akName}, ${leagues.rawData}->>'akName')`, pattern),
+          ilike(venues.name, pattern),
+          ilike(venues.city, pattern),
+        ];
+
+        if (/^\d+$/.test(token)) {
+          const numericId = parseInt(token, 10);
+
+          if (!Number.isNaN(numericId)) {
+            orClauses.push(eq(matches.id, numericId));
+          }
+        }
+
+        return or(...orClauses)!;
+      });
+
+      conditions.push(...tokenConditions);
+    }
+
+    const whereClause = and(...conditions);
+
+    const [countResult, rows] = await Promise.all([
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(matches)
+        .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+        .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+        .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+        .leftJoin(venues, eq(matches.venueId, venues.id))
+        .where(whereClause),
+      this.db
+        .select({
+          match: matches,
+          league: leagues,
+          homeTeam,
+          guestTeam,
+          venue: venues,
+        })
+        .from(matches)
+        .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+        .innerJoin(homeTeam, eq(matches.homeTeamId, homeTeam.id))
+        .innerJoin(guestTeam, eq(matches.guestTeamId, guestTeam.id))
+        .leftJoin(venues, eq(matches.venueId, venues.id))
+        .where(whereClause)
+        .orderBy(asc(matches.kickoffDate), asc(matches.kickoffTime))
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    const total = countResult[0]?.count ? Number(countResult[0].count) : 0;
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return {
+      data: rows.map((row) => this.mapAdminMatchRow(row)),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   /**

@@ -91,6 +91,14 @@ export interface Match {
   distanceKm?: number;
 }
 
+export interface PaginatedMatchesResponse {
+  data: Match[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export type VenueSubmissionScope = 'match' | 'matchday';
 
 export type VenueSubmissionStatus = 'pending' | 'approved' | 'rejected';

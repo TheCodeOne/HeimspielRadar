@@ -14,6 +14,7 @@
     "test": "nx run-many -t test",
     "test:backend": "nx test backend",
     "test:e2e": "playwright test",
+    "screenshot": "node scripts/capture-pr-screenshot.mjs",
     "lint": "nx run-many -t lint",
     "lint:oxlint": "oxlint",
     "db:push": "drizzle-kit push",

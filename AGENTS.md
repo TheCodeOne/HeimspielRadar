@@ -52,8 +52,15 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
 - `npm run db:check` (when `schema.ts` or `drizzle/migrations/` is modified)
 - `npm run lockfile:check` (when `package.json` or `package-lock.json` is modified)
 - `npm run test:backend` & `npm run build`
-- **Frontend Visual & E2E Check** (when `apps/frontend/` is modified): Run `PLAYWRIGHT_PORT=42<id> npm run test:e2e` to boot the worktree's local Vite server, test the changed UI interactively on Desktop (`1280x800`) and Mobile (`390x844`), and inspect the generated screenshots in `test-results/` via `view_file`.
-- **PR Screenshot Requirement for UI Changes**: Whenever files in `apps/frontend/` are touched, the agent MUST boot the local server inside the worktree, capture a screenshot of the change (Desktop & Mobile), and attach the screenshots or visual evidence directly to the Pull Request body description!
+- **Frontend Visual & E2E Check** (when `apps/frontend/` is modified): Run `PLAYWRIGHT_PORT=42<id> npm run test:e2e` to test regression suites.
+- **PR Screenshot Requirement for UI Changes**:
+  - Whenever files in `apps/frontend/` are touched, the agent MUST capture visual evidence (Desktop `1280x800` & Mobile `390x844`) and attach the screenshots or visual evidence directly to the Pull Request body description!
+  - **MANDATORY TOOLING**: Agents dürfen **KEINE neuen `e2e/*.spec.ts` Dateien erfinden**, nur um Screenshots zu machen!
+  - Nutze **immer** das standardisierte Screenshot-Tool:
+    ```bash
+    npm run screenshot -- --name <feature> [--click <selector>] [--wait <ms>] [--path <url-path>] [--port <port>]
+    ```
+    Das Skript (`scripts/capture-pr-screenshot.mjs`) scannt automatisch aktive Dev-Server-Ports, erzeugt synchron ein Desktop/Mobile-Paar in `test-results/<name>-{desktop,mobile}.png` und ist vor Hangs/Animation-Deadlocks geschützt.
 
 ---
 
