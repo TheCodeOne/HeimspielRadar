@@ -246,7 +246,7 @@ export function VariantA_QuickFilterBar({
                   Suchradius
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mb-3">
-                  {[10, 25, 50, 100].map((km) => (
+                  {[10, 20, 35, 50].map((km) => (
                     <button
                       key={km}
                       type="button"
