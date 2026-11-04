@@ -14,6 +14,7 @@ import {
   Match,
   NearbyMatchesQuery,
   TeamSuggestion,
+  TopMatchMeta,
   VenueSubmission,
   VenueSubmissionScope,
 } from '@sundayleague/shared-types';
@@ -597,7 +598,8 @@ export class MatchesService {
       isFeatured: row.match.isFeatured ?? undefined,
       featuredUntil: row.match.featuredUntil ? row.match.featuredUntil.toISOString() : undefined,
       featuredReason: row.match.featuredReason ?? undefined,
-      featuredMeta: row.match.featuredMeta ?? undefined,
+      // SAFETY: DB jsonb featured_meta stores TopMatchMeta
+      featuredMeta: (row.match.featuredMeta as TopMatchMeta) ?? undefined,
       distanceKm,
     };
   }

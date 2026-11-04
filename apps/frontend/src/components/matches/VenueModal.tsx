@@ -13,6 +13,7 @@ import { getMatchLinks } from '@/lib/match-links';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
 import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
+import { TopMatchInfoModal } from '@/components/matches/TopMatchInfoModal';
 import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
 export interface VenueModalProps {
@@ -35,6 +36,7 @@ export function VenueModal({
   onClose,
 }: VenueModalProps) {
   const [localModalMatch, setLocalModalMatch] = React.useState<Match | null>(null);
+  const [selectedTopMatch, setSelectedTopMatch] = React.useState<Match | null>(null);
   const [localToast, setLocalToast] = React.useState<string | null>(null);
 
   const {
@@ -51,6 +53,10 @@ export function VenueModal({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (selectedTopMatch !== null || localModalMatch !== null) {
+          return;
+        }
+
         closeWithAnimation();
       }
     };
@@ -58,7 +64,7 @@ export function VenueModal({
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeWithAnimation]);
+  }, [closeWithAnimation, selectedTopMatch, localModalMatch]);
 
   if (!selectedMatch?.venue) {
     return null;
@@ -227,12 +233,28 @@ export function VenueModal({
                         <Badge
                           variant="featured"
                           data-testid="featured-match-badge"
-                          className="text-[10px]"
+                          role="button"
+                          tabIndex={0}
+                          className="text-[10px] cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+                          title={venueMatch.featuredReason ?? 'Topspiel-Details & Berechnungsgrundlage anzeigen'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTopMatch(venueMatch);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSelectedTopMatch(venueMatch);
+                            }
+                          }}
                         >
                           <span className="mr-1" aria-hidden="true">
                             ⭐
                           </span>
-                          Spiel des Tages / Derby-Tipp
+                          {venueMatch.featuredReason
+                            ? `Topspiel: ${venueMatch.featuredReason}`
+                            : 'Spiel des Tages / Derby-Tipp'}
                         </Badge>
                       )}
                       <Badge variant="league" className="text-[10px]">
@@ -268,12 +290,16 @@ export function VenueModal({
                     </div>
                   )}
 
-                  {(Boolean(venueMatch.admissionFee?.trim()) ||
+                  {(isFeaturedMatch ||
+                    Boolean(venueMatch.admissionFee?.trim()) ||
                     Boolean(effectiveKiosk?.trim()) ||
-                    Boolean(effectiveParking?.trim())) && (
+                    Boolean(effectiveParking?.trim()) ||
+                    Boolean(venueMatch.matchNotes?.trim()) ||
+                    Boolean(venueMatch.submitterName?.trim())) && (
                     <KioskInfoBadges
                       match={venueMatch}
                       size="sm"
+                      onOpenTopMatchInfo={() => setSelectedTopMatch(venueMatch)}
                       className="mt-2 border-t border-border/30 pt-2"
                     />
                   )}
@@ -361,6 +387,13 @@ export function VenueModal({
           )}
         </>
       )}
+
+      {/* Top Match Calculation Info Modal */}
+      <TopMatchInfoModal
+        match={selectedTopMatch}
+        isOpen={selectedTopMatch !== null}
+        onClose={() => setSelectedTopMatch(null)}
+      />
     </div>
   );
 }

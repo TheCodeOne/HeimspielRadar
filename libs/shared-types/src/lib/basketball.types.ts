@@ -42,6 +42,28 @@ export interface Venue {
   parkingNotes?: string | null;
 }
 
+export interface TopMatchFactor {
+  name: string;
+  points: number;
+  description: string;
+}
+
+export interface TopMatchScoringMeta {
+  type: 'algorithm';
+  score: number;
+  factors: TopMatchFactor[];
+  distanceKm?: number | null;
+  homeRank?: number | null;
+  guestRank?: number | null;
+  totalTeams?: number | null;
+}
+
+export interface TopMatchAdminMeta {
+  type: 'admin';
+}
+
+export type TopMatchMeta = TopMatchScoringMeta | TopMatchAdminMeta;
+
 export interface Match {
   id: number; // matchId from DBB
   leagueId: number;
@@ -65,7 +87,7 @@ export interface Match {
   isFeatured?: boolean;
   featuredUntil?: string | null;
   featuredReason?: string | null;
-  featuredMeta?: unknown;
+  featuredMeta?: TopMatchMeta | null;
   distanceKm?: number;
 }
 

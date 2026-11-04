@@ -12,4 +12,8 @@ export * from './KioskInfoBadges';
 
 export * from './KioskSubmissionModal';
 
+export * from './TopMatchInfoModal';
+
+export * from './TopMatchInfoModal';
+
 

@@ -105,7 +105,31 @@ export function getSampleMatches(): Match[] {
       result: null,
       isFeatured: true,
       featuredReason: 'Tabellenplatzierung (+18) • Spitzenspiel (+15) • Tabellennachbarn (+10)',
-      featuredMeta: { type: 'algorithm', score: 43 },
+      featuredMeta: {
+        type: 'algorithm',
+        score: 43,
+        factors: [
+          {
+            name: 'Tabellenplatzierung',
+            points: 18,
+            description: 'Beide Teams unter den Top 4 der Liga (Platz 1 & 3)',
+          },
+          {
+            name: 'Spitzenspiel',
+            points: 15,
+            description: 'Direktes Duell um die Tabellenspitze',
+          },
+          {
+            name: 'Tabellennachbarn',
+            points: 10,
+            description: 'Maximal 2 Tabellenplätze Abstand',
+          },
+        ],
+        distanceKm: 58.4,
+        homeRank: 1,
+        guestRank: 3,
+        totalTeams: 12,
+      },
       admissionFee: '3,00 €',
       matchNotes: 'Spitzenspiel der Oberliga Württemberg mit Hallensprecher & Halbzeit-Shootout',
       homeTeam: {
