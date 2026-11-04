@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
-  Trophy,
   Users,
   X,
 } from 'lucide-react';
@@ -18,7 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import type { FilterBarProps } from '@/components/filters/FilterBar';
-import { TeamSearchInput } from '@/components/filters/shared/TeamSearchInput';
+import { UnifiedSearchInput } from '@/components/filters/shared/UnifiedSearchInput';
+import type { CitySuggestion } from '@/lib/cities';
+import { STUTTGART_FALLBACK } from '@/lib/geo-utils';
+import type { TeamSuggestion } from '@sundayleague/shared-types';
 import type { MatchFiltersState } from '@/lib/use-match-filters';
 import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
@@ -121,6 +123,7 @@ export function VariantD_BottomBarSheet({
   }, [isOpen]);
 
   const {
+    location,
     dateMode,
     dateFrom,
     dateTo,
@@ -134,6 +137,7 @@ export function VariantD_BottomBarSheet({
   } = filters;
 
   const {
+    setLocation,
     setDateMode,
     setDateRange,
     setOnlyUpcoming,
@@ -143,6 +147,57 @@ export function VariantD_BottomBarSheet({
     setAgeClasses,
     resetFilters,
   } = actions;
+
+  const isCustomCityActive = Boolean(
+    !teamQuery &&
+      location?.name &&
+      (location.name !== STUTTGART_FALLBACK.name ||
+        Math.abs(location.lat - STUTTGART_FALLBACK.lat) > 0.001 ||
+        Math.abs(location.lng - STUTTGART_FALLBACK.lng) > 0.001),
+  );
+
+  const handleSelectCity = React.useCallback(
+    (city: CitySuggestion) => {
+      setLocation({
+        lat: city.lat,
+        lng: city.lng,
+        name: city.name,
+      });
+      setTeamQuery(undefined);
+    },
+    [setLocation, setTeamQuery],
+  );
+
+  const handleSelectTeam = React.useCallback(
+    (s: TeamSuggestion) => {
+      setTeamQuery(s.name);
+
+      if (s.akName) {
+        setAgeClasses([s.akName]);
+      }
+
+      if (s.geschlecht) {
+        setGenders([s.geschlecht]);
+      }
+    },
+    [setAgeClasses, setGenders, setTeamQuery],
+  );
+
+  const handleSelectRawTeam = React.useCallback(
+    (raw: string) => {
+      setTeamQuery(raw);
+    },
+    [setTeamQuery],
+  );
+
+  const handleClearTeam = React.useCallback(() => {
+    setTeamQuery(undefined);
+  }, [setTeamQuery]);
+
+  const handleClearCity = React.useCallback(() => {
+    setLocation(STUTTGART_FALLBACK);
+    setRadiusKm(30);
+  }, [setLocation, setRadiusKm]);
 
   const effectiveMatchCount =
     availableOptions.matchesCount ?? availableOptions.matchCount ?? 0;
@@ -292,28 +347,21 @@ export function VariantD_BottomBarSheet({
         </div>
       </div>
 
-      {/* 3. Vereinssuche */}
+      {/* 3. Kombinierte Suche (Stadt, PLZ oder Verein) */}
       <div className="space-y-2">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Trophy className="h-3.5 w-3.5 text-primary" />
-          Verein / Team
+          <Search className="h-3.5 w-3.5 text-primary" />
+          Ort oder Verein
         </span>
-        <TeamSearchInput
-          value={teamQuery || ''}
-          placeholder="Verein oder Team suchen..."
-          onSelectSuggestion={(s) => {
-            setTeamQuery(s.name);
-
-            if (s.akName) {
-              setAgeClasses([s.akName]);
-            }
-
-            if (s.geschlecht) {
-              setGenders([s.geschlecht]);
-            }
-          }}
-          onSelectRawQuery={(raw) => setTeamQuery(raw)}
-          onClear={() => setTeamQuery(undefined)}
+        <UnifiedSearchInput
+          location={location}
+          teamQuery={teamQuery}
+          radiusKm={radiusKm}
+          onSelectCity={handleSelectCity}
+          onSelectTeam={handleSelectTeam}
+          onSelectRawTeam={handleSelectRawTeam}
+          onClearCity={handleClearCity}
+          onClearTeam={handleClearTeam}
         />
       </div>
 
@@ -515,16 +563,39 @@ export function VariantD_BottomBarSheet({
             {/* Row 1: Native Search Capsule & Filter Trigger */}
             <div className="flex items-center gap-2">
               {teamQuery ? (
-                <div className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs">
+                <div
+                  data-testid="bottom-bar-team-chip"
+                  className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs"
+                >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Trophy className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="text-sm shrink-0">🏀</span>
                     <span className="truncate">{teamQuery}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setTeamQuery(undefined)}
+                    onClick={handleClearTeam}
                     className="rounded-full p-1 hover:bg-primary/20 text-primary transition"
                     aria-label="Vereinsfilter aufheben"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : isCustomCityActive ? (
+                <div
+                  data-testid="bottom-bar-city-chip"
+                  className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm shrink-0">📍</span>
+                    <span className="truncate">
+                      {location.name} (Radius: {radiusKm} km)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearCity}
+                    className="rounded-full p-1 hover:bg-primary/20 text-primary transition"
+                    aria-label="Ortsfilter aufheben"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -532,7 +603,13 @@ export function VariantD_BottomBarSheet({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setIsMobileSheetOpen(true)}
+                  onClick={() => {
+                    if (window.innerWidth < 768) {
+                      setIsMobileSheetOpen(true);
+                    } else {
+                      setIsSidebarCollapsed(false);
+                    }
+                  }}
                   className="flex flex-1 items-center gap-2.5 rounded-2xl border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition shadow-inner group"
                 >
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -540,10 +617,10 @@ export function VariantD_BottomBarSheet({
                   </div>
                   <div className="min-w-0 text-left">
                     <span className="block truncate font-medium text-slate-200 group-hover:text-primary transition leading-tight">
-                      Verein oder Team suchen...
+                      Stadt, PLZ oder Verein suchen...
                     </span>
                     <span className="block truncate text-[10px] text-slate-400 font-mono">
-                      {dateLabel} • {radiusKm} km • {effectiveMatchCount} Spiele
+                      {location?.name ? `📍 ${location.name} (${radiusKm} km)` : `${radiusKm} km`} • {dateLabel} • {effectiveMatchCount} Spiele
                     </span>
                   </div>
                 </button>
@@ -656,15 +733,25 @@ export function VariantD_BottomBarSheet({
             onTouchMove={handleBarTouchMove}
             className="pointer-events-auto flex items-center divide-x divide-slate-700/80 rounded-full border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-white/10 transition hover:border-slate-500"
           >
-            {/* Segment 1: Team Search Trigger */}
+            {/* Segment 1: Unified Search Trigger */}
             <button
               type="button"
-              onClick={() => setIsMobileSheetOpen(true)}
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileSheetOpen(true);
+                } else {
+                  setIsSidebarCollapsed(false);
+                }
+              }}
               className="flex items-center gap-2 px-3 py-1 text-left text-xs font-semibold text-slate-200 hover:text-primary transition"
             >
               <Search className="h-4 w-4 text-primary shrink-0" />
-              <span className="truncate max-w-[110px] sm:max-w-[150px]">
-                {teamQuery ? teamQuery : 'Verein suchen...'}
+              <span className="truncate max-w-[120px] sm:max-w-[160px]">
+                {teamQuery
+                  ? `🏀 ${teamQuery}`
+                  : isCustomCityActive
+                  ? `📍 ${location.name}`
+                  : 'Stadt, PLZ oder Verein suchen...'}
               </span>
             </button>
 
