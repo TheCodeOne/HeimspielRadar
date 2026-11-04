@@ -85,8 +85,8 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   size = 'default',
 }) => {
   const admissionFee = match.admissionFee?.trim() || null;
-  const kioskDescription = match.venue?.kioskDescription?.trim() || null;
-  const parkingNotes = match.venue?.parkingNotes?.trim() || null;
+  const kioskDescription = (match.kioskDescription ?? match.venue?.kioskDescription)?.trim() || null;
+  const parkingNotes = (match.parkingNotes ?? match.venue?.parkingNotes)?.trim() || null;
   const matchNotes = match.matchNotes?.trim() || null;
   const submitterInfo = formatSubmitterInfo(match);
 

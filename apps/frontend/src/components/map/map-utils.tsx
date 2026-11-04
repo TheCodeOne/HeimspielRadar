@@ -62,7 +62,9 @@ export function isSameVenue(
 export function matchHasInfo(match: Match): boolean {
   return Boolean(
     match.admissionFee?.trim() ||
+      match.kioskDescription?.trim() ||
       match.venue?.kioskDescription?.trim() ||
+      match.parkingNotes?.trim() ||
       match.venue?.parkingNotes?.trim() ||
       match.matchNotes?.trim() ||
       match.submitterName?.trim(),

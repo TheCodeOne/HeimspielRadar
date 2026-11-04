@@ -26,6 +26,7 @@ import type {
   UpdateSubmissionDto,
   VenueSubmission,
   VenueSubmissionData,
+  VenueSubmissionScope,
   VenueSubmissionStatus,
 } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
@@ -50,6 +51,8 @@ export interface AdminRelationalMatchRow {
     result?: string | null;
     confirmed: boolean;
     admissionFee?: string | null;
+    kioskDescription?: string | null;
+    parkingNotes?: string | null;
     matchNotes?: string | null;
     isFeatured?: boolean;
     featuredUntil?: Date | string | null;
@@ -96,6 +99,8 @@ export interface AdminRelationalMatchRow {
 
 export interface MatchModerationPatch {
   admissionFee?: string | null;
+  kioskDescription?: string | null;
+  parkingNotes?: string | null;
   matchNotes?: string | null;
   updatedAt: Date;
 }
@@ -202,6 +207,7 @@ export class AdminService {
       submitterName: sub.submitterName ?? null,
       submitterRole: sub.submitterRole ?? null,
       submittedData: sub.submittedData ?? {},
+      scope: sub.scope,
       status: sub.status,
       createdAt: createdAtIso,
       updatedAt: updatedAtIso,
@@ -321,50 +327,127 @@ export class AdminService {
 
       const admissionFee = data.admissionFee ?? undefined;
       const matchNotes = data.matchNotes ?? data.notes ?? undefined;
-
-      if (
-        submission.matchId &&
-        ((admissionFee !== undefined && admissionFee !== null) ||
-          (matchNotes !== undefined && matchNotes !== null))
-      ) {
-        const matchUpdates: MatchModerationPatch = { updatedAt: now };
-
-        if (admissionFee !== undefined && admissionFee !== null) {
-          matchUpdates.admissionFee = admissionFee;
-        }
-
-        if (matchNotes !== undefined && matchNotes !== null) {
-          matchUpdates.matchNotes = matchNotes;
-        }
-
-        await tx
-          .update(matches)
-          .set(matchUpdates)
-          .where(eq(matches.id, submission.matchId));
-      }
-
       const kioskDescription = data.kioskDescription ?? data.kiosk ?? undefined;
       const parkingNotes = data.parkingNotes ?? data.parking ?? undefined;
+      const scope: VenueSubmissionScope = submission.scope ?? 'matchday';
 
-      if (
-        submission.venueId &&
-        ((kioskDescription !== undefined && kioskDescription !== null) ||
-          (parkingNotes !== undefined && parkingNotes !== null))
-      ) {
-        const venueUpdates: VenueModerationPatch = { updatedAt: now };
+      if (scope === 'match') {
+        // Scope "match": Update only the specific match
+        if (submission.matchId) {
+          const matchUpdates: MatchModerationPatch = { updatedAt: now };
 
-        if (kioskDescription !== undefined && kioskDescription !== null) {
-          venueUpdates.kioskDescription = kioskDescription;
+          if (admissionFee !== undefined && admissionFee !== null) {
+            matchUpdates.admissionFee = admissionFee;
+          }
+
+          if (matchNotes !== undefined && matchNotes !== null) {
+            matchUpdates.matchNotes = matchNotes;
+          }
+
+          if (kioskDescription !== undefined && kioskDescription !== null) {
+            matchUpdates.kioskDescription = kioskDescription;
+          }
+
+          if (parkingNotes !== undefined && parkingNotes !== null) {
+            matchUpdates.parkingNotes = parkingNotes;
+          }
+
+          await tx
+            .update(matches)
+            .set(matchUpdates)
+            .where(eq(matches.id, submission.matchId));
+        }
+      } else {
+        // Scope "matchday":
+        // 1. Admission fee and match notes are always match-specific
+        if (
+          submission.matchId &&
+          ((admissionFee !== undefined && admissionFee !== null) ||
+            (matchNotes !== undefined && matchNotes !== null))
+        ) {
+          const matchUpdates: MatchModerationPatch = { updatedAt: now };
+
+          if (admissionFee !== undefined && admissionFee !== null) {
+            matchUpdates.admissionFee = admissionFee;
+          }
+
+          if (matchNotes !== undefined && matchNotes !== null) {
+            matchUpdates.matchNotes = matchNotes;
+          }
+
+          await tx
+            .update(matches)
+            .set(matchUpdates)
+            .where(eq(matches.id, submission.matchId));
         }
 
-        if (parkingNotes !== undefined && parkingNotes !== null) {
-          venueUpdates.parkingNotes = parkingNotes;
-        }
+        // 2. Kiosk and parking updates for all matches on the same kickoff date in this venue
+        if (
+          (kioskDescription !== undefined && kioskDescription !== null) ||
+          (parkingNotes !== undefined && parkingNotes !== null)
+        ) {
+          let targetKickoffDate: string | null = null;
+          let targetVenueId: number | null = submission.venueId ?? null;
 
-        await tx
-          .update(venues)
-          .set(venueUpdates)
-          .where(eq(venues.id, submission.venueId));
+          if (submission.matchId) {
+            const [matchRow] = await tx
+              .select({
+                kickoffDate: matches.kickoffDate,
+                venueId: matches.venueId,
+              })
+              .from(matches)
+              .where(eq(matches.id, submission.matchId))
+              .limit(1);
+
+            if (matchRow) {
+              targetKickoffDate = matchRow.kickoffDate ?? null;
+
+              if (matchRow.venueId) {
+                targetVenueId = matchRow.venueId;
+              }
+            }
+          }
+
+          if (targetVenueId && targetKickoffDate) {
+            const matchdayUpdates: MatchModerationPatch = { updatedAt: now };
+
+            if (kioskDescription !== undefined && kioskDescription !== null) {
+              matchdayUpdates.kioskDescription = kioskDescription;
+            }
+
+            if (parkingNotes !== undefined && parkingNotes !== null) {
+              matchdayUpdates.parkingNotes = parkingNotes;
+            }
+
+            await tx
+              .update(matches)
+              .set(matchdayUpdates)
+              .where(
+                and(
+                  eq(matches.venueId, targetVenueId),
+                  eq(matches.kickoffDate, targetKickoffDate)
+                )
+              );
+          }
+
+          // Also update the venue default record
+          if (targetVenueId) {
+            const venueUpdates: VenueModerationPatch = { updatedAt: now };
+
+            if (kioskDescription !== undefined && kioskDescription !== null) {
+              venueUpdates.kioskDescription = kioskDescription;
+            }
+
+            if (parkingNotes !== undefined && parkingNotes !== null) {
+              venueUpdates.parkingNotes = parkingNotes;
+            }
+
+            await tx
+              .update(venues)
+              .set(venueUpdates)
+              .where(eq(venues.id, targetVenueId));
+          }
+        }
       }
 
       const [updated] = await tx
@@ -470,6 +553,17 @@ export class AdminService {
       );
     }
 
+    if (
+      dto.scope !== undefined &&
+      dto.scope !== 'match' &&
+      dto.scope !== 'matchday'
+    ) {
+      throw new BadRequestException(
+        `Invalid scope "${dto.scope}". Allowed values: match, matchday`
+      );
+    }
+
+    const nextScope: VenueSubmissionScope = dto.scope ?? submission.scope ?? 'matchday';
     const nextStatus: VenueSubmissionStatus = dto.status ?? submission.status;
 
     const nextSubmittedData: VenueSubmissionData = {
@@ -511,26 +605,77 @@ export class AdminService {
       const now = new Date();
 
       if (nextStatus === 'approved') {
-        if (submission.matchId) {
-          const admissionFee =
-            nextSubmittedData.admissionFee !== undefined
-              ? nextSubmittedData.admissionFee
-              : undefined;
+        const kioskDescription =
+          nextSubmittedData.kioskDescription !== undefined
+            ? nextSubmittedData.kioskDescription
+            : (nextSubmittedData.kiosk ?? undefined);
 
-          const matchNotes =
-            nextSubmittedData.matchNotes !== undefined
-              ? nextSubmittedData.matchNotes
-              : (nextSubmittedData.notes ?? undefined);
+        const parkingNotes =
+          nextSubmittedData.parkingNotes !== undefined
+            ? nextSubmittedData.parkingNotes
+            : (nextSubmittedData.parking ?? undefined);
 
-          const hasAdmissionPatch =
-            dto.admissionFee !== undefined ||
-            (admissionFee !== undefined && admissionFee !== null);
+        const admissionFee =
+          nextSubmittedData.admissionFee !== undefined
+            ? nextSubmittedData.admissionFee
+            : undefined;
 
-          const hasNotesPatch =
-            dto.matchNotes !== undefined ||
-            (matchNotes !== undefined && matchNotes !== null);
+        const matchNotes =
+          nextSubmittedData.matchNotes !== undefined
+            ? nextSubmittedData.matchNotes
+            : (nextSubmittedData.notes ?? undefined);
 
-          if (hasAdmissionPatch || hasNotesPatch) {
+        const hasAdmissionPatch =
+          dto.admissionFee !== undefined ||
+          (admissionFee !== undefined && admissionFee !== null);
+
+        const hasNotesPatch =
+          dto.matchNotes !== undefined ||
+          (matchNotes !== undefined && matchNotes !== null);
+
+        const hasKioskPatch =
+          dto.kioskDescription !== undefined ||
+          (kioskDescription !== undefined && kioskDescription !== null);
+
+        const hasParkingPatch =
+          dto.parkingNotes !== undefined ||
+          (parkingNotes !== undefined && parkingNotes !== null);
+
+        if (nextScope === 'match') {
+          if (submission.matchId) {
+            const matchUpdates: MatchModerationPatch = { updatedAt: now };
+
+            if (hasAdmissionPatch) {
+              matchUpdates.admissionFee = admissionFee ?? null;
+            }
+
+            if (hasNotesPatch) {
+              matchUpdates.matchNotes = matchNotes ?? null;
+            }
+
+            if (hasKioskPatch) {
+              matchUpdates.kioskDescription = kioskDescription ?? null;
+            }
+
+            if (hasParkingPatch) {
+              matchUpdates.parkingNotes = parkingNotes ?? null;
+            }
+
+            if (
+              hasAdmissionPatch ||
+              hasNotesPatch ||
+              hasKioskPatch ||
+              hasParkingPatch
+            ) {
+              await tx
+                .update(matches)
+                .set(matchUpdates)
+                .where(eq(matches.id, submission.matchId));
+            }
+          }
+        } else {
+          // Scope 'matchday'
+          if (submission.matchId && (hasAdmissionPatch || hasNotesPatch)) {
             const matchUpdates: MatchModerationPatch = { updatedAt: now };
 
             if (hasAdmissionPatch) {
@@ -546,42 +691,68 @@ export class AdminService {
               .set(matchUpdates)
               .where(eq(matches.id, submission.matchId));
           }
-        }
-
-        if (submission.venueId) {
-          const kioskDescription =
-            nextSubmittedData.kioskDescription !== undefined
-              ? nextSubmittedData.kioskDescription
-              : (nextSubmittedData.kiosk ?? undefined);
-
-          const parkingNotes =
-            nextSubmittedData.parkingNotes !== undefined
-              ? nextSubmittedData.parkingNotes
-              : (nextSubmittedData.parking ?? undefined);
-
-          const hasKioskPatch =
-            dto.kioskDescription !== undefined ||
-            (kioskDescription !== undefined && kioskDescription !== null);
-
-          const hasParkingPatch =
-            dto.parkingNotes !== undefined ||
-            (parkingNotes !== undefined && parkingNotes !== null);
 
           if (hasKioskPatch || hasParkingPatch) {
-            const venueUpdates: VenueModerationPatch = { updatedAt: now };
+            let targetKickoffDate: string | null = null;
+            let targetVenueId: number | null = submission.venueId ?? null;
 
-            if (hasKioskPatch) {
-              venueUpdates.kioskDescription = kioskDescription ?? null;
+            if (submission.matchId) {
+              const [matchRow] = await tx
+                .select({
+                  kickoffDate: matches.kickoffDate,
+                  venueId: matches.venueId,
+                })
+                .from(matches)
+                .where(eq(matches.id, submission.matchId))
+                .limit(1);
+
+              if (matchRow) {
+                targetKickoffDate = matchRow.kickoffDate ?? null;
+
+                if (matchRow.venueId) {
+                  targetVenueId = matchRow.venueId;
+                }
+              }
             }
 
-            if (hasParkingPatch) {
-              venueUpdates.parkingNotes = parkingNotes ?? null;
+            if (targetVenueId && targetKickoffDate) {
+              const matchdayUpdates: MatchModerationPatch = { updatedAt: now };
+
+              if (hasKioskPatch) {
+                matchdayUpdates.kioskDescription = kioskDescription ?? null;
+              }
+
+              if (hasParkingPatch) {
+                matchdayUpdates.parkingNotes = parkingNotes ?? null;
+              }
+
+              await tx
+                .update(matches)
+                .set(matchdayUpdates)
+                .where(
+                  and(
+                    eq(matches.venueId, targetVenueId),
+                    eq(matches.kickoffDate, targetKickoffDate)
+                  )
+                );
             }
 
-            await tx
-              .update(venues)
-              .set(venueUpdates)
-              .where(eq(venues.id, submission.venueId));
+            if (targetVenueId) {
+              const venueUpdates: VenueModerationPatch = { updatedAt: now };
+
+              if (hasKioskPatch) {
+                venueUpdates.kioskDescription = kioskDescription ?? null;
+              }
+
+              if (hasParkingPatch) {
+                venueUpdates.parkingNotes = parkingNotes ?? null;
+              }
+
+              await tx
+                .update(venues)
+                .set(venueUpdates)
+                .where(eq(venues.id, targetVenueId));
+            }
           }
         }
       }
@@ -592,6 +763,7 @@ export class AdminService {
           submitterName: nextSubmitterName,
           submitterRole: nextSubmitterRole,
           submittedData: nextSubmittedData,
+          scope: nextScope,
           status: nextStatus,
           updatedAt: now,
         })
@@ -604,6 +776,7 @@ export class AdminService {
           submitterName: nextSubmitterName,
           submitterRole: nextSubmitterRole,
           submittedData: nextSubmittedData,
+          scope: nextScope,
           status: nextStatus,
           updatedAt: now,
         }
@@ -718,6 +891,10 @@ export class AdminService {
       result: row.match.result ?? null,
       confirmed: row.match.confirmed,
       admissionFee: row.match.admissionFee ?? undefined,
+      kioskDescription:
+        row.match.kioskDescription ?? row.venue?.kioskDescription ?? undefined,
+      parkingNotes:
+        row.match.parkingNotes ?? row.venue?.parkingNotes ?? undefined,
       matchNotes: row.match.matchNotes ?? undefined,
       isFeatured: Boolean(row.match.isFeatured),
       featuredUntil: featuredUntilIso,
@@ -923,6 +1100,8 @@ export class AdminService {
       result: updated.result ?? null,
       confirmed: Boolean(updated.confirmed),
       admissionFee: updated.admissionFee ?? undefined,
+      kioskDescription: updated.kioskDescription ?? undefined,
+      parkingNotes: updated.parkingNotes ?? undefined,
       matchNotes: updated.matchNotes ?? undefined,
       isFeatured: Boolean(updated.isFeatured),
       featuredUntil:

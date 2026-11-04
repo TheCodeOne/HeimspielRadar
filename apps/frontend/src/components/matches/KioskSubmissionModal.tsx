@@ -10,7 +10,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { CreateKioskSubmissionDto, Match } from '@sundayleague/shared-types';
+import type { CreateKioskSubmissionDto, Match, VenueSubmissionScope } from '@sundayleague/shared-types';
 import { Button } from '@/components/ui/button';
 
 export const KIOSK_SUBMISSION_SUCCESS_MESSAGE =
@@ -36,6 +36,7 @@ export function KioskSubmissionModal({
   const [admissionFee, setAdmissionFee] = React.useState<string>('');
   const [kioskDescription, setKioskDescription] = React.useState<string>('');
   const [parkingNotes, setParkingNotes] = React.useState<string>('');
+  const [scope, setScope] = React.useState<VenueSubmissionScope>('matchday');
   const [submitterName, setSubmitterName] = React.useState<string>('');
   const [submitterRole, setSubmitterRole] = React.useState<string>('');
   const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
@@ -49,6 +50,7 @@ export function KioskSubmissionModal({
       setAdmissionFee(match.admissionFee ?? '');
       setKioskDescription(match.venue?.kioskDescription ?? '');
       setParkingNotes(match.venue?.parkingNotes ?? '');
+      setScope('matchday');
       setSubmitterName('');
       setSubmitterRole('');
       setErrorMessage(null);
@@ -96,7 +98,9 @@ export function KioskSubmissionModal({
       return;
     }
 
-    const payload: CreateKioskSubmissionDto = {};
+    const payload: CreateKioskSubmissionDto = {
+      scope,
+    };
 
     if (trimmedFee) {
       payload.admissionFee = trimmedFee;
@@ -235,6 +239,68 @@ export function KioskSubmissionModal({
                 <span>{errorMessage}</span>
               </div>
             )}
+
+            {/* Geltungsbereich / Scope */}
+            <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+              <span className="block text-xs font-semibold text-foreground">
+                Geltungsbereich
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label
+                  data-testid="scope-matchday-label"
+                  className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition text-xs ${
+                    scope === 'matchday'
+                      ? 'border-primary/70 bg-primary/10 text-foreground'
+                      : 'border-border/60 bg-card/60 text-muted-foreground hover:border-border hover:text-foreground'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="scope"
+                    value="matchday"
+                    checked={scope === 'matchday'}
+                    onChange={() => setScope('matchday')}
+                    className="mt-0.5 text-primary focus:ring-primary h-3.5 w-3.5"
+                    data-testid="scope-matchday-input"
+                  />
+                  <div>
+                    <span className="font-semibold block text-foreground">
+                      Gesamter Spieltag
+                    </span>
+                    <span className="text-[11px] leading-snug text-muted-foreground block">
+                      Für alle Spiele heute in dieser Halle (z. B. Kaffee & Kuchen, Standardkiosk).
+                    </span>
+                  </div>
+                </label>
+
+                <label
+                  data-testid="scope-match-label"
+                  className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition text-xs ${
+                    scope === 'match'
+                      ? 'border-primary/70 bg-primary/10 text-foreground'
+                      : 'border-border/60 bg-card/60 text-muted-foreground hover:border-border hover:text-foreground'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="scope"
+                    value="match"
+                    checked={scope === 'match'}
+                    onChange={() => setScope('match')}
+                    className="mt-0.5 text-primary focus:ring-primary h-3.5 w-3.5"
+                    data-testid="scope-match-input"
+                  />
+                  <div>
+                    <span className="font-semibold block text-foreground">
+                      Nur für dieses Spiel
+                    </span>
+                    <span className="text-[11px] leading-snug text-muted-foreground block">
+                      Nur für dieses konkrete Spiel (z. B. Burgeraktion, Topspiel-Event, Parkchaos).
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
 
             {/* 1. Eintrittspreis */}
             <div className="space-y-1.5">

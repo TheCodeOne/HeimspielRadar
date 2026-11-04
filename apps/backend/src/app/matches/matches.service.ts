@@ -15,6 +15,7 @@ import {
   NearbyMatchesQuery,
   TeamSuggestion,
   VenueSubmission,
+  VenueSubmissionScope,
 } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import {
@@ -35,6 +36,7 @@ export interface ValidatedKioskSubmission {
   matchNotes: string;
   submitterName: string;
   submitterRole: string;
+  scope: VenueSubmissionScope;
 }
 
 export function validateKioskSubmissionDto(
@@ -46,6 +48,16 @@ export function validateKioskSubmissionDto(
   const matchNotes = dto?.matchNotes ? String(dto.matchNotes).trim() : '';
   const submitterName = dto?.submitterName ? String(dto.submitterName).trim() : '';
   const submitterRole = dto?.submitterRole ? String(dto.submitterRole).trim() : '';
+
+  let scope: VenueSubmissionScope = 'matchday';
+
+  if (dto?.scope !== undefined) {
+    if (dto.scope === 'match' || dto.scope === 'matchday') {
+      scope = dto.scope;
+    } else {
+      throw new BadRequestException('scope must be either "match" or "matchday"');
+    }
+  }
 
   if (admissionFee.length > 50) {
     throw new BadRequestException('admissionFee must not exceed 50 characters');
@@ -88,6 +100,7 @@ export function validateKioskSubmissionDto(
     matchNotes,
     submitterName,
     submitterRole,
+    scope,
   };
 }
 
@@ -102,6 +115,8 @@ export interface RelationalMatchRow {
     result?: string | null;
     confirmed: boolean;
     admissionFee?: string | null;
+    kioskDescription?: string | null;
+    parkingNotes?: string | null;
     matchNotes?: string | null;
     isFeatured?: boolean;
     featuredUntil?: Date | null;
@@ -568,6 +583,10 @@ export class MatchesService {
       result: row.match.result ?? null,
       confirmed: row.match.confirmed,
       admissionFee: row.match.admissionFee ?? undefined,
+      kioskDescription:
+        row.match.kioskDescription ?? row.venue?.kioskDescription ?? undefined,
+      parkingNotes:
+        row.match.parkingNotes ?? row.venue?.parkingNotes ?? undefined,
       matchNotes: row.match.matchNotes ?? undefined,
       isFeatured: row.match.isFeatured ?? undefined,
       featuredUntil: row.match.featuredUntil ? row.match.featuredUntil.toISOString() : undefined,
@@ -664,6 +683,7 @@ export class MatchesService {
         submitterName: validated.submitterName || null,
         submitterRole: validated.submitterRole || null,
         submittedData,
+        scope: validated.scope,
         status: 'pending',
         createdAt: now,
         updatedAt: now,

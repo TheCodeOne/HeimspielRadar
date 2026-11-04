@@ -52,7 +52,9 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
     const leagueName = formatLeagueName(match.leagueId, match.league?.name);
     const dateFormatted = formatDisplayDate(match.kickoffDate);
     const categoryParts = [match.league?.akName, match.league?.geschlecht].filter(Boolean);
-    const kioskTeaser = match.venue?.kioskDescription ?? match.matchNotes;
+    const effectiveKiosk = match.kioskDescription ?? match.venue?.kioskDescription;
+    const effectiveParking = match.parkingNotes ?? match.venue?.parkingNotes;
+    const kioskTeaser = effectiveKiosk ?? match.matchNotes;
 
     const cardStateClasses = isSelected
       ? 'border-primary ring-2 ring-primary/40 bg-accent/25 shadow-md -translate-y-0.5'
@@ -62,8 +64,8 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
 
     const hasKioskOrVenueInfo = Boolean(
       match.admissionFee?.trim() ||
-        match.venue?.kioskDescription?.trim() ||
-        match.venue?.parkingNotes?.trim() ||
+        effectiveKiosk?.trim() ||
+        effectiveParking?.trim() ||
         match.matchNotes?.trim() ||
         match.submitterName?.trim(),
     );

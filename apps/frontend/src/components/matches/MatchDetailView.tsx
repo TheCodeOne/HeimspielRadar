@@ -301,8 +301,8 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
               </div>
 
               {(Boolean(match.admissionFee?.trim()) ||
-                Boolean(match.venue?.kioskDescription?.trim()) ||
-                Boolean(match.venue?.parkingNotes?.trim())) && (
+                Boolean((match.kioskDescription ?? match.venue?.kioskDescription)?.trim()) ||
+                Boolean((match.parkingNotes ?? match.venue?.parkingNotes)?.trim())) && (
                 <div className="mt-2 pt-1.5 border-t border-border/30 flex justify-center">
                   <KioskInfoBadges match={match} size="sm" />
                 </div>
