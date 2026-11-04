@@ -138,56 +138,39 @@ export function FilterBar({
   } = actions;
 
   const [leagueSearch, setLeagueSearch] = React.useState('');
-  const [cityQuery, setCityQuery] = React.useState('');
-  const [isCityDropdownOpen, setIsCityDropdownOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
+  const searchContainerRef = React.useRef<HTMLDivElement>(null);
 
-  const [teamInput, setTeamInput] = React.useState(filters.teamQuery ?? '');
-  const [teamSuggestions, setTeamSuggestions] = React.useState<TeamSuggestion[]>([]);
-  const [isSearchingTeams, setIsSearchingTeams] = React.useState(false);
-  const [isTeamDropdownOpen, setIsTeamDropdownOpen] = React.useState(false);
-  const [highlightedTeamIndex, setHighlightedTeamIndex] = React.useState(-1);
-  const teamSearchContainerRef = React.useRef<HTMLDivElement>(null);
-
-  const [localSuggestions, setLocalSuggestions] =
+  const [localCitySuggestions, setLocalCitySuggestions] =
     React.useState<CitySuggestion[]>([]);
 
-  const [onlineSuggestions, setOnlineSuggestions] =
+  const [onlineCitySuggestions, setOnlineCitySuggestions] =
     React.useState<CitySuggestion[]>([]);
 
   const [isSearchingOnline, setIsSearchingOnline] = React.useState(false);
-  const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
-  const citySearchContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // Sync teamInput when filters.teamQuery changes
-  React.useEffect(() => {
-    setTeamInput(filters.teamQuery ?? '');
-  }, [filters.teamQuery]);
+  const [teamSuggestions, setTeamSuggestions] = React.useState<TeamSuggestion[]>([]);
+  const [isSearchingTeams, setIsSearchingTeams] = React.useState(false);
 
-  // Reset cityQuery and close suggestions when location reference changes
+  // Reset searchQuery and close suggestions when location reference changes
   React.useEffect(() => {
-    setCityQuery('');
-    setIsCityDropdownOpen(false);
-    setLocalSuggestions([]);
-    setOnlineSuggestions([]);
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+    setLocalCitySuggestions([]);
+    setOnlineCitySuggestions([]);
   }, [location.name, location.lat, location.lng]);
 
-  // Close city & team suggestions dropdown on click outside
+  // Close suggestions dropdown on click outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         event.target instanceof Node &&
-        citySearchContainerRef.current &&
-        !citySearchContainerRef.current.contains(event.target)
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target)
       ) {
-        setIsCityDropdownOpen(false);
-      }
-
-      if (
-        event.target instanceof Node &&
-        teamSearchContainerRef.current &&
-        !teamSearchContainerRef.current.contains(event.target)
-      ) {
-        setIsTeamDropdownOpen(false);
+        setIsDropdownOpen(false);
       }
     };
 
@@ -200,23 +183,22 @@ export function FilterBar({
 
   // Filter curated cities instantly + debounce online Photon geocoding
   React.useEffect(() => {
-    const q = cityQuery.trim();
+    const q = searchQuery.trim();
 
     if (!q) {
-      setLocalSuggestions([]);
-      setOnlineSuggestions([]);
+      setLocalCitySuggestions([]);
+      setOnlineCitySuggestions([]);
       setIsSearchingOnline(false);
 
       return;
     }
 
-    const local = searchCuratedCities(q, 6);
+    const local = searchCuratedCities(q, 5);
 
-    setLocalSuggestions(local);
-    setHighlightedIndex(-1);
+    setLocalCitySuggestions(local);
 
     if (q.length < 3) {
-      setOnlineSuggestions([]);
+      setOnlineCitySuggestions([]);
       setIsSearchingOnline(false);
 
       return;
@@ -234,9 +216,9 @@ export function FilterBar({
           controller.signal,
         );
 
-        setOnlineSuggestions(results);
+        setOnlineCitySuggestions(results);
       } catch {
-        setOnlineSuggestions([]);
+        setOnlineCitySuggestions([]);
       } finally {
         setIsSearchingOnline(false);
       }
@@ -246,16 +228,15 @@ export function FilterBar({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [cityQuery, location.lat, location.lng]);
+  }, [searchQuery, location.lat, location.lng]);
 
   // Debounced search for team suggestions
   React.useEffect(() => {
-    const q = teamInput.trim();
+    const q = searchQuery.trim();
 
     if (!q) {
       setTeamSuggestions([]);
       setIsSearchingTeams(false);
-      setHighlightedTeamIndex(-1);
 
       return;
     }
@@ -290,7 +271,7 @@ export function FilterBar({
           }
         }
 
-        setTeamSuggestions(deduped);
+        setTeamSuggestions(deduped.slice(0, 8));
       } catch {
         if (controller.signal.aborted) {
           return;
@@ -333,7 +314,7 @@ export function FilterBar({
           }
         }
 
-        setTeamSuggestions(localMatches.slice(0, 20));
+        setTeamSuggestions(localMatches.slice(0, 8));
       } finally {
         setIsSearchingTeams(false);
       }
@@ -343,80 +324,13 @@ export function FilterBar({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [teamInput]);
+  }, [searchQuery]);
 
-  const handleSelectSuggestion = React.useCallback(
-    (suggestion: TeamSuggestion) => {
-      setTeamQuery(suggestion.name);
-      setTeamInput(suggestion.name);
-
-      if (suggestion.akName) {
-        setAgeClasses([suggestion.akName]);
-      }
-
-      if (suggestion.geschlecht) {
-        setGenders([suggestion.geschlecht]);
-      }
-
-      setIsTeamDropdownOpen(false);
-    },
-    [setAgeClasses, setGenders, setTeamQuery],
-  );
-
-  const handleSelectQuery = React.useCallback(
-    (rawQuery: string) => {
-      setTeamQuery(rawQuery);
-      setTeamInput(rawQuery);
-      setIsTeamDropdownOpen(false);
-    },
-    [setTeamQuery],
-  );
-
-  const handleClearTeam = React.useCallback(() => {
-    setTeamQuery(undefined);
-    setTeamInput('');
-    setTeamSuggestions([]);
-    setIsTeamDropdownOpen(false);
-  }, [setTeamQuery]);
-
-  const handleTeamInputKeyDown = React.useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (!isTeamDropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-        setIsTeamDropdownOpen(true);
-
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setHighlightedTeamIndex((prev) =>
-          prev < teamSuggestions.length - 1 ? prev + 1 : 0,
-        );
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setHighlightedTeamIndex((prev) =>
-          prev > 0 ? prev - 1 : teamSuggestions.length - 1,
-        );
-      } else if (e.key === 'Enter') {
-        if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
-          e.preventDefault();
-          handleSelectSuggestion(teamSuggestions[highlightedTeamIndex]);
-        } else if (teamInput.trim()) {
-          e.preventDefault();
-          handleSelectQuery(teamInput.trim());
-        }
-      } else if (e.key === 'Escape') {
-        setIsTeamDropdownOpen(false);
-      }
-    },
-    [handleSelectQuery, handleSelectSuggestion, highlightedTeamIndex, isTeamDropdownOpen, teamInput, teamSuggestions],
-  );
-
-  const allSuggestions = React.useMemo(() => {
-    const uniqueOnline = onlineSuggestions.filter((online) => {
+  const allCitySuggestions = React.useMemo(() => {
+    const uniqueOnline = onlineCitySuggestions.filter((online) => {
       const onlineLower = online.name.trim().toLowerCase();
 
-      return !localSuggestions.some((local) => {
+      return !localCitySuggestions.some((local) => {
         const localLower = local.name.trim().toLowerCase();
 
         if (
@@ -434,12 +348,36 @@ export function FilterBar({
       });
     });
 
-    return [...localSuggestions, ...uniqueOnline];
-  }, [localSuggestions, onlineSuggestions]);
+    return [...localCitySuggestions, ...uniqueOnline];
+  }, [localCitySuggestions, onlineCitySuggestions]);
 
-  const handleSelectLocation = React.useCallback(
+  // Combined flat list of selectable items for unified keyboard navigation
+  type SuggestionItem =
+    | { kind: 'city'; item: CitySuggestion }
+    | { kind: 'team'; item: TeamSuggestion };
+
+  const combinedItems: SuggestionItem[] = React.useMemo(() => {
+    const items: SuggestionItem[] = [];
+
+    for (const city of allCitySuggestions) {
+      items.push({ kind: 'city', item: city });
+    }
+
+    for (const team of teamSuggestions) {
+      items.push({ kind: 'team', item: team });
+    }
+
+    return items;
+  }, [allCitySuggestions, teamSuggestions]);
+
+  // Reset highlight index when query or results change
+  React.useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [searchQuery]);
+
+  const handleSelectCity = React.useCallback(
     (item: CitySuggestion) => {
-      const q = cityQuery.trim();
+      const q = searchQuery.trim();
       let selectedName = item.name;
 
       if (/^\d{5}$/.test(q) && !selectedName.includes(q)) {
@@ -452,37 +390,107 @@ export function FilterBar({
         name: selectedName,
       });
 
-      setCityQuery('');
-      setIsCityDropdownOpen(false);
-      setLocalSuggestions([]);
-      setOnlineSuggestions([]);
+      // Exclusive selection: selecting a city clears active teamQuery
+      setTeamQuery(undefined);
+      setSearchQuery('');
+      setIsDropdownOpen(false);
+      setLocalCitySuggestions([]);
+      setOnlineCitySuggestions([]);
+      setTeamSuggestions([]);
     },
-    [cityQuery, setLocation],
+    [searchQuery, setLocation, setTeamQuery],
   );
+
+  const handleSelectTeam = React.useCallback(
+    (suggestion: TeamSuggestion) => {
+      setTeamQuery(suggestion.name);
+
+      // Reset location focus to default / reset city filter focus
+      setLocation(STUTTGART_FALLBACK);
+
+      if (suggestion.akName) {
+        setAgeClasses([suggestion.akName]);
+      }
+
+      if (suggestion.geschlecht) {
+        setGenders([suggestion.geschlecht]);
+      }
+
+      setSearchQuery('');
+      setIsDropdownOpen(false);
+      setLocalCitySuggestions([]);
+      setOnlineCitySuggestions([]);
+      setTeamSuggestions([]);
+    },
+    [setAgeClasses, setGenders, setLocation, setTeamQuery],
+  );
+
+  const handleSelectRawTeam = React.useCallback(
+    (rawQuery: string) => {
+      setTeamQuery(rawQuery);
+      setLocation(STUTTGART_FALLBACK);
+      setSearchQuery('');
+      setIsDropdownOpen(false);
+      setLocalCitySuggestions([]);
+      setOnlineCitySuggestions([]);
+      setTeamSuggestions([]);
+    },
+    [setLocation, setTeamQuery],
+  );
+
+  const handleClearTeam = React.useCallback(() => {
+    setTeamQuery(undefined);
+  }, [setTeamQuery]);
+
+  const handleClearCity = React.useCallback(() => {
+    setLocation(STUTTGART_FALLBACK);
+    setRadius(50);
+  }, [setLocation, setRadius]);
+
+  const handleClearSearch = React.useCallback(() => {
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+    setLocalCitySuggestions([]);
+    setOnlineCitySuggestions([]);
+    setTeamSuggestions([]);
+  }, []);
 
   const handleSearchSubmit = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
 
-    const q = cityQuery.trim();
+    const q = searchQuery.trim();
 
     if (!q) {
       return;
     }
 
-    if (highlightedIndex >= 0 && allSuggestions[highlightedIndex]) {
-      handleSelectLocation(allSuggestions[highlightedIndex]);
+    if (highlightedIndex >= 0 && combinedItems[highlightedIndex]) {
+      const selected = combinedItems[highlightedIndex];
+
+      if (selected.kind === 'city') {
+        handleSelectCity(selected.item);
+      } else {
+        handleSelectTeam(selected.item);
+      }
 
       return;
     }
 
-    if (allSuggestions.length > 0) {
-      handleSelectLocation(allSuggestions[0]);
+    if (combinedItems.length > 0) {
+      const first = combinedItems[0];
+
+      if (first.kind === 'city') {
+        handleSelectCity(first.item);
+      } else {
+        handleSelectTeam(first.item);
+      }
 
       return;
     }
 
+    // Try online Photon geocode if user pressed Enter
     setIsSearchingOnline(true);
 
     try {
@@ -492,21 +500,29 @@ export function FilterBar({
       });
 
       if (results.length > 0) {
-        handleSelectLocation(results[0]);
+        handleSelectCity(results[0]);
+
+        return;
       }
     } finally {
       setIsSearchingOnline(false);
     }
+
+    // Fallback: apply as raw team query
+    handleSelectRawTeam(q);
   };
 
-  const handleCityInputKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isDropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      setIsDropdownOpen(true);
+
+      return;
+    }
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setIsCityDropdownOpen(true);
       setHighlightedIndex((prev) =>
-        prev < allSuggestions.length - 1 ? prev + 1 : 0,
+        prev < combinedItems.length - 1 ? prev + 1 : 0,
       );
 
       return;
@@ -514,9 +530,8 @@ export function FilterBar({
 
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setIsCityDropdownOpen(true);
       setHighlightedIndex((prev) =>
-        prev > 0 ? prev - 1 : allSuggestions.length - 1,
+        prev > 0 ? prev - 1 : combinedItems.length - 1,
       );
 
       return;
@@ -524,23 +539,18 @@ export function FilterBar({
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleSearchSubmit();
+      void handleSearchSubmit();
 
       return;
     }
 
     if (e.key === 'Escape') {
-      setIsCityDropdownOpen(false);
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDropdownOpen(false);
 
       return;
     }
-  };
-
-  const handleClearCitySearch = () => {
-    setCityQuery('');
-    setIsCityDropdownOpen(false);
-    setLocalSuggestions([]);
-    setOnlineSuggestions([]);
   };
 
   // Close drawer on ESC key press
@@ -550,7 +560,7 @@ export function FilterBar({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose();
       }
     };
@@ -563,6 +573,7 @@ export function FilterBar({
   }, [isOpen, onClose]);
 
   const handleGetCurrentLocation = () => {
+    setTeamQuery(undefined);
     void locateUser();
   };
 
@@ -638,13 +649,13 @@ export function FilterBar({
 
       <hr className="border-border/60" />
 
-      {/* 1. Location & Radius Section */}
+      {/* 1. Unified Location & Team Search Section */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Compass className="h-4 w-4 text-primary" />
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Standort & Umkreis
+              Ort oder Verein
             </span>
           </div>
 
@@ -666,8 +677,8 @@ export function FilterBar({
           </Button>
         </div>
 
-        {/* City & Postal Code Autocomplete Search */}
-        <div ref={citySearchContainerRef} className="relative">
+        {/* Central Unified Search Input */}
+        <div ref={searchContainerRef} className="relative">
           <form
             onSubmit={handleSearchSubmit}
             className="flex items-center gap-1.5"
@@ -676,25 +687,29 @@ export function FilterBar({
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                value={cityQuery}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isDropdownOpen}
+                aria-controls="unified-search-listbox"
+                value={searchQuery}
                 onChange={(e) => {
-                  setCityQuery(e.target.value);
-                  setIsCityDropdownOpen(true);
+                  setSearchQuery(e.target.value);
+                  setIsDropdownOpen(true);
                 }}
                 onFocus={() => {
-                  if (cityQuery.trim().length > 0 || allSuggestions.length > 0) {
-                    setIsCityDropdownOpen(true);
+                  if (searchQuery.trim().length > 0 || combinedItems.length > 0) {
+                    setIsDropdownOpen(true);
                   }
                 }}
-                onKeyDown={handleCityInputKeyDown}
-                placeholder="Stadt oder PLZ suchen..."
-                aria-label="Stadt oder Postleitzahl suchen"
+                onKeyDown={handleInputKeyDown}
+                placeholder="Stadt, PLZ oder Verein suchen..."
+                aria-label="Stadt, Postleitzahl oder Verein suchen"
                 className="w-full rounded-md border border-input bg-background/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              {cityQuery && (
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={handleClearCitySearch}
+                  onClick={handleClearSearch}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label="Suche zurücksetzen"
                 >
@@ -707,10 +722,12 @@ export function FilterBar({
               type="submit"
               variant="secondary"
               size="sm"
-              disabled={isSearchingOnline || !cityQuery.trim()}
+              disabled={
+                (isSearchingOnline || isSearchingTeams) && !searchQuery.trim()
+              }
               className="h-8 px-2.5 text-xs font-medium shrink-0"
             >
-              {isSearchingOnline ? (
+              {isSearchingOnline || isSearchingTeams ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
               ) : (
                 'Suchen'
@@ -718,312 +735,169 @@ export function FilterBar({
             </Button>
           </form>
 
-          {/* Autocomplete Dropdown */}
-          {isCityDropdownOpen &&
-            (allSuggestions.length > 0 ||
+          {/* Unified Autocomplete Dropdown with Two Distinct Sections */}
+          {isDropdownOpen &&
+            (combinedItems.length > 0 ||
               isSearchingOnline ||
-              (cityQuery.trim().length >= 2 &&
-                !isSearchingOnline &&
-                allSuggestions.length === 0)) && (
-              <div
-                role="listbox"
-                aria-label="Städtevorschläge"
-                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
-              >
-                {allSuggestions.map((suggestion, idx) => {
-                  const isSelected = idx === highlightedIndex;
-
-                  return (
-                    <button
-                      key={`${suggestion.name}-${suggestion.lat}-${suggestion.lng}`}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelectLocation(suggestion)}
-                      onMouseEnter={() => setHighlightedIndex(idx)}
-                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
-                        isSelected
-                          ? 'bg-primary/15 font-medium text-primary'
-                          : 'text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="truncate">{suggestion.name}</span>
-                        {suggestion.state && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            {suggestion.state}
-                          </span>
-                        )}
-                      </div>
-
-                      {suggestion.postalCodes.length > 0 && (
-                        <span className="ml-2 font-mono text-[10px] text-muted-foreground shrink-0">
-                          PLZ {suggestion.postalCodes[0]}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-
-                {isSearchingOnline && (
-                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-                    <span>Suche online nach weiteren Orten...</span>
-                  </div>
-                )}
-
-                {!isSearchingOnline &&
-                  allSuggestions.length === 0 &&
-                  cityQuery.trim().length >= 2 && (
-                    <div className="px-2.5 py-2 text-center text-xs text-muted-foreground">
-                      Keine Treffer für &ldquo;{cityQuery}&rdquo;. Drücke Enter für
-                      Online-Suche.
-                    </div>
-                  )}
-              </div>
-            )}
-        </div>
-
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="text-muted-foreground">Zentrum:</span>
-            <span
-              className="font-medium text-foreground truncate"
-              title={`${location.name} (${location.lat}, ${location.lng})`}
-            >
-              📍 {location.name}
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground shrink-0">
-              ({location.lat}, {location.lng})
-            </span>
-            {location.name !== STUTTGART_FALLBACK.name && (
-              <button
-                type="button"
-                onClick={() => setLocation(STUTTGART_FALLBACK)}
-                className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                title="Auf Stuttgart zurücksetzen"
-                aria-label="Auf Stuttgart zurücksetzen"
-              >
-                <RotateCcw className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-
-          <Badge variant="outline" className="font-mono text-xs shrink-0">
-            Radius: {radiusKm} km
-          </Badge>
-        </div>
-
-        <div>
-          <Slider
-            value={[radiusKm]}
-            min={5}
-            max={50}
-            step={5}
-            onValueChange={(val) => {
-              const [nextRadius] = val;
-
-              if (nextRadius !== undefined) {
-                setRadius(nextRadius);
-              }
-            }}
-            aria-label="Suchradius in Kilometern"
-          />
-
-          <div className="mt-1 flex justify-between text-[10px] font-mono text-muted-foreground">
-            <span>5 km</span>
-            <span>25 km</span>
-            <span>50 km</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={showRadiusCircle}
-          onClick={() => setShowRadiusCircle(!showRadiusCircle)}
-          className="mt-2.5 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground">
-              Suchradius auf Karte anzeigen
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
-            </div>
-          </div>
-
-          <span
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-              showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
-            }`}
-          >
-            <span
-              className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
-                showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
-              }`}
-            />
-          </span>
-        </button>
-      </div>
-
-      <hr className="border-border/60" />
-
-      {/* 1.5. Verein / Team Search Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Verein / Team
-            </span>
-          </div>
-
-          {filters.teamQuery && (
-            <button
-              type="button"
-              onClick={handleClearTeam}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Zurücksetzen
-            </button>
-          )}
-        </div>
-
-        {/* Team Autocomplete Search Input */}
-        <div ref={teamSearchContainerRef} className="relative">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-
-              if (highlightedTeamIndex >= 0 && teamSuggestions[highlightedTeamIndex]) {
-                handleSelectSuggestion(teamSuggestions[highlightedTeamIndex]);
-              } else if (teamInput.trim()) {
-                handleSelectQuery(teamInput.trim());
-              }
-            }}
-            className="flex items-center gap-1.5"
-          >
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={teamInput}
-                onChange={(e) => {
-                  setTeamInput(e.target.value);
-                  setIsTeamDropdownOpen(true);
-                }}
-                onFocus={() => {
-                  if (teamInput.trim().length > 0 || teamSuggestions.length > 0) {
-                    setIsTeamDropdownOpen(true);
-                  }
-                }}
-                onKeyDown={handleTeamInputKeyDown}
-                placeholder="Verein oder Team suchen, z.B. SV Pfrondorf..."
-                aria-label="Verein oder Team suchen"
-                className="w-full rounded-md border border-input bg-background/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              {teamInput && (
-                <button
-                  type="button"
-                  onClick={handleClearTeam}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label="Vereinssuche zurücksetzen"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              variant="secondary"
-              size="sm"
-              disabled={isSearchingTeams || !teamInput.trim()}
-              className="h-8 px-2.5 text-xs font-medium shrink-0"
-            >
-              {isSearchingTeams ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              ) : (
-                'Filtern'
-              )}
-            </Button>
-          </form>
-
-          {/* Autocomplete Dropdown */}
-          {isTeamDropdownOpen &&
-            (teamSuggestions.length > 0 ||
               isSearchingTeams ||
-              (teamInput.trim().length >= 2 &&
+              (searchQuery.trim().length >= 2 &&
+                !isSearchingOnline &&
                 !isSearchingTeams &&
-                teamSuggestions.length === 0)) && (
+                combinedItems.length === 0)) && (
               <div
+                id="unified-search-listbox"
                 role="listbox"
-                aria-label="Vereinsvorschläge"
-                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
+                aria-label="Suchvorschläge für Orte und Vereine"
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
               >
-                {teamSuggestions.map((suggestion, idx) => {
-                  const isSelected = idx === highlightedTeamIndex;
-
-                  return (
-                    <button
-                      key={`${suggestion.id}-${suggestion.name}-${suggestion.akName ?? ''}-${suggestion.geschlecht ?? ''}`}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelectSuggestion(suggestion)}
-                      onMouseEnter={() => setHighlightedTeamIndex(idx)}
-                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
-                        isSelected
-                          ? 'bg-primary/15 font-medium text-primary'
-                          : 'text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="text-sm shrink-0">🏀</span>
-                        <span className="truncate font-medium">{suggestion.name}</span>
-                        {suggestion.shortName && suggestion.shortName !== suggestion.name && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            ({suggestion.shortName})
-                          </span>
-                        )}
-                      </div>
-                      {(suggestion.akName || suggestion.geschlecht) && (
-                        <span className="rounded bg-muted/80 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground shrink-0">
-                          {[suggestion.akName, suggestion.geschlecht].filter(Boolean).join(' ')}
+                {/* Sektion 1: 📍 Städte & Orte */}
+                {(allCitySuggestions.length > 0 || isSearchingOnline) && (
+                  <div>
+                    <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3 text-primary" />
+                        Städte & Orte
+                      </span>
+                      {isSearchingOnline && (
+                        <span className="flex items-center gap-1 text-[10px] font-normal lowercase">
+                          <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
+                          sucht online...
                         </span>
                       )}
-                    </button>
-                  );
-                })}
+                    </div>
 
-                {isSearchingTeams && (
-                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
-                    <span>Suche Teams...</span>
+                    {allCitySuggestions.map((city) => {
+                      const itemIndex = combinedItems.findIndex(
+                        (it) => it.kind === 'city' && it.item === city,
+                      );
+
+                      const isSelected = itemIndex === highlightedIndex;
+
+                      return (
+                        <button
+                          key={`city-${city.name}-${city.lat}-${city.lng}`}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => handleSelectCity(city)}
+                          onMouseEnter={() => setHighlightedIndex(itemIndex)}
+                          className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                            isSelected
+                              ? 'bg-primary/15 font-medium text-primary'
+                              : 'text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="truncate">{city.name}</span>
+                            {city.state && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {city.state}
+                              </span>
+                            )}
+                          </div>
+
+                          {city.postalCodes.length > 0 && (
+                            <span className="ml-2 font-mono text-[10px] text-muted-foreground shrink-0">
+                              PLZ {city.postalCodes[0]}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
-                {!isSearchingTeams &&
-                  teamSuggestions.length === 0 &&
-                  teamInput.trim().length >= 2 && (
-                    <div className="px-2.5 py-2 text-center text-xs text-muted-foreground">
-                      Kein Team gefunden für &ldquo;{teamInput}&rdquo;. Drücke Enter zum
-                      Filtern.
+                {/* Sektion 2: 🏀 Vereine & Teams */}
+                {(teamSuggestions.length > 0 || isSearchingTeams) && (
+                  <div
+                    className={
+                      allCitySuggestions.length > 0 || isSearchingOnline
+                        ? 'mt-2 pt-1 border-t border-border/40'
+                        : ''
+                    }
+                  >
+                    <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
+                      <span className="flex items-center gap-1.5">
+                        <Trophy className="h-3 w-3 text-primary" />
+                        Vereine & Teams
+                      </span>
+                      {isSearchingTeams && (
+                        <span className="flex items-center gap-1 text-[10px] font-normal lowercase">
+                          <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
+                          sucht Teams...
+                        </span>
+                      )}
+                    </div>
+
+                    {teamSuggestions.map((team) => {
+                      const itemIndex = combinedItems.findIndex(
+                        (it) => it.kind === 'team' && it.item === team,
+                      );
+
+                      const isSelected = itemIndex === highlightedIndex;
+
+                      return (
+                        <button
+                          key={`team-${team.id}-${team.name}-${team.akName ?? ''}-${team.geschlecht ?? ''}`}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => handleSelectTeam(team)}
+                          onMouseEnter={() => setHighlightedIndex(itemIndex)}
+                          className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                            isSelected
+                              ? 'bg-primary/15 font-medium text-primary'
+                              : 'text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="text-sm shrink-0">🏀</span>
+                            <span className="truncate font-medium">
+                              {team.name}
+                            </span>
+                            {team.shortName &&
+                              team.shortName !== team.name && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  ({team.shortName})
+                                </span>
+                              )}
+                          </div>
+
+                          {(team.akName || team.geschlecht) && (
+                            <span className="rounded bg-muted/80 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground shrink-0">
+                              {[team.akName, team.geschlecht]
+                                .filter(Boolean)
+                                .join(' ')}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!isSearchingOnline &&
+                  !isSearchingTeams &&
+                  combinedItems.length === 0 &&
+                  searchQuery.trim().length >= 2 && (
+                    <div className="px-2.5 py-3 text-center text-xs text-muted-foreground">
+                      Keine Treffer für &ldquo;{searchQuery}&rdquo;.
                     </div>
                   )}
               </div>
             )}
         </div>
 
-        {/* Active Selected Team Badge */}
-        {filters.teamQuery && (
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-[11px] text-muted-foreground">Aktives Team:</span>
+        {/* Active Selection Chip: Exclusive (either Team OR City) */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="text-[11px] text-muted-foreground">Aktiver Filter:</span>
+          {filters.teamQuery ? (
             <Badge
               variant="default"
               className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs py-0.5 px-2.5 shadow-xs"
+              data-testid="active-team-chip"
             >
               <span>🏀 {filters.teamQuery}</span>
               <button
@@ -1035,6 +909,116 @@ export function FilterBar({
                 <X className="h-3 w-3" />
               </button>
             </Badge>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="flex items-center gap-1.5 text-xs py-0.5 px-2.5 shadow-xs border border-border/80"
+              data-testid="active-location-chip"
+            >
+              <span>📍 {location.name} (Radius: {radiusKm} km)</span>
+              <button
+                type="button"
+                onClick={handleClearCity}
+                className="ml-1 rounded hover:bg-muted-foreground/20 p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Ortsfilter auf Stuttgart zurücksetzen"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+        </div>
+
+        {/* Radius Controls: Active for Location Mode, Context Note for Team Mode */}
+        {filters.teamQuery ? (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-muted-foreground flex items-start gap-2">
+            <span className="text-sm shrink-0">ℹ️</span>
+            <span>
+              Alle Spiele von <strong>{filters.teamQuery}</strong> werden überregional angezeigt (Umkreisfilter inaktiv).
+            </span>
+          </div>
+        ) : (
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="text-muted-foreground">Zentrum:</span>
+                <span
+                  className="font-medium text-foreground truncate"
+                  title={`${location.name} (${location.lat}, ${location.lng})`}
+                >
+                  📍 {location.name}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                  ({location.lat}, {location.lng})
+                </span>
+                {location.name !== STUTTGART_FALLBACK.name && (
+                  <button
+                    type="button"
+                    onClick={handleClearCity}
+                    className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title="Auf Stuttgart zurücksetzen"
+                    aria-label="Auf Stuttgart zurücksetzen"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              <Badge variant="outline" className="font-mono text-xs shrink-0">
+                Radius: {radiusKm} km
+              </Badge>
+            </div>
+
+            <div>
+              <Slider
+                value={[radiusKm]}
+                min={5}
+                max={50}
+                step={5}
+                onValueChange={(val) => {
+                  const [nextRadius] = val;
+
+                  if (nextRadius !== undefined) {
+                    setRadius(nextRadius);
+                  }
+                }}
+                aria-label="Suchradius in Kilometern"
+              />
+
+              <div className="mt-1 flex justify-between text-[10px] font-mono text-muted-foreground">
+                <span>5 km</span>
+                <span>25 km</span>
+                <span>50 km</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showRadiusCircle}
+              onClick={() => setShowRadiusCircle(!showRadiusCircle)}
+              className="mt-2 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-foreground">
+                  Suchradius auf Karte anzeigen
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
+                </div>
+              </div>
+
+              <span
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
+                    showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
+                  }`}
+                />
+              </span>
+            </button>
           </div>
         )}
       </div>
