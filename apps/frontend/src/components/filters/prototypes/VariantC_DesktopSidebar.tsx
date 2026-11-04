@@ -199,14 +199,23 @@ export function VariantC_DesktopSidebar({
             Ortung
           </Button>
         </div>
-        <Slider
-          min={5}
-          max={100}
-          step={5}
-          value={[radiusKm]}
-          onValueChange={(val) => val[0] && setRadiusKm(val[0])}
-          disabled={Boolean(teamQuery)}
-        />
+        <div className="w-full space-y-1.5">
+          <Slider
+            min={5}
+            max={50}
+            step={5}
+            value={[radiusKm]}
+            onValueChange={(val) => val[0] && setRadiusKm(val[0])}
+            disabled={Boolean(teamQuery)}
+            aria-label="Suchradius in Kilometern"
+            className="w-full"
+          />
+          <div className="flex w-full items-center justify-between text-[10px] font-mono text-muted-foreground select-none">
+            <span>5 km</span>
+            <span>25 km</span>
+            <span>50 km</span>
+          </div>
+        </div>
       </div>
 
       {/* 5. Geschlecht */}
