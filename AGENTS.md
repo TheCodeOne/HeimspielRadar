@@ -62,6 +62,16 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
     npm run screenshot -- --name <feature> [--click <selector>] [--wait <ms>] [--path <url-path>] [--port <port>]
     ```
     Das Skript (`scripts/capture-pr-screenshot.mjs`) scannt automatisch aktive Dev-Server-Ports, erzeugt synchron ein Desktop/Mobile-Paar in `test-results/<name>-{desktop,mobile}.png` und ist vor Hangs/Animation-Deadlocks geschützt.
+  - **ATTACHING TO PR BODY (MANDATORY)**: Da lokale Dateipfade (`test-results/*.png`) auf GitHub nicht rendern, lade die erzeugten Screenshots IMMER auf das GitHub Asset-Release `pr-assets` hoch und binde sie als Markdown-Images in die PR-Beschreibung ein:
+    ```bash
+    gh release upload pr-assets test-results/<name>-desktop.png test-results/<name>-mobile.png --clobber
+    ```
+    Binde sie im PR-Body wie folgt ein:
+    ```markdown
+    | Desktop (1280x800) | Mobile (390x844) |
+    |---|---|
+    | ![Desktop](https://github.com/TheCodeOne/HeimspielRadar/releases/download/pr-assets/<name>-desktop.png) | ![Mobile](https://github.com/TheCodeOne/HeimspielRadar/releases/download/pr-assets/<name>-mobile.png) |
+    ```
 
 ---
 
