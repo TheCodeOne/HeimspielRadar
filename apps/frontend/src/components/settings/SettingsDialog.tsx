@@ -1,17 +1,22 @@
 import * as React from 'react';
 import {
+  Bell,
+  CalendarPlus,
   Check,
   Clock,
   List,
   Map as MapIcon,
   Server,
   Settings,
+  Trash2,
   X,
 } from 'lucide-react';
 import type { MapEngineType } from '@/components/map/map-engine.types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatLastSyncedAt } from '@/lib/date-utils';
+import { formatDisplayDate, formatKickoffTime, formatLastSyncedAt } from '@/lib/date-utils';
+import { downloadReminderIcs } from '@/lib/ics-export';
+import { getLeadTimeLabel, useReminders } from '@/lib/reminder-storage';
 
 export interface SettingsDialogProps {
   isOpen: boolean;
@@ -69,6 +74,8 @@ export function SettingsDialog({
   lastSyncedAt,
   matchCount,
 }: SettingsDialogProps) {
+  const { reminders, removeReminder, clearAllReminders } = useReminders();
+
   // ESC key to close
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -257,6 +264,101 @@ export function SettingsDialog({
                 />
               </button>
             </div>
+          </div>
+
+          {/* Section: Aktive Spiel-Erinnerungen */}
+          <div className="space-y-2 border-t border-border/50 pt-3" data-testid="settings-reminders-section">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Bell className="h-3.5 w-3.5 text-primary" />
+                Aktive Spiel-Erinnerungen
+              </label>
+
+              <Badge
+                variant="secondary"
+                className={`text-[10px] px-2 py-0 ${
+                  reminders.length > 0
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {reminders.length} {reminders.length === 1 ? 'aktiv' : 'aktiv'}
+              </Badge>
+            </div>
+
+            {reminders.length === 0 ? (
+              <div className="rounded-xl border border-border/60 bg-card/40 p-3 text-xs text-muted-foreground">
+                <p>Keine aktiven Spiel-Erinnerungen vorhanden.</p>
+                <p className="text-[11px] mt-1 text-muted-foreground/80">
+                  Tippe auf das Glocken-Symbol bei einem Spiel, um Push-Benachrichtigungen oder Kalender-Exporte einzustellen.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-0.5">
+                  {reminders.map((r) => (
+                    <div
+                      key={r.matchId}
+                      data-testid={`settings-reminder-${r.matchId}`}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/40 p-2.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="font-semibold text-foreground truncate">
+                          {r.homeTeamName} vs. {r.guestTeamName}
+                        </div>
+
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                          <span>
+                            {formatDisplayDate(r.kickoffDate)} • {formatKickoffTime(r.kickoffTime)}
+                          </span>
+                          <span className="inline-flex items-center rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0 text-[10px] font-mono text-amber-300">
+                            {getLeadTimeLabel(r.leadTime)}
+                          </span>
+                        </div>
+
+                        {r.venueName && (
+                          <div className="text-[10px] text-muted-foreground/80 truncate">
+                            {r.venueName}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          title="In Kalender exportieren (.ics)"
+                          aria-label={`Kalenderdatei für ${r.homeTeamName} gegen ${r.guestTeamName} herunterladen`}
+                          onClick={() => downloadReminderIcs(r)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 text-muted-foreground hover:bg-primary/10 hover:text-primary transition cursor-pointer"
+                        >
+                          <CalendarPlus className="h-3.5 w-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Erinnerung entfernen"
+                          aria-label={`Erinnerung für ${r.homeTeamName} gegen ${r.guestTeamName} entfernen`}
+                          onClick={() => removeReminder(r.matchId)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/15 transition cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {reminders.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={clearAllReminders}
+                    className="w-full rounded-lg border border-destructive/30 bg-destructive/10 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/20 transition cursor-pointer"
+                  >
+                    Alle Erinnerungen entfernen
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Section 4: Filter-Modus (Neu vs. Legacy Fallback) */}

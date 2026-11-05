@@ -14,6 +14,4 @@ export * from './KioskSubmissionModal';
 
 export * from './TopMatchInfoModal';
 
-export * from './TopMatchInfoModal';
-
-
+export * from './GameReminderDialog';

@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   Activity,
   BarChart3,
+  Bell,
   Camera,
   Check,
   FileText,
@@ -11,7 +12,9 @@ import {
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { getMatchLinks } from '@/lib/match-links';
+import { getLeadTimeLabel, useReminders } from '@/lib/reminder-storage';
 import { shareMatch } from '@/lib/share-utils';
+import { GameReminderDialog } from './GameReminderDialog';
 
 export interface MatchQuickActionsProps {
   match: Match;
@@ -27,6 +30,10 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
   onShareFeedback,
 }) => {
   const [isCopied, setIsCopied] = React.useState(false);
+  const [isReminderOpen, setIsReminderOpen] = React.useState(false);
+  const { getReminder } = useReminders();
+  const activeReminder = getReminder(match.id);
+  const isReminderActive = activeReminder !== null;
   const links = getMatchLinks(match);
   const isFinished = Boolean(match.result);
 
@@ -242,6 +249,45 @@ export const MatchQuickActions: React.FC<MatchQuickActionsProps> = ({
           <Share2 className={iconSizeClass} />
         )}
       </button>
+
+      {/* 8. Spiel-Erinnerung & Kalender-Export */}
+      <button
+        type="button"
+        title={
+          isReminderActive
+            ? `Erinnerung aktiv (${getLeadTimeLabel(activeReminder.leadTime)}) – Klicken zum Bearbeiten oder Entfernen`
+            : 'Spiel-Erinnerung & Kalender-Export'
+        }
+        aria-label={
+          isReminderActive
+            ? `Erinnerung aktiv für ${match.homeTeam.name} gegen ${match.guestTeam.name} (${getLeadTimeLabel(activeReminder.leadTime)})`
+            : `Erinnerung einstellen für ${match.homeTeam.name} gegen ${match.guestTeam.name}`
+        }
+        data-action="reminder"
+        data-active={isReminderActive ? 'true' : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsReminderOpen(true);
+        }}
+        className={`${baseButtonClass} ${
+          isReminderActive
+            ? 'border border-amber-500/60 bg-amber-500/20 text-amber-300 font-semibold hover:bg-amber-500/30 shadow-xs'
+            : 'border border-border/70 text-foreground hover:bg-primary/10 hover:text-primary'
+        }`}
+      >
+        <Bell
+          className={`${iconSizeClass} ${
+            isReminderActive ? 'fill-amber-400 text-amber-400' : ''
+          }`}
+        />
+      </button>
+
+      <GameReminderDialog
+        isOpen={isReminderOpen}
+        onClose={() => setIsReminderOpen(false)}
+        match={match}
+        onFeedback={onShareFeedback}
+      />
     </div>
   );
 };
