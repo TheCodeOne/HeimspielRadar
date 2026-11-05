@@ -190,7 +190,7 @@ export function GameReminderDialog({
 
       {/* Modal Dialog Card */}
       <div
-        className="relative z-10 flex w-full max-w-md max-h-[calc(100dvh-2rem)] flex-col rounded-2xl border border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-150 overflow-hidden"
+        className="relative z-10 flex w-full max-w-md max-h-[calc(100dvh-2rem)] min-h-0 flex-col rounded-2xl border border-border/80 bg-background/95 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-150 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -235,7 +235,7 @@ export function GameReminderDialog({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4">
           {/* Match Context Card */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2 text-xs">
