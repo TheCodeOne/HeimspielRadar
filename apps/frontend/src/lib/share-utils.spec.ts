@@ -53,15 +53,32 @@ describe('share-utils', () => {
       expect(shareText).toContain('Oberliga Württemberg');
       expect(shareText).toContain('https://heimspielradar.de/matches/98765');
     });
+
+    it('excludes URL when includeUrl is set to false', () => {
+      const shareText = formatMatchShareText(
+        sampleMatch,
+        'https://heimspielradar.de/matches/98765',
+        { includeUrl: false }
+      );
+
+      expect(shareText).toContain('🏀 Heimspiel: TSV Crailsheim vs VfL Kirchheim');
+      expect(shareText).toContain('17:30 Uhr');
+      expect(shareText).toContain('HAKRO Arena, Crailsheim');
+      expect(shareText).toContain('Oberliga Württemberg');
+      expect(shareText).not.toContain('https://heimspielradar.de/matches/98765');
+      expect(shareText).not.toContain('http');
+    });
   });
 
   describe('getMatchSharePayload', () => {
-    it('creates correct title, text, and url', () => {
+    it('creates correct title, text without duplicate url, and url', () => {
       const payload = getMatchSharePayload(sampleMatch);
 
       expect(payload.title).toBe('TSV Crailsheim vs VfL Kirchheim – HeimspielRadar');
       expect(payload.text).toContain('TSV Crailsheim vs VfL Kirchheim');
       expect(payload.url).toContain('/matches/98765');
+      expect(payload.text).not.toContain(payload.url);
+      expect(payload.text).not.toContain('http');
     });
   });
 
@@ -76,7 +93,7 @@ describe('share-utils', () => {
       });
     });
 
-    it('uses navigator.share if available and supported', async () => {
+    it('uses navigator.share with separated text and url so URL is not duplicated', async () => {
       const mockShare = jest.fn().mockResolvedValue(undefined);
 
       Object.defineProperty(global, 'navigator', {
@@ -92,10 +109,15 @@ describe('share-utils', () => {
 
       expect(result).toBe('shared');
       expect(mockShare).toHaveBeenCalledTimes(1);
+      expect(mockShare).toHaveBeenCalledWith({
+        title: 'TSV Crailsheim vs VfL Kirchheim – HeimspielRadar',
+        text: expect.not.stringContaining('http'),
+        url: expect.stringContaining('/matches/98765'),
+      });
       expect(onSuccess).toHaveBeenCalledWith('shared');
     });
 
-    it('falls back to clipboard when navigator.share is absent', async () => {
+    it('falls back to clipboard with complete share text including url when navigator.share is absent', async () => {
       const mockWriteText = jest.fn().mockResolvedValue(undefined);
 
       Object.defineProperty(global, 'navigator', {
@@ -113,6 +135,36 @@ describe('share-utils', () => {
 
       expect(result).toBe('copied');
       expect(mockWriteText).toHaveBeenCalledTimes(1);
+      expect(mockWriteText).toHaveBeenCalledWith(
+        expect.stringContaining('https://heimspielradar.de/matches/98765')
+      );
+      expect(onSuccess).toHaveBeenCalledWith('copied');
+    });
+
+    it('falls back to clipboard with complete share text when navigator.share throws non-abort error', async () => {
+      const mockShare = jest.fn().mockRejectedValue(new Error('Share failed'));
+      const mockWriteText = jest.fn().mockResolvedValue(undefined);
+
+      Object.defineProperty(global, 'navigator', {
+        value: {
+          share: mockShare,
+          clipboard: {
+            writeText: mockWriteText,
+          },
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const onSuccess = jest.fn();
+      const result = await shareMatch(sampleMatch, { onSuccess });
+
+      expect(result).toBe('copied');
+      expect(mockShare).toHaveBeenCalledTimes(1);
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+      expect(mockWriteText).toHaveBeenCalledWith(
+        expect.stringContaining('https://heimspielradar.de/matches/98765')
+      );
       expect(onSuccess).toHaveBeenCalledWith('copied');
     });
 
