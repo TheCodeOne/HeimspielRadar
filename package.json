@@ -14,6 +14,8 @@
     "test": "nx run-many -t test",
     "test:backend": "nx test backend",
     "test:e2e": "playwright test",
+    "test:scripts": "bash scripts/spawn-remote-agent.test.sh",
+    "agent:spawn": "bash scripts/spawn-remote-agent.sh",
     "screenshot": "node scripts/capture-pr-screenshot.mjs",
     "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
     "typecheck:backend": "tsc -p apps/backend/tsconfig.app.json --noEmit && tsc -p apps/backend/tsconfig.spec.json --noEmit",

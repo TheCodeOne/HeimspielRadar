@@ -85,7 +85,28 @@ Run all applicable gates inside `.worktrees/issue-<id>` before committing:
   - Lokale Agenten auf dem Mac dienen nur als Dispatcher/Koordinator.
   - Sobald eine Aufgabe, ein Feature, ein Refactoring oder ein Testlauf an einen Agenten übergeben wird, startet dieser remote auf Windows.
 - **Herdr Remote Commands**:
-  - **Agent auf Windows / WSL starten**:
+  - **Standard Dispatcher Script (`scripts/spawn-remote-agent.sh`) [RECOMMENDED]**:
+    Verwende immer das Dispatcher-Skript, um Quote-Escaping-Fehler (`unexpected EOF while looking for matching quote`) zu vermeiden und `--model gemini-3.8-flash-medium` sowie `--dangerously-skip-permissions` automatisch zu erzwingen:
+    ```bash
+    # Mit Prompt-Text:
+    ./scripts/spawn-remote-agent.sh --task <task-name> --worktree .worktrees/issue-<id> --prompt "<anweisung>"
+
+    # Mit Prompt-Datei:
+    ./scripts/spawn-remote-agent.sh --task <task-name> --worktree .worktrees/issue-<id> --prompt path/to/prompt.md
+
+    # Per Stdin:
+    echo "Implementiere Feature X" | ./scripts/spawn-remote-agent.sh --task <task-name>
+
+    # Dry-Run zur Vorschau des Herdr-Befehls:
+    ./scripts/spawn-remote-agent.sh --task <task-name> --prompt "Test" --dry-run
+    ```
+  - **Remote Environment Guardrail (`scripts/agy-wrapper.sh`)**:
+    Auf dem Remote Runner (WSL Ubuntu) fängt der Guardrail-Wrapper direkte `agy`-Aufrufe ab und injiziert automatisch `--model gemini-3.8-flash-medium`, falls kein `--model`-Flag angegeben wurde:
+    ```bash
+    # Guardrail auf dem Remote Runner installieren:
+    ./scripts/spawn-remote-agent.sh --install-guardrail
+    ```
+  - **Manuelle Herdr-Befehle**:
     ```bash
     # Im WSL Ubuntu mit gemini-3.8-flash-medium:
     hc run --bg --name agent-<task> --on windows "wsl -d Ubuntu -- agy --model gemini-3.8-flash-medium --dangerously-skip-permissions -p '<anweisung>'"
