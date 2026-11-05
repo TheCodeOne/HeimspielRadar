@@ -33,6 +33,8 @@ Consult this reference during implementation and code review (`/code-review`, `r
    - All four engines in `apps/frontend/src/components/map/engines/` (`OpenLayersEngine.tsx`, `MapLibreEngine.tsx`, `LeafletEngine.tsx`, `PigeonEngine.tsx`) implement `MapEngineProps`.
    - Clicking a venue pin calls `onMarkerClick(group.matches[0])` to open the bottom Multi-Match Venue Overlay without rendering a duplicate in-map popup.
    - Selected venue pins render with a higher `z-index` than neighboring unselected pins.
+4. **Match Tile & Badge Parity (`MatchCard.tsx` ↔ `VenueModal.tsx`)**:
+   - Whenever match badges, status indicators, or interactive modals on match tiles (e.g. Featured/Topspiel, Kiosk, League badges) are added or updated in `apps/frontend/src/components/matches/MatchCard.tsx`, mirror the behavior and props in `apps/frontend/src/components/matches/VenueModal.tsx` in lockstep.
 
 ---
 
