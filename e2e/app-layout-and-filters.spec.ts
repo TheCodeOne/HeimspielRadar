@@ -505,4 +505,34 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     await expect(drawer).toBeHidden();
     await expect(summaryChip.getByText('Stuttgart')).toBeVisible();
   });
+
+  test('displays top progress bar and loading indicators during match queries', async ({ page }) => {
+    let fulfillMatches: (() => void) | null = null;
+
+    const matchPromise = new Promise<void>((resolve) => {
+      fulfillMatches = resolve;
+    });
+
+    await page.route('**/api/matches*', async (route) => {
+      await matchPromise;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_MATCHES),
+      });
+    });
+
+    await page.goto('/?legacy=true');
+
+    // While matches are pending, top loading bar should be visible
+    const topBar = page.getByTestId('top-loading-bar');
+
+    await expect(topBar).toBeVisible();
+
+    // Release matches
+    fulfillMatches?.();
+
+    // Once matches are loaded, top bar transitions to complete and fades out
+    await expect(topBar).toBeHidden({ timeout: 5000 });
+  });
 });

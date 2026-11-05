@@ -42,6 +42,7 @@ export interface FilterAvailableOptions {
   skillLevels: string[];
   matchCount?: number;
   matchesCount?: number;
+  isLoading?: boolean;
   lastSyncedAt?: string | null;
 }
 
@@ -642,7 +643,10 @@ export function FilterBar({
             }`}
           >
             <span>📋</span>
-            <span>Liste ({effectiveMatchCount})</span>
+            <span className="flex items-center gap-1">
+              {availableOptions.isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+              <span>Liste ({effectiveMatchCount})</span>
+            </span>
           </button>
         </div>
       </div>
@@ -1597,9 +1601,10 @@ export function FilterBar({
               variant="default"
               size="sm"
               onClick={onClose}
-              className="flex-1 text-xs font-semibold"
+              className="flex-1 text-xs font-semibold flex items-center justify-center gap-1.5"
             >
-              {effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen
+              {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+              <span>{effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen</span>
             </Button>
           </div>
         </aside>

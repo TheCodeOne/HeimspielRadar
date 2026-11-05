@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   Compass,
+  Loader2,
   LocateFixed,
   RotateCcw,
   SlidersHorizontal,
@@ -563,9 +564,10 @@ export function VariantB_AccordionDrawer({
             variant="default"
             size="sm"
             onClick={onClose}
-            className="flex-1 text-xs font-semibold"
+            className="flex-1 text-xs font-semibold flex items-center justify-center gap-1.5"
           >
-            {effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen
+            {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+            <span>{effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen</span>
           </Button>
         </div>
       </aside>
