@@ -1,4 +1,5 @@
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 import {
   Bell,
   BellRing,
@@ -76,7 +77,7 @@ export function GameReminderDialog({
     isError?: boolean;
   } | null>(null);
 
-  // Sync selectedLeadTime if activeReminder changes or dialog reopens
+  // Sync selectedLeadTime if dialog reopens or match changes
   React.useEffect(() => {
     if (activeReminder) {
       setSelectedLeadTime(activeReminder.leadTime);
@@ -85,7 +86,7 @@ export function GameReminderDialog({
     }
 
     setInlineFeedback(null);
-  }, [activeReminder, isOpen]);
+  }, [match?.id, isOpen]);
 
   // ESC key handler
   React.useEffect(() => {
@@ -174,12 +175,12 @@ export function GameReminderDialog({
     onFeedback?.(msg);
   };
 
-  return (
+  const dialogContent = (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="reminder-dialog-title"
-      className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 overscroll-contain pointer-events-auto"
+      className="fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-4 overscroll-contain pointer-events-auto"
       data-testid="game-reminder-dialog"
     >
       {/* Backdrop */}
@@ -389,4 +390,10 @@ export function GameReminderDialog({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return ReactDOM.createPortal(dialogContent, document.body);
+  }
+
+  return dialogContent;
 }
