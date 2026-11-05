@@ -2,8 +2,14 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { leagues, matches, teams, venues } from '../database/schema';
-import type { TopMatchFactor, TopMatchScoringMeta } from '@sundayleague/shared-types';
+import {
+  calculateHaversineDistanceKm,
+  type TopMatchFactor,
+  type TopMatchScoringMeta,
+} from '@sundayleague/shared-types';
 import type { DbbTabelleEntry } from './dbb-client.service';
+
+export { calculateHaversineDistanceKm };
 
 export type { TopMatchFactor, TopMatchScoringMeta };
 
@@ -22,33 +28,6 @@ export interface TopMatchCalculationSummary {
   matchesEvaluated: number;
   topMatchesFeatured: number;
   preservedAdminCount: number;
-}
-
-/**
- * Haversine formula to compute great-circle distance between two geographic coordinates in kilometers.
- */
-export function calculateHaversineDistanceKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const R = 6371; // Earth radius in km
-
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return Math.round(R * c * 10) / 10;
 }
 
 /**

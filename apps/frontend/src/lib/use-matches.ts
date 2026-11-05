@@ -1,39 +1,17 @@
 import * as React from 'react';
-import type { Match } from '@sundayleague/shared-types';
-import { compareMatchesChronologically, isMatchUpcoming } from './date-utils';
-import { calculateDistanceKm } from './geo-utils';
+import {
+  calculateDistanceKm,
+  evaluateMatchesQuery,
+  isTeamNumberMatch,
+  sortMatches,
+  type Match,
+  type NearbyMatchesQuery,
+} from '@sundayleague/shared-types';
 import { getSampleMatches } from './sample-matches';
 
+export { isTeamNumberMatch };
+
 export { useLeagues, type UseLeaguesResult } from './use-leagues';
-
-export function isTeamNumberMatch(
-  teamName: string,
-  shortName: string | null | undefined,
-  queryNum: number | undefined,
-  _queryBase: string,
-  rawQuery: string,
-): boolean {
-  const tTrim = teamName.trim();
-  const m = tTrim.match(/^(.*?)(?:\s+(\d+)|\s*\((\d+)\))$/);
-  const tBase = (m ? m[1] : tTrim).trim().toLowerCase();
-  const tNum = m ? parseInt(m[2] ?? m[3], 10) : 1;
-  const sLower = shortName?.trim().toLowerCase() ?? '';
-
-  if (queryNum !== undefined) {
-    return tNum === queryNum;
-  }
-
-  // queryNum is undefined: if candidate is a reserve team (>= 2), check if query targets its base
-  if (tNum >= 2) {
-    const rawLower = rawQuery.trim().toLowerCase();
-
-    if (rawLower.includes(tBase) || (sLower && rawLower.includes(sLower))) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 export interface UseMatchesOptions {
   date?: string;
@@ -178,29 +156,10 @@ export function useMatches({
           });
         }
 
-        processed.sort((a, b) => {
-          const aFeatured = a.isFeatured ? 1 : 0;
-          const bFeatured = b.isFeatured ? 1 : 0;
-
-          if (aFeatured !== bFeatured) {
-            return bFeatured - aFeatured;
-          }
-
-          if (teamQuery) {
-            return compareMatchesChronologically(a, b);
-          }
-
-          const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
-
-          if (distDiff !== 0) {
-            return distDiff;
-          }
-
-          return compareMatchesChronologically(a, b);
-        });
+        const sorted = sortMatches(processed, { teamQuery });
 
         if (!abortController.signal.aborted) {
-          setMatches(processed);
+          setMatches(sorted);
           setIsLoading(false);
         }
       } catch (err) {
@@ -208,176 +167,27 @@ export function useMatches({
           return;
         }
 
-        // Fallback to sample matches with local spatial, date, and league filtering
-        const samplePool = getSampleMatches();
-        const fallbackResults: Match[] = [];
+        // Fallback to sample matches evaluated by shared domain specification
+        const fallbackQuery: NearbyMatchesQuery = {
+          date,
+          dateFrom,
+          dateTo,
+          lat,
+          lng,
+          radiusKm,
+          leagueId,
+          leagueIds,
+          genders,
+          ageClasses,
+          skillLevels,
+          onlyUpcoming,
+          teamQuery,
+        };
 
-        for (const sample of samplePool) {
-          let dist = sample.distanceKm;
-
-          if (sample.venue?.latitude != null && sample.venue?.longitude != null) {
-            dist = calculateDistanceKm(
-              lat,
-              lng,
-              sample.venue.latitude,
-              sample.venue.longitude,
-            );
-          }
-
-          // Apply exact date filter if selected
-          if (date && sample.kickoffDate !== date) {
-            continue;
-          }
-
-          // Apply date range start filter if selected
-          if (dateFrom && (!sample.kickoffDate || sample.kickoffDate < dateFrom)) {
-            continue;
-          }
-
-          // Apply date range end filter if selected
-          if (dateTo && (!sample.kickoffDate || sample.kickoffDate > dateTo)) {
-            continue;
-          }
-
-          // Apply upcoming & no-result 2-hour cutoff filter if selected
-          if (onlyUpcoming && !isMatchUpcoming(sample)) {
-            continue;
-          }
-
-          // Apply single league filter if selected
-          if (leagueId && sample.leagueId !== leagueId) {
-            continue;
-          }
-
-          // Apply multi-league filter if selected
-          if (leagueIds && leagueIds.length > 0 && !leagueIds.includes(sample.leagueId)) {
-            continue;
-          }
-
-          // Apply gender filter if selected
-          if (
-            genders &&
-            genders.length > 0 &&
-            (!sample.league?.geschlecht ||
-              !genders.some(
-                (g) => g.toLowerCase() === sample.league?.geschlecht?.toLowerCase(),
-              ))
-          ) {
-            continue;
-          }
-
-          // Apply ageClass filter if selected
-          if (
-            ageClasses &&
-            ageClasses.length > 0 &&
-            (!sample.league?.akName || !ageClasses.includes(sample.league.akName))
-          ) {
-            continue;
-          }
-
-          // Apply skillLevel filter if selected
-          if (
-            skillLevels &&
-            skillLevels.length > 0 &&
-            (!sample.league?.skName || !skillLevels.includes(sample.league.skName))
-          ) {
-            continue;
-          }
-
-          // Apply teamQuery filter if selected (supports multi-token queries like "MTV Stuttgart U12" and disambiguates reserve teams)
-          if (teamQuery) {
-            const numMatch = teamQuery.trim().match(/^(.*?)(?:\s+(\d+)|\s*\((\d+)\))$/);
-            const queryNum = numMatch ? parseInt(numMatch[2] ?? numMatch[3], 10) : undefined;
-            const queryBase = (numMatch ? numMatch[1] : teamQuery).trim();
-            const searchPhrase = queryNum !== undefined ? queryBase : teamQuery;
-
-            const isHomeValid = isTeamNumberMatch(
-              sample.homeTeam.name,
-              sample.homeTeam.shortName,
-              queryNum,
-              queryBase,
-              teamQuery,
-            );
-
-            const isGuestValid = isTeamNumberMatch(
-              sample.guestTeam.name,
-              sample.guestTeam.shortName,
-              queryNum,
-              queryBase,
-              teamQuery,
-            );
-
-
-            const qLower = searchPhrase.toLowerCase();
-
-            const homePhraseMatches =
-              isHomeValid &&
-              (sample.homeTeam.name.toLowerCase().includes(qLower) ||
-                Boolean(sample.homeTeam.shortName?.toLowerCase().includes(qLower)));
-
-            const guestPhraseMatches =
-              isGuestValid &&
-              (sample.guestTeam.name.toLowerCase().includes(qLower) ||
-                Boolean(sample.guestTeam.shortName?.toLowerCase().includes(qLower)));
-
-            const tokens = qLower.split(/\s+/).filter(Boolean);
-
-            const multiTokenMatches =
-              tokens.length > 1 &&
-              tokens.every((tok) => {
-                const homeMatches =
-                  isHomeValid &&
-                  (sample.homeTeam.name.toLowerCase().includes(tok) ||
-                    Boolean(sample.homeTeam.shortName?.toLowerCase().includes(tok)));
-
-                const guestMatches =
-                  isGuestValid &&
-                  (sample.guestTeam.name.toLowerCase().includes(tok) ||
-                    Boolean(sample.guestTeam.shortName?.toLowerCase().includes(tok)));
-
-                const leagueMatches =
-                  Boolean(sample.league?.akName?.toLowerCase().includes(tok)) ||
-                  Boolean(sample.league?.geschlecht?.toLowerCase().includes(tok));
-
-                return homeMatches || guestMatches || leagueMatches;
-              });
-
-            if (!homePhraseMatches && !guestPhraseMatches && !multiTokenMatches) {
-              continue;
-            }
-          }
-
-          // Apply radius filter (bypassed when searching globally by team)
-          if (!teamQuery && dist != null && dist > radiusKm) {
-            continue;
-          }
-
-          fallbackResults.push({
-            ...sample,
-            distanceKm: dist,
-          });
-        }
-
-        fallbackResults.sort((a, b) => {
-          const aFeatured = a.isFeatured ? 1 : 0;
-          const bFeatured = b.isFeatured ? 1 : 0;
-
-          if (aFeatured !== bFeatured) {
-            return bFeatured - aFeatured;
-          }
-
-          if (teamQuery) {
-            return compareMatchesChronologically(a, b);
-          }
-
-          const distDiff = (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999);
-
-          if (distDiff !== 0) {
-            return distDiff;
-          }
-
-          return compareMatchesChronologically(a, b);
-        });
+        const fallbackResults = evaluateMatchesQuery(
+          getSampleMatches(),
+          fallbackQuery,
+        );
 
         setMatches(fallbackResults);
         setIsLoading(false);
@@ -417,5 +227,3 @@ export function useMatches({
     refetch,
   };
 }
-
-
