@@ -107,12 +107,11 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   };
 
   return (
-    <>
-      <div
-        className={`flex flex-col gap-1.5 ${className}`}
-        onClick={stopPropagation}
-        data-testid="kiosk-info-badges"
-      >
+    <div
+      className={`flex flex-col gap-1.5 ${className}`}
+      onClick={stopPropagation}
+      data-testid="kiosk-info-badges"
+    >
         {/* 1. Direct Information Tiles (Kiosk, Parking, Match Notes, Submitter) */}
         {(kioskDescription || parkingNotes || matchNotes || submitterInfo) && (
           <div className="flex flex-col gap-1.5" data-testid="kiosk-info-tiles">
@@ -196,14 +195,5 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           </div>
         )}
       </div>
-
-      {!onOpenTopMatchInfo && (
-        <TopMatchInfoModal
-          isOpen={isTopMatchModalOpen}
-          onClose={() => setIsTopMatchModalOpen(false)}
-          match={match}
-        />
-      )}
-    </>
   );
 };

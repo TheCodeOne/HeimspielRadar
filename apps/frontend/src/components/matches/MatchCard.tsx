@@ -221,7 +221,6 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
           {hasKioskOrVenueInfo && (
             <KioskInfoBadges
               match={match}
-              onOpenTopMatchInfo={() => setIsTopMatchModalOpen(true)}
               className="mt-2.5 border-t border-border/30 pt-2.5"
             />
           )}
