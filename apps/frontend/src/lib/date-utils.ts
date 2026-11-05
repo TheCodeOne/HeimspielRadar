@@ -128,112 +128,14 @@ export function isSameDay(dateStr1?: string, dateStr2?: string): boolean {
   return dateStr1 === dateStr2;
 }
 
-export interface ChronologicalMatchItem {
-  id: number;
-  kickoffDate: string | null;
-  kickoffTime: string | null;
-}
-
-/**
- * Compares two matches chronologically by kickoffDate ascending (null/empty last),
- * then kickoffTime ascending (null/empty/'00:00' last), then id ascending.
- */
-export function compareMatchesChronologically(
-  a: ChronologicalMatchItem,
-  b: ChronologicalMatchItem,
-): number {
-  const dateA = a.kickoffDate?.trim() || '';
-  const dateB = b.kickoffDate?.trim() || '';
-
-  if (dateA !== dateB) {
-    if (!dateA) {
-      return 1;
-    }
-
-    if (!dateB) {
-      return -1;
-    }
-
-    return dateA.localeCompare(dateB);
-  }
-
-  const rawTimeA = a.kickoffTime?.trim() || '';
-  const rawTimeB = b.kickoffTime?.trim() || '';
-  const timeA = rawTimeA === '00:00' ? '' : rawTimeA;
-  const timeB = rawTimeB === '00:00' ? '' : rawTimeB;
-
-  if (timeA !== timeB) {
-    if (!timeA) {
-      return 1;
-    }
-
-    if (!timeB) {
-      return -1;
-    }
-
-    return timeA.localeCompare(timeB);
-  }
-
-  return a.id - b.id;
-}
-
-export interface UpcomingCutoff {
-  cutoffDateStr: string;
-  cutoffTimeStr: string;
-}
-
-export function getUpcomingCutoffBerlin(nowMs = Date.now()): UpcomingCutoff {
-  const cutoff = new Date(nowMs - 2 * 60 * 60 * 1000);
-
-  const berlinParts = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Berlin',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(cutoff);
-
-  const [cutoffDateStr = '', cutoffTimeStr = '00:00'] = berlinParts.split(' ');
-
-  return { cutoffDateStr, cutoffTimeStr };
-}
-
-export interface UpcomingMatchCandidate {
-  kickoffDate: string | null;
-  kickoffTime: string | null;
-  result?: string | null;
-}
-
-export function isMatchUpcoming(
-  match: UpcomingMatchCandidate,
-  nowMs = Date.now(),
-): boolean {
-  const hasResult = match.result != null && match.result.trim().length > 0;
-
-  if (hasResult || !match.kickoffDate) {
-    return false;
-  }
-
-  const { cutoffDateStr, cutoffTimeStr } = getUpcomingCutoffBerlin(nowMs);
-
-  if (match.kickoffDate > cutoffDateStr) {
-    return true;
-  }
-
-  if (match.kickoffDate < cutoffDateStr) {
-    return false;
-  }
-
-  const time = match.kickoffTime?.trim() || '';
-
-  if (!time || time === '00:00') {
-    return true;
-  }
-
-  return time > cutoffTimeStr;
-}
+export {
+  compareMatchesChronologically,
+  getUpcomingCutoffBerlin,
+  isMatchUpcoming,
+  type ChronologicalMatchItem,
+  type UpcomingCutoff,
+  type UpcomingMatchCandidate,
+} from '@sundayleague/shared-types';
 
 /**
  * Formats the last synchronized timestamp into human-readable German text.
