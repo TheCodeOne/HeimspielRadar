@@ -91,6 +91,8 @@ From within `.worktrees/issue-<issue-id>`:
 2. Push the branch and open a Pull Request:
    ```bash
    git push -u origin feat/issue-<id>-<slug>
+   # If frontend UI was modified, upload captured screenshots to GitHub release pr-assets:
+   gh release upload pr-assets test-results/<name>-desktop.png test-results/<name>-mobile.png --clobber
    gh pr create \
      --title "feat(<scope>): <title> (closes #<id>)" \
      --body "## Summary
@@ -99,8 +101,14 @@ From within `.worktrees/issue-<issue-id>`:
    ## Changes Made
    - <bullet points of key changes>
 
+   ## Visual Evidence
+   | Desktop (1280x800) | Mobile (390x844) |
+   |---|---|
+   | ![Desktop](https://github.com/TheCodeOne/HeimspielRadar/releases/download/pr-assets/<name>-desktop.png) | ![Mobile](https://github.com/TheCodeOne/HeimspielRadar/releases/download/pr-assets/<name>-mobile.png) |
+
    ## Verification
    - [x] \`npx oxlint\` passes with 0 errors
+   - [x] \`npm run typecheck\` passes cleanly
    - [x] Build & unit tests pass cleanly
    - [x] Playwright E2E & visual screenshots verified (if frontend touched)
 
