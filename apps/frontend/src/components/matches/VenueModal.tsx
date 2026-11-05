@@ -297,7 +297,6 @@ export function VenueModal({
                     <KioskInfoBadges
                       match={venueMatch}
                       size="sm"
-                      onOpenTopMatchInfo={() => setSelectedTopMatch(venueMatch)}
                       className="mt-2 border-t border-border/30 pt-2"
                     />
                   )}
