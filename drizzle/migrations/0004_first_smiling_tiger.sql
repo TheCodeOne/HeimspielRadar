@@ -1,4 +1,4 @@
-CREATE TABLE "sync_failures" (
+CREATE TABLE IF NOT EXISTS "sync_failures" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"entity_type" text NOT NULL,
 	"dbb_league_id" integer NOT NULL,
