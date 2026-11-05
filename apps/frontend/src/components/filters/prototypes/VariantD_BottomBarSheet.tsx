@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Compass,
   Layers,
+  Loader2,
   LocateFixed,
   RotateCcw,
   Search,
@@ -224,11 +225,14 @@ export function VariantD_BottomBarSheet({
     <div className="space-y-5">
       {/* 1. Quick Stats & Reset */}
       <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
-        <div>
-          <span className="font-bold text-foreground">
-            {effectiveMatchCount} Spiele
-          </span>{' '}
-          <span className="text-muted-foreground">gefunden</span>
+        <div className="flex items-center gap-1.5">
+          {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+          <div>
+            <span className="font-bold text-foreground">
+              {effectiveMatchCount} Spiele
+            </span>{' '}
+            <span className="text-muted-foreground">gefunden</span>
+          </div>
         </div>
         {activeFilterCount > 0 && (
           <button
@@ -523,8 +527,9 @@ export function VariantD_BottomBarSheet({
                   Filter & Umkreis
                 </h2>
               </div>
-              <Badge variant="outline" className="text-[10px]">
-                {effectiveMatchCount} Spiele
+              <Badge variant="outline" className="text-[10px] flex items-center gap-1">
+                {availableOptions.isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
+                <span>{effectiveMatchCount} Spiele</span>
               </Badge>
             </div>
 
@@ -619,8 +624,10 @@ export function VariantD_BottomBarSheet({
                     <span className="block truncate font-medium text-slate-200 group-hover:text-primary transition leading-tight">
                       Stadt, PLZ oder Verein suchen...
                     </span>
-                    <span className="block truncate text-[10px] text-slate-400 font-mono">
-                      {location?.name ? `📍 ${location.name} (${radiusKm} km)` : `${radiusKm} km`} • {dateLabel} • {effectiveMatchCount} Spiele
+                    <span className="flex items-center gap-1 truncate text-[10px] text-slate-400 font-mono">
+                      <span>{location?.name ? `📍 ${location.name} (${radiusKm} km)` : `${radiusKm} km`} • {dateLabel} •</span>
+                      {availableOptions.isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
+                      <span>{effectiveMatchCount} Spiele</span>
                     </span>
                   </div>
                 </button>
@@ -997,9 +1004,10 @@ export function VariantD_BottomBarSheet({
                 variant="default"
                 size="sm"
                 onClick={closeWithAnimation}
-                className="flex-1 font-bold"
+                className="flex-1 font-bold flex items-center justify-center gap-1.5"
               >
-                {effectiveMatchCount} Spiele anzeigen
+                {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>{effectiveMatchCount} Spiele anzeigen</span>
               </Button>
             </div>
           </div>

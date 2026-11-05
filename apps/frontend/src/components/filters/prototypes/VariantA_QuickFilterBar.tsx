@@ -3,6 +3,7 @@ import {
   Calendar,
   ChevronDown,
   Compass,
+  Loader2,
   LocateFixed,
   SlidersHorizontal,
   Users,
@@ -420,7 +421,11 @@ export function VariantA_QuickFilterBar({
 
         {/* Matches Counter Pill */}
         <div className="hidden lg:flex pointer-events-auto items-center gap-1.5 rounded-xl border border-border/80 bg-background/95 px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur-md">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          {availableOptions.isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          )}
           <span>
             {effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'}
           </span>
@@ -555,9 +560,10 @@ export function VariantA_QuickFilterBar({
                 variant="default"
                 size="sm"
                 onClick={onClose}
-                className="flex-1 font-semibold"
+                className="flex-1 font-semibold flex items-center justify-center gap-1.5"
               >
-                {effectiveMatchCount} Spiele anzeigen
+                {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>{effectiveMatchCount} Spiele anzeigen</span>
               </Button>
             </div>
           </aside>
