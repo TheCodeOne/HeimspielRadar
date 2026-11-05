@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Compass,
   Layers,
+  Loader2,
   LocateFixed,
   RotateCcw,
   SlidersHorizontal,
@@ -70,11 +71,14 @@ export function VariantC_DesktopSidebar({
     <div className="space-y-5">
       {/* 1. Quick Stats & Reset */}
       <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
-        <div>
-          <span className="font-bold text-foreground">
-            {effectiveMatchCount} Spiele
-          </span>{' '}
-          <span className="text-muted-foreground">gefunden</span>
+        <div className="flex items-center gap-1.5">
+          {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+          <div>
+            <span className="font-bold text-foreground">
+              {effectiveMatchCount} Spiele
+            </span>{' '}
+            <span className="text-muted-foreground">gefunden</span>
+          </div>
         </div>
         {activeFilterCount > 0 && (
           <button
@@ -390,9 +394,10 @@ export function VariantC_DesktopSidebar({
                 variant="default"
                 size="sm"
                 onClick={onClose}
-                className="flex-1 font-bold"
+                className="flex-1 font-bold flex items-center justify-center gap-1.5"
               >
-                {effectiveMatchCount} Spiele anzeigen
+                {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>{effectiveMatchCount} Spiele anzeigen</span>
               </Button>
             </div>
           </div>

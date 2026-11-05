@@ -4,6 +4,7 @@ import {
   Calendar,
   Clock,
   Coffee,
+  Loader2,
   MapPin,
   RotateCcw,
   Settings,
@@ -39,6 +40,7 @@ import { ReloadPrompt } from '@/components/pwa';
 import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
 import {
   compareMatchesChronologically,
   formatLastSyncedAt,
@@ -241,6 +243,9 @@ function MainView() {
 
   return (
     <div className="fixed inset-0 flex h-dvh w-full flex-col overflow-hidden overscroll-none bg-background text-foreground selection:bg-primary/20 selection:text-primary">
+      {/* Subtle Top Loading Progress Bar on filter transitions */}
+      <TopLoadingBar isLoading={isLoading} />
+
       {/* Unified Application Header (Desktop & Mobile) */}
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
         {/* Left: Brand Logo & Title */}
@@ -385,6 +390,7 @@ function MainView() {
               ageClasses: availableAgeClasses,
               skillLevels: availableSkillLevels,
               matchCount: matches.length,
+              isLoading,
               lastSyncedAt,
             }}
             actions={actions}
@@ -403,6 +409,7 @@ function MainView() {
               ageClasses: availableAgeClasses,
               skillLevels: availableSkillLevels,
               matchCount: matches.length,
+              isLoading,
               lastSyncedAt,
             }}
             actions={actions}
@@ -424,6 +431,7 @@ function MainView() {
                   ageClasses: availableAgeClasses,
                   skillLevels: availableSkillLevels,
                   matchCount: matches.length,
+                  isLoading,
                   lastSyncedAt,
                 }}
                 actions={actions}
@@ -445,8 +453,9 @@ function MainView() {
                     <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
                       {filters.teamQuery}
                     </span>
-                    <span className="font-mono text-slate-400 shrink-0">
-                      • {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                    <span className="font-mono text-slate-400 shrink-0 flex items-center gap-1.5">
+                      • {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+                      {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
                     </span>
                   </>
                 ) : (
@@ -463,9 +472,10 @@ function MainView() {
                     </span>
                     <Badge
                       variant="outline"
-                      className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200"
+                      className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200 flex items-center gap-1"
                     >
-                      {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
+                      {isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
+                      <span>{matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}</span>
                     </Badge>
                   </>
                 )}
@@ -601,10 +611,13 @@ function MainView() {
 
               {/* Match List Header Status */}
               <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
-                <span>
-                  <strong className="text-foreground">{matches.length}</strong>{' '}
-                  {matches.length === 1 ? 'Heimspiel' : 'Heimspiele'} im Umkreis von{' '}
-                  {filters.radiusKm} km
+                <span className="flex items-center gap-1.5">
+                  {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+                  <span>
+                    <strong className="text-foreground">{matches.length}</strong>{' '}
+                    {matches.length === 1 ? 'Heimspiel' : 'Heimspiele'} im Umkreis von{' '}
+                    {filters.radiusKm} km
+                  </span>
                 </span>
               </div>
 
@@ -639,6 +652,7 @@ function MainView() {
             ageClasses: availableAgeClasses,
             skillLevels: availableSkillLevels,
             matchCount: matches.length,
+            isLoading,
             lastSyncedAt,
           }}
           actions={actions}
@@ -657,6 +671,7 @@ function MainView() {
             ageClasses: availableAgeClasses,
             skillLevels: availableSkillLevels,
             matchCount: matches.length,
+            isLoading,
             lastSyncedAt,
           }}
           actions={actions}

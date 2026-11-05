@@ -24,11 +24,20 @@ export function getMatchShareUrl(matchId: number): string {
   return `${origin}/matches/${matchId}`;
 }
 
+export interface FormatMatchShareTextOptions {
+  includeUrl?: boolean;
+}
+
 /**
  * Formats a match into prefilled share text:
  * Format: `🏀 Heimspiel: [Heim] vs [Gast] | [Datum], [Uhrzeit] | [Halle], [Stadt] | [Liga] [URL]`
  */
-export function formatMatchShareText(match: Match, url?: string): string {
+export function formatMatchShareText(
+  match: Match,
+  url?: string,
+  options?: FormatMatchShareTextOptions
+): string {
+  const includeUrl = options?.includeUrl ?? true;
   const targetUrl = url ?? getMatchShareUrl(match.id);
   const homeTeam = match.homeTeam.name;
   const guestTeam = match.guestTeam.name;
@@ -42,16 +51,24 @@ export function formatMatchShareText(match: Match, url?: string): string {
 
   const leaguePart = match.league?.name || 'Amateur-Basketball';
 
-  return `🏀 Heimspiel: ${homeTeam} vs ${guestTeam} | ${dateTimePart} | ${venuePart} | ${leaguePart} ${targetUrl}`;
+  const baseText = `🏀 Heimspiel: ${homeTeam} vs ${guestTeam} | ${dateTimePart} | ${venuePart} | ${leaguePart}`;
+
+  if (!includeUrl) {
+    return baseText;
+  }
+
+  return `${baseText} ${targetUrl}`;
 }
 
 /**
  * Formats match data for Web Share API and Clipboard.
+ * Excludes URL from `text` because native share sheets (e.g. WhatsApp, iOS Share Sheet)
+ * combine both `text` and `url`, which would otherwise result in a duplicated link.
  */
 export function getMatchSharePayload(match: Match): ShareMatchData {
   const url = getMatchShareUrl(match.id);
   const title = `${match.homeTeam.name} vs ${match.guestTeam.name} – HeimspielRadar`;
-  const text = formatMatchShareText(match, url);
+  const text = formatMatchShareText(match, url, { includeUrl: false });
 
   return {
     title,
@@ -104,14 +121,16 @@ export async function shareMatch(
     }
   }
 
-  // 2. Fallback: Clipboard writeText
+  // 2. Fallback: Clipboard writeText (includes URL since clipboard has no separate URL parameter)
+  const fullShareText = formatMatchShareText(match, payload.url, { includeUrl: true });
+
   if (
     typeof navigator !== 'undefined' &&
     navigator.clipboard &&
     'writeText' in navigator.clipboard
   ) {
     try {
-      await navigator.clipboard.writeText(payload.text);
+      await navigator.clipboard.writeText(fullShareText);
 
       options?.onSuccess?.('copied');
 
@@ -130,7 +149,7 @@ export async function shareMatch(
     if (typeof document !== 'undefined') {
       const textarea = document.createElement('textarea');
 
-      textarea.value = payload.text;
+      textarea.value = fullShareText;
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
       document.body.appendChild(textarea);

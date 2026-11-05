@@ -165,7 +165,11 @@ async function captureView(browser, {
       }
     }
 
-    await page.screenshot({ path: outputPath });
+    await page.screenshot({
+      path: outputPath,
+      animations: 'disabled',
+      timeout: 10000,
+    });
   } finally {
     await context.close();
   }
@@ -254,6 +258,30 @@ async function main() {
     console.log(`- Desktop: ${desktopPath}`);
     console.log(`- Mobile:  ${mobilePath}`);
   } catch (err) {
+    const winChromePath = "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe";
+
+    if (fs.existsSync(winChromePath)) {
+      console.log("[screenshot] Playwright snapshot stalled in WSL; falling back to host Chrome CLI snapshot...");
+
+      try {
+        const { execSync } = await import("node:child_process");
+        const deskWin = execSync(`wslpath -w "${desktopPath}"`).toString().trim();
+        const mobWin = execSync(`wslpath -w "${mobilePath}"`).toString().trim();
+
+        execSync(`"${winChromePath}" --headless=new --screenshot="${deskWin}" --window-size=1280,800 "${url}"`);
+        execSync(`"${winChromePath}" --headless=new --screenshot="${mobWin}" --window-size=390,844 --user-agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1" "${url}"`);
+
+        console.log("\n[screenshot] Done! Generated screenshot pair via host Chrome:");
+        console.log(`- Desktop: ${desktopPath}`);
+        console.log(`- Mobile:  ${mobilePath}`);
+        process.exitCode = 0;
+
+        return;
+      } catch (fallbackErr) {
+        console.error(`[screenshot] Host Chrome fallback error: ${fallbackErr.message}`);
+      }
+    }
+
     console.error(`\n[screenshot] Error: ${err.message}`);
     process.exitCode = 1;
   } finally {

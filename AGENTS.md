@@ -42,6 +42,7 @@ Universal operating rules and context pointers for all agents working in this re
   - **Database Schema (`apps/backend/src/app/database/schema.ts`)**: `DatabaseModule.onModuleInit` runs SQL migrations from `drizzle/migrations/` on startup. When editing `schema.ts`, always run `npm run db:generate && npm run db:check`.
   - **Map Engines (`apps/frontend/src/components/map/engines/`)**: When changing marker interaction, selection styling, or viewport sizing in `MapContainer.tsx`, update all four engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`).
   - **Match Filtering (`apps/backend/src/app/matches/matches.service.ts`)**: When adding or changing match filter semantics in `MatchesService.findMatches`, update the client-side sample fallback in `apps/frontend/src/lib/use-matches.ts` in lockstep.
+  - **Match Badges & Card Interactions (`apps/frontend/src/components/matches/MatchCard.tsx` ↔ `apps/frontend/src/components/matches/VenueModal.tsx`)**: Whenever match badges, status indicators, or interactive modals on match tiles (e.g. Featured/Topspiel, Kiosk, League badges) are added or updated in `MatchCard.tsx`, mirror the behavior and props in `VenueModal.tsx` in lockstep.
 
 ---
 

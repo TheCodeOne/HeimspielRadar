@@ -1,10 +1,10 @@
 import { Global, Inject, Logger, Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Pool } from 'pg';
+import { applyDatabaseMigrations } from './database-migrator';
 import * as schema from './schema';
 
 export const DRIZZLE_DB = 'DRIZZLE_DB';
@@ -83,13 +83,6 @@ export class DatabaseModule implements OnModuleInit {
       return;
     }
 
-    try {
-      this.logger.log(`Applying database migrations from ${migrationsFolder}...`);
-      await migrate(this.db, { migrationsFolder });
-      this.logger.log('Database migrations applied cleanly.');
-    } catch (error) {
-      this.logger.error('Failed to apply database migrations on startup:', error);
-      throw error;
-    }
+    await applyDatabaseMigrations(this.db, migrationsFolder, this.logger);
   }
 }
