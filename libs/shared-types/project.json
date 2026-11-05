@@ -4,6 +4,11 @@
   "sourceRoot": "libs/shared-types/src",
   "projectType": "library",
   "tags": [],
-  "// targets": "to see all targets run: nx show project shared-types --web",
-  "targets": {}
+  "targets": {
+    "test": {
+      "options": {
+        "passWithNoTests": true
+      }
+    }
+  }
 }

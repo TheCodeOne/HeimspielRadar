@@ -10,6 +10,7 @@ import { aliasedTable, and, asc, eq, gte, ilike, inArray, isNull, lte, or, sql, 
 import {
   CreateKioskSubmissionDto,
   FeatureMatchDto,
+  getUpcomingCutoffBerlin,
   League,
   Match,
   NearbyMatchesQuery,
@@ -312,19 +313,7 @@ export class MatchesService {
     }
 
     if (onlyUpcoming) {
-      const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-      const berlinParts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Europe/Berlin',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(cutoff);
-
-      const [cutoffDateStr, cutoffTimeStr] = berlinParts.split(' ');
+      const { cutoffDateStr, cutoffTimeStr } = getUpcomingCutoffBerlin();
 
       conditions.push(
         sql`(${matches.result} IS NULL OR btrim(${matches.result}) = '')`
@@ -627,33 +616,6 @@ export class MatchesService {
       akName: league.akName ?? league.rawData?.akName ?? undefined,
       geschlecht: league.geschlecht ?? league.rawData?.geschlecht ?? undefined,
     };
-  }
-
-  /**
-   * Haversine formula to compute great-circle distance between two points in kilometers.
-   */
-  calculateHaversineDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const R = 6371; // Earth radius in km
-
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return Math.round(R * c * 10) / 10; // Round to 1 decimal place (e.g. 14.2 km)
   }
 
   /**

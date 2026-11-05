@@ -592,21 +592,6 @@ describe('MatchesService', () => {
     });
   });
 
-  describe('calculateHaversineDistance', () => {
-    it('calculates great-circle distance accurately', () => {
-      // Stuttgart (48.7758, 9.1829) to Ludwigsburg (48.8974, 9.1919) is approx 13.5 km
-      const distance = service.calculateHaversineDistance(
-        48.7758,
-        9.1829,
-        48.8974,
-        9.1919
-      );
-
-      expect(distance).toBeGreaterThan(13);
-      expect(distance).toBeLessThan(14);
-    });
-  });
-
   describe('findTeamSuggestions & MatchesController.getTeams', () => {
     it('returns empty array when search query is empty or whitespace', async () => {
       const resultsEmpty = await service.findTeamSuggestions('');
