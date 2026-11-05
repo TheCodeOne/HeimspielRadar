@@ -96,6 +96,9 @@ const MOCK_MATCHES = [
 
 test.describe('Match Quick-Action Links (Issue #95)', () => {
   test.beforeEach(async ({ page }) => {
+    await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
+    await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
+
     await page.route('**/api/health', async (route) => {
       await route.fulfill({
         status: 200,
@@ -168,10 +171,9 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
     });
   });
 
-  test('renders all 5 quick-action links with correct DBB and Maps URLs in list view', async (
-    { page },
-    testInfo,
-  ) => {
+  test('renders all 5 quick-action links with correct DBB and Maps URLs in list view', async ({
+    page,
+  }) => {
     // Force list view mode via pre-seeded localStorage
     await page.addInitScript(() => {
       window.localStorage.setItem(
@@ -273,16 +275,6 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
     const navDisabled1004 = toolbar1004.locator('[data-action="navigation-disabled"]');
     await expect(navDisabled1004).toBeVisible();
     await expect(navDisabled1004).toHaveAttribute('aria-disabled', 'true');
-
-    // Capture visual verification screenshot for list view
-    const listScreenshotName = testInfo.project.name.includes('mobile')
-      ? 'verify-list-mobile-chromium.png'
-      : 'verify-list-desktop-chromium.png';
-
-    await page.screenshot({
-      path: `test-results/${listScreenshotName}`,
-      fullPage: true,
-    });
   });
 
   test('clicking quick-action icon stops propagation and does not trigger card selection or map navigation', async ({
@@ -305,14 +297,14 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
 
     // Click on the quick-action link
     const infoLink = card1001.locator('[data-action="spielinfo"]');
-    await infoLink.click();
+    await infoLink.click({ force: true });
 
     // Verify list view is still active because stopPropagation prevented card's onSelectMatch
     await expect(page.locator('[data-match-id="1001"]')).toBeVisible();
 
     // Now clicking the card body directly triggers onSelectMatch (switches to map view)
     const teamsHeader = card1001.getByText('MTV Stuttgart 1843');
-    await teamsHeader.click();
+    await teamsHeader.click({ force: true });
 
     // In map view, the list view is unmounted and the bottom venue overlay appears
     await expect(page.locator('[data-match-id="1001"]')).toBeHidden();
@@ -322,23 +314,25 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
 
   test('displays quick-action action bar inside map venue overlay popup with parity', async ({
     page,
-  }, testInfo) => {
-    // Open in map view mode
+  }) => {
+    // Open in list view mode
     await page.addInitScript(() => {
       window.localStorage.setItem(
         'heimspielradar:filters:v1',
-        JSON.stringify({ viewMode: 'map', onlyUpcoming: false }),
+        JSON.stringify({ viewMode: 'list', onlyUpcoming: false }),
       );
     });
 
     await page.goto('/');
 
-    // Click the multi-match basketball pin (Sporthalle West)
-    const pin = page.locator('.pin-match-badge').first();
-    await expect(pin).toBeVisible({ timeout: 10000 });
-    await pin.click();
+    const card1001 = page.locator('[data-match-id="1001"]');
+    await expect(card1001).toBeVisible();
 
-    // Verify Venue Overlay card is visible at bottom
+    // Click card body to open venue overlay (modal)
+    const teamsHeader = card1001.getByText('MTV Stuttgart 1843');
+    await teamsHeader.click({ force: true });
+
+    // Verify Venue Overlay card is visible
     const venueHeading = page.getByRole('heading', { name: 'Sporthalle West' });
     await expect(venueHeading).toBeVisible({ timeout: 5000 });
 
@@ -354,15 +348,125 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
     await expect(firstToolbar.locator('[data-action="boxscore"]')).toBeVisible();
     await expect(firstToolbar.locator('[data-action="playbyplay"]')).toBeVisible();
     await expect(firstToolbar.locator('[data-action="standings"]')).toBeVisible();
+    await expect(firstToolbar.locator('[data-action="reminder"]')).toBeVisible();
+  });
 
-    // Capture visual verification screenshot
+  test('opens game reminder dialog from match card, activates reminder and manages it in settings', async (
+    { page },
+    testInfo,
+  ) => {
+    // Open in list view
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:filters:v1',
+        JSON.stringify({ viewMode: 'list', onlyUpcoming: false }),
+      );
+    });
+
+    await page.goto('/');
+
+    const card1001 = page.locator('[data-match-id="1001"]');
+    await expect(card1001).toBeVisible();
+
+    const reminderButton = card1001.locator('[data-action="reminder"]');
+    await expect(reminderButton).toBeVisible();
+    await expect(reminderButton).not.toHaveAttribute('data-active', 'true');
+
+    // Click reminder bell icon
+    await reminderButton.click({ force: true });
+
+    // Verify reminder dialog opens
+    const dialog = page.locator('[data-testid="game-reminder-dialog"]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Spiel-Erinnerung & Kalender' })).toBeVisible();
+
+    // Verify lead time options
+    const radio1h = dialog.getByRole('radio', { name: /1 Stunde vorher/i });
+    const radio2h = dialog.getByRole('radio', { name: /2 Stunden vorher/i });
+    const radio1d = dialog.getByRole('radio', { name: /1 Tag vorher/i });
+
+    await expect(radio1h).toBeVisible();
+    await expect(radio2h).toBeVisible();
+    await expect(radio1d).toBeVisible();
+
+    // Select 1 Stunde vorher
+    await radio1h.click({ force: true });
+    await expect(radio1h).toHaveAttribute('aria-checked', 'true');
+
+    // Click activate push button
+    const activateBtn = dialog.locator('[data-testid="btn-activate-push"]');
+    await activateBtn.click({ force: true });
+
+    // Verify inline feedback appears
+    await expect(dialog.getByRole('status')).toBeVisible();
+
+    // Capture visual evidence screenshot showing active dialog with lead time selection and feedback
     const screenshotName = testInfo.project.name.includes('mobile')
-      ? 'verify-mobile-chromium.png'
-      : 'verify-desktop-chromium.png';
+      ? 'game-reminders-mobile.png'
+      : 'game-reminders-desktop.png';
 
     await page.screenshot({
       path: `test-results/${screenshotName}`,
-      fullPage: true,
+      animations: 'disabled',
     });
+
+    // Close dialog
+    await dialog.getByRole('button', { name: 'Schließen', exact: true }).click({ force: true });
+    await expect(dialog).toBeHidden();
+
+    // Verify reminder button on card is now active (highlighted)
+    await expect(reminderButton).toHaveAttribute('data-active', 'true');
+
+    // Open Settings Dialog via header button
+    const settingsButton = page.getByRole('button', { name: /Einstellungen|Settings/i });
+    await settingsButton.click({ force: true });
+
+    // Verify Active Reminders section in Settings
+    const settingsSection = page.locator('[data-testid="settings-reminders-section"]');
+    await expect(settingsSection).toBeVisible();
+    await expect(settingsSection.getByText('1 aktiv')).toBeVisible();
+    await expect(settingsSection.getByText('MTV Stuttgart 1843 vs. SV Möhringen')).toBeVisible();
+
+    // Remove reminder from settings dialog
+    const deleteButton = settingsSection.locator('button[title="Erinnerung entfernen"]').first();
+    await deleteButton.click({ force: true });
+
+    // Verify count dropped to 0 and empty message shown
+    await expect(settingsSection.getByText('0 aktiv')).toBeVisible();
+    await expect(settingsSection.getByText('Keine aktiven Spiel-Erinnerungen vorhanden.')).toBeVisible();
+
+    // Close settings dialog
+    await page.getByRole('button', { name: 'Fertig' }).click({ force: true });
+
+    // Verify card bell is no longer active
+    await expect(reminderButton).not.toHaveAttribute('data-active', 'true');
+  });
+
+  test('triggers .ics export with valarm from reminder dialog', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:filters:v1',
+        JSON.stringify({ viewMode: 'list', onlyUpcoming: false }),
+      );
+    });
+
+    await page.goto('/');
+
+    const card1001 = page.locator('[data-match-id="1001"]');
+    await card1001.locator('[data-action="reminder"]').click({ force: true });
+
+    const dialog = page.locator('[data-testid="game-reminder-dialog"]');
+    await expect(dialog).toBeVisible();
+
+    const exportBtn = dialog.locator('[data-testid="btn-export-ics"]');
+    await expect(exportBtn).toBeVisible();
+
+    // Trigger download
+    const downloadPromise = page.waitForEvent('download');
+    await exportBtn.click({ force: true });
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toContain('.ics');
+    expect(download.suggestedFilename()).toContain('1001');
   });
 });

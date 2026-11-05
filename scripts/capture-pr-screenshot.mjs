@@ -264,7 +264,7 @@ async function main() {
       console.log("[screenshot] Playwright snapshot stalled in WSL; falling back to host Chrome CLI snapshot...");
 
       try {
-        const { execFileSync, execSync } = await import("node:child_process");
+        const { execSync, execFileSync } = await import("node:child_process");
         const deskWin = execSync(`wslpath -w "${desktopPath}"`).toString().trim();
         const mobWin = execSync(`wslpath -w "${mobilePath}"`).toString().trim();
 
@@ -274,6 +274,7 @@ async function main() {
           "--window-size=1280,800",
           url,
         ]);
+
         execFileSync(winChromePath, [
           "--headless=new",
           `--screenshot=${mobWin}`,
