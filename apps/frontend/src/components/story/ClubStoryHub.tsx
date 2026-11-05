@@ -114,7 +114,7 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
   }, [allMatches, activeTab]);
 
   const handleSelectSuggestion = (suggestion: TeamSuggestion) => {
-    setSelectedClub(suggestion.clubName || suggestion.name);
+    setSelectedClub(suggestion.name);
   };
 
   const handleClearClub = () => {

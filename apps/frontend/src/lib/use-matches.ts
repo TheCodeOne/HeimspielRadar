@@ -10,7 +10,7 @@ export function isTeamNumberMatch(
   teamName: string,
   shortName: string | null | undefined,
   queryNum: number | undefined,
-  queryBase: string,
+  _queryBase: string,
   rawQuery: string,
 ): boolean {
   const tTrim = teamName.trim();

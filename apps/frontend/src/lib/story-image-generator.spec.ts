@@ -12,15 +12,18 @@ import {
 
 const mockMatch: Match = {
   id: 101,
-  homeTeam: { id: 1, name: 'TSG Reutlingen 2' },
-  guestTeam: { id: 2, name: 'VfL Kirchheim Knights' },
+  leagueId: 1,
+  confirmed: true,
+  homeTeam: { id: 1, dbbId: 1001, name: 'TSG Reutlingen 2' },
+  guestTeam: { id: 2, dbbId: 1002, name: 'VfL Kirchheim Knights' },
   kickoffDate: '2026-10-31',
   kickoffTime: '17:30',
   league: {
     id: 1,
+    dbbId: 501,
     name: 'Regionalliga Baden-Württemberg',
-    gender: 'm',
-    ageClass: 'senioren',
+    geschlecht: 'm',
+    akName: 'senioren',
   },
   venue: {
     id: 5,
@@ -31,7 +34,7 @@ const mockMatch: Match = {
     latitude: 48.49,
     longitude: 9.21,
   },
-  round: 3,
+  matchDay: 3,
 };
 
 describe('story-image-generator', () => {
@@ -72,17 +75,19 @@ describe('story-image-generator', () => {
       expect(
         getSquadBadgeLabel('2', {
           id: 1,
+          dbbId: 101,
           name: 'Oberliga Württemberg Herren',
-          gender: 'm',
-          ageClass: 'senioren',
+          geschlecht: 'm',
+          akName: 'senioren',
         })
       ).toBe('HERREN 2');
       expect(
         getSquadBadgeLabel(undefined, {
           id: 2,
+          dbbId: 102,
           name: 'Landesliga Damen',
-          gender: 'w',
-          ageClass: 'senioren',
+          geschlecht: 'w',
+          akName: 'senioren',
         })
       ).toBe('DAMEN 1');
     });

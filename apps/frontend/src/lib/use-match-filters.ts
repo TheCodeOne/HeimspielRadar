@@ -8,6 +8,8 @@ import {
 import { type LocationReference, STUTTGART_FALLBACK } from './geo-utils';
 import { useGeolocation, type GeolocationPositionCoords } from '@/hooks/useGeolocation';
 
+export type { GeolocationPositionCoords };
+
 export const FILTER_STORAGE_KEY = 'heimspielradar:filters:v1';
 
 export type ViewMode = 'map' | 'list';

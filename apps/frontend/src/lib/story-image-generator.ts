@@ -128,9 +128,9 @@ export function getSquadBadgeLabel(
 
   if (ageMatch) {
     category = ageMatch[1].toUpperCase();
-  } else if (/damen|frauen/i.test(leagueName) || league?.gender === 'w' || league?.gender === 'f') {
+  } else if (/damen|frauen/i.test(leagueName) || league?.geschlecht === 'w' || league?.geschlecht === 'f') {
     category = 'DAMEN';
-  } else if (/herren|männer/i.test(leagueName) || league?.gender === 'm') {
+  } else if (/herren|männer/i.test(leagueName) || league?.geschlecht === 'm') {
     category = 'HERREN';
   }
 

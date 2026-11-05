@@ -28,6 +28,7 @@ class MockStorage implements MatchFiltersStorage {
 const MOCK_LEAGUES: League[] = [
   {
     id: 101,
+    dbbId: 101,
     name: 'Oberliga Herren',
     geschlecht: 'männlich',
     akName: 'Senioren',
@@ -35,6 +36,7 @@ const MOCK_LEAGUES: League[] = [
   },
   {
     id: 102,
+    dbbId: 102,
     name: 'Landesliga Damen',
     geschlecht: 'weiblich',
     akName: 'Senioren',
@@ -42,6 +44,7 @@ const MOCK_LEAGUES: League[] = [
   },
   {
     id: 103,
+    dbbId: 103,
     name: 'Jugend U18 männlich',
     geschlecht: 'männlich',
     akName: 'U18',
@@ -49,6 +52,7 @@ const MOCK_LEAGUES: League[] = [
   },
   {
     id: 104,
+    dbbId: 104,
     name: 'Senioren Mixed Freizeit',
     geschlecht: 'mixed',
     akName: 'Senioren',
