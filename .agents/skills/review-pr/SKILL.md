@@ -46,7 +46,7 @@ Review Pull Requests by thoroughly understanding the changes and verifying their
 
 ### Axis C: Coding Standards & Architectural Invariants ([`CODING_STANDARDS.md`](../../CODING_STANDARDS.md))
 - **AST & Anti-Slop:** Every `as <Type>` cast has a preceding `// SAFETY:` comment; blank lines precede `if`/`for`/`switch`/`return`; no runtime `typeof` in domain/storage modules; no dead code.
-- **Frontend & Map Invariants:** `100dvh` (`h-dvh`) + `overscroll-none` on app shell; `isolate z-0` stacking context on map container & `.leaflet-container`; parity across all 4 map engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`).
+- **Frontend & Map Invariants:** `100dvh` (`h-dvh`) + `overscroll-none` on app shell; `isolate z-0` stacking context on map container & `.leaflet-container`; parity across all 4 map engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`); match badge and tile interaction parity between `MatchCard.tsx` and `VenueModal.tsx`.
 - **Backend & Domain Invariants:** `Europe/Berlin` timezone for DBB kickoff cutoffs; `drizzle/migrations/` SQL migration included whenever `schema.ts` is modified; filter parity between `MatchesService` and `use-matches.ts`.
 
 ---
