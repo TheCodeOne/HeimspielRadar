@@ -236,7 +236,7 @@ export function VenueModal({
                           role="button"
                           tabIndex={0}
                           className="text-[10px] cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                          title={venueMatch.featuredReason ?? 'Topspiel-Details & Berechnungsgrundlage anzeigen'}
+                          title="Topspiel-Details & Berechnungsgrundlage anzeigen"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedTopMatch(venueMatch);
@@ -252,9 +252,7 @@ export function VenueModal({
                           <span className="mr-1" aria-hidden="true">
                             ⭐
                           </span>
-                          {venueMatch.featuredReason
-                            ? `Topspiel: ${venueMatch.featuredReason}`
-                            : 'Spiel des Tages / Derby-Tipp'}
+                          Topspiel
                         </Badge>
                       )}
                       <Badge variant="league" className="text-[10px]">

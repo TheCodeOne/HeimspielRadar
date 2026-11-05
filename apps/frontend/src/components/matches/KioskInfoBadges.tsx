@@ -1,13 +1,11 @@
 import * as React from 'react';
 import type { Match } from '@sundayleague/shared-types';
 import { Badge } from '@/components/ui/badge';
-import { TopMatchInfoModal } from './TopMatchInfoModal';
 
 export interface KioskInfoBadgesProps {
   match: Match;
   className?: string;
   size?: 'sm' | 'default';
-  onOpenTopMatchInfo?: () => void;
 }
 
 export function isFreeAdmission(fee: string): boolean {
@@ -85,12 +83,7 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   match,
   className = '',
   size = 'default',
-  onOpenTopMatchInfo,
 }) => {
-  const [isTopMatchModalOpen, setIsTopMatchModalOpen] = React.useState(false);
-
-  const isFeatured = Boolean(match.isFeatured);
-  const featuredReason = match.featuredReason?.trim() || null;
   const admissionFee = match.admissionFee?.trim() || null;
   const kioskDescription = (match.kioskDescription ?? match.venue?.kioskDescription)?.trim() || null;
   const parkingNotes = (match.parkingNotes ?? match.venue?.parkingNotes)?.trim() || null;
@@ -98,7 +91,6 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
   const submitterInfo = formatSubmitterInfo(match);
 
   if (
-    !isFeatured &&
     !admissionFee &&
     !kioskDescription &&
     !parkingNotes &&
@@ -114,16 +106,6 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
     e.stopPropagation();
   };
 
-  const handleTopMatchClick = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-
-    if (onOpenTopMatchInfo) {
-      onOpenTopMatchInfo();
-    } else {
-      setIsTopMatchModalOpen(true);
-    }
-  };
-
   return (
     <>
       <div
@@ -131,35 +113,10 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
         onClick={stopPropagation}
         data-testid="kiosk-info-badges"
       >
-        {/* 1. Direct Information Tiles (Topspiel, Kiosk, Parking, Match Notes, Submitter) */}
-        {(isFeatured || kioskDescription || parkingNotes || matchNotes || submitterInfo) && (
+        {/* 1. Direct Information Tiles (Kiosk, Parking, Match Notes, Submitter) */}
+        {(kioskDescription || parkingNotes || matchNotes || submitterInfo) && (
           <div className="flex flex-col gap-1.5" data-testid="kiosk-info-tiles">
-            {isFeatured && (
-              <div
-                role="button"
-                tabIndex={0}
-                data-tile="top-match-info"
-                onClick={handleTopMatchClick}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleTopMatchClick(e);
-                  }
-                }}
-                title="Topspiel-Berechnung anzeigen"
-                className="flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1.5 text-xs text-amber-200 shadow-xs cursor-pointer hover:brightness-110 active:scale-95 transition-all select-none"
-              >
-                <span className="shrink-0 text-sm leading-none" aria-hidden="true">
-                  ⭐
-                </span>
-                <div className="min-w-0 flex-1 leading-snug">
-                  <span className="font-semibold text-amber-300">Topspiel: </span>
-                  <span className="text-amber-100">{featuredReason ?? 'Von Admin ausgewählt'}</span>
-                </div>
-              </div>
-            )}
-
-          {kioskDescription && (
+            {kioskDescription && (
             <div
               data-tile="kiosk-info"
               className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200"

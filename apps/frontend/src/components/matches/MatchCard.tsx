@@ -110,7 +110,7 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                   variant="featured"
                   data-testid="featured-match-badge"
                   className="text-[11px] cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                  title={match.featuredReason ?? 'Topspiel-Details & Berechnungsgrundlage anzeigen'}
+                  title="Topspiel-Details & Berechnungsgrundlage anzeigen"
                   role="button"
                   tabIndex={0}
                   onClick={(e) => {
@@ -128,7 +128,7 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                   <span className="mr-1" aria-hidden="true">
                     ⭐
                   </span>
-                  {match.featuredReason ? `Topspiel: ${match.featuredReason}` : 'Spiel des Tages / Derby-Tipp'}
+                  Topspiel
                 </Badge>
               )}
 
