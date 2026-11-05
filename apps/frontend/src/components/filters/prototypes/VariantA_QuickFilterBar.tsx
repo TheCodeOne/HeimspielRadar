@@ -269,7 +269,7 @@ export function VariantA_QuickFilterBar({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    actions.handleGetCurrentLocation();
+                    actions.requestLocation();
                     setOpenPopover(null);
                   }}
                   className="w-full text-xs h-7"
@@ -397,7 +397,11 @@ export function VariantA_QuickFilterBar({
           {/* Alle Filter Button (Opens Light Drawer) */}
           <button
             type="button"
-            onClick={actions.toggleFilterDrawer}
+            onClick={() => {
+              if (isOpen) {
+                onClose?.();
+              }
+            }}
             className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
               activeFilterCount > 0
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
@@ -483,7 +487,7 @@ export function VariantA_QuickFilterBar({
                         key={lvl}
                         type="button"
                         onClick={() =>
-                          filters.setSkillLevels(
+                          actions.setSkillLevels(
                             isSelected
                               ? filters.skillLevels.filter((x) => x !== lvl)
                               : [...filters.skillLevels, lvl]
@@ -516,7 +520,7 @@ export function VariantA_QuickFilterBar({
                         key={l.id}
                         type="button"
                         onClick={() =>
-                          filters.setLeagueIds(
+                          actions.setLeagueIds(
                             isSelected
                               ? filters.leagueIds.filter((x) => x !== l.id)
                               : [...filters.leagueIds, l.id]

@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { RefreshCw, Wifi, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Button } from '@/components/ui/button';

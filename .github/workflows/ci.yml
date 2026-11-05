@@ -29,6 +29,9 @@ jobs:
       - name: Run Oxlint & Anti-Slop AST checks
         run: npx oxlint
 
+      - name: Run TypeScript Typecheck (Backend & Frontend)
+        run: npm run typecheck
+
       - name: Run Backend Unit Tests
         run: npm run test:backend
 

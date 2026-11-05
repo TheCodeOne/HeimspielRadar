@@ -62,7 +62,7 @@ export function VariantD_BottomBarSheet({
   } = useBottomSheetDrag({
     onClose: () => {
       setIsMobileSheetOpen(false);
-      onClose();
+      onClose?.();
     },
   });
 
@@ -376,7 +376,7 @@ export function VariantD_BottomBarSheet({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={actions.handleGetCurrentLocation}
+            onClick={() => actions.requestLocation()}
             className="h-6 px-1.5 text-[11px] text-primary"
           >
             <LocateFixed className="mr-1 h-3 w-3" />
@@ -911,7 +911,7 @@ export function VariantD_BottomBarSheet({
               variant="outline"
               size="sm"
               onClick={() => {
-                actions.handleGetCurrentLocation();
+                actions.requestLocation();
                 setDesktopPopover(null);
               }}
               className="w-full text-xs h-7"

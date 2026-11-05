@@ -49,6 +49,7 @@ Universal operating rules and context pointers for all agents working in this re
 
 Run all applicable gates inside `.worktrees/issue-<id>` before committing:
 - `npx oxlint` (0 errors, 0 warnings)
+- `npm run typecheck` (TypeScript typecheck for Backend & Frontend with 0 errors)
 - `npm run db:check` (when `schema.ts` or `drizzle/migrations/` is modified)
 - `npm run lockfile:check` (when `package.json` or `package-lock.json` is modified)
 - `npm run test:backend` & `npm run build`

@@ -302,7 +302,7 @@ export function VariantB_AccordionDrawer({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={actions.handleGetCurrentLocation}
+                  onClick={() => actions.requestLocation()}
                   className="h-6 px-1.5 text-[11px] text-primary"
                 >
                   <LocateFixed className="mr-1 h-3 w-3" />

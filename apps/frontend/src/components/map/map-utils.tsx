@@ -1,4 +1,3 @@
-import * as React from 'react';
 import type { Match, Venue } from '@sundayleague/shared-types';
 import { compareMatchesChronologically } from '@/lib/date-utils';
 
@@ -38,8 +37,10 @@ export function isSameVenue(
     return false;
   }
 
-  const venueA = 'venue' in a ? a.venue : a;
-  const venueB = 'venue' in b ? b.venue : b;
+  // SAFETY: When 'venue' is not a property on 'a', 'a' is directly typed as Venue
+  const venueA: Venue | null | undefined = 'venue' in a ? a.venue : (a as Venue);
+  // SAFETY: When 'venue' is not a property on 'b', 'b' is directly typed as Venue
+  const venueB: Venue | null | undefined = 'venue' in b ? b.venue : (b as Venue);
 
   if (!venueA || !venueB) {
     return false;
