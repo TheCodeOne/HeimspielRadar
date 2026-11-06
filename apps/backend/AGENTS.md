@@ -10,7 +10,7 @@ Sundayleague is a platform for finding amateur sports matches nearby on any give
 
 - **Framework:** NestJS (inside an Nx Monorepo at `apps/backend`)
 - **Shared Types:** `@sundayleague/shared-types` at `libs/shared-types`
-- **Database & ORM:** PostgreSQL on [Neon](https://neon.tech) via **Drizzle ORM** (`apps/backend/src/app/database/`)
+- **Database & ORM:** PostgreSQL (Self-Hosted on Pi or Remote) via **Drizzle ORM** (`apps/backend/src/app/database/`)
 - **Environment:** `.env.local` and `.env` are automatically merged in both NestJS and `drizzle.config.ts` (`.env.local` takes precedence)
 - **Current Core Modules:**
   - `DatabaseModule`: Global Drizzle ORM provider (`DRIZZLE_DB`) with resilient `raw_data jsonb` columns
@@ -64,7 +64,7 @@ When extending this codebase, follow these planned evolution steps:
    - Use `fetchWamLeagues(verbandId = 1, startAtIndex)` to page through all leagues across the 4 Bezirke (Nordwürttemberg, Schwarzwald/Oberrhein, Rhein/Neckar, etc.).
    - Provide an endpoint `POST /api/scraper/sync/verband/1` with concurrency limiting to avoid overwhelming upstream APIs.
 2. **Automated & Incremental Sync (Cron / Jobs):**
-   - Add `@nestjs/schedule` or Neon Function Triggers for periodic syncs.
+   - Add `@nestjs/schedule` or systemd/cron triggers for periodic syncs.
    - Differentiate between:
      - **Full Season Sync:** Run weekly/monthly to catch rescheduled dates/venues.
      - **Live/Weekend Sync:** Run on Saturdays and Sundays to update match results and scores (`result`, `confirmed`).
@@ -72,7 +72,7 @@ When extending this codebase, follow these planned evolution steps:
    - Workflow file: `.github/workflows/scraper-sync.yml`
    - Triggerable manually from the **Actions** tab in GitHub or via GitHub CLI:
      ```bash
-     gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspiel-radar.onrender.com
+     gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://api.heimspielradar.app
      ```
    - **GitHub Secret Requirement:**
      Configure `SCRAPER_SECRET` under **Settings -> Secrets and variables -> Actions** in the GitHub repository.
@@ -91,7 +91,7 @@ npm run start:backend
 # Build backend
 npm run build:backend
 
-# Push schema changes to Neon DB (prototype mode)
+# Push schema changes to PostgreSQL DB (prototype mode)
 npm run db:push
 
 # Open Drizzle Studio to inspect DB rows visually
