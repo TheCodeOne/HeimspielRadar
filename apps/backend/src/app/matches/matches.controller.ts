@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { CreateKioskSubmissionDto } from '@sundayleague/shared-types';
 import { MatchesService, validateKioskSubmissionDto } from './matches.service';
 
@@ -78,6 +79,7 @@ export class MatchesController {
     });
   }
 
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Get('teams')
   async getTeams(@Query('q') query?: string) {
     return this.matchesService.findTeamSuggestions(query ?? '');
@@ -94,6 +96,7 @@ export class MatchesController {
     return match;
   }
 
+  @Throttle({ default: { limit: 5, ttl: 600000 } })
   @Post(':id/kiosk-submission')
   async submitKioskInfo(
     @Param('id', ParseIntPipe) id: number,

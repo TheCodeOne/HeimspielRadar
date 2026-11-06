@@ -12,6 +12,10 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   app.enableCors();
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
   Logger.log(`🚀 Application is running on: http://0.0.0.0:${port}/${globalPrefix}`);
