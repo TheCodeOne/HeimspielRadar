@@ -1,6 +1,6 @@
 # Raspberry Pi Docker Deployment Guide
 
-This guide documents deploying the HeimspielRadar backend to a Raspberry Pi 4 or 5 (64-bit ARM) running 24/7 for scheduled DBB match syncing against Neon PostgreSQL.
+This guide documents deploying the HeimspielRadar backend to a Raspberry Pi 4 or 5 (64-bit ARM) running 24/7 for scheduled DBB match syncing against PostgreSQL (Self-Hosted on Pi or Remote) via Drizzle ORM.
 
 ---
 
@@ -14,7 +14,7 @@ HeimspielRadar utilizes a streamlined Mac-to-Pi deployment pipeline:
 │                                 │                 │                                 │
 │  1. `docker buildx` compiles     │  Streaming SSH  │  3. `docker load` imports image │
 │     multi-stage linux/arm64     │ ───────────────>│  4. `docker compose up -d`      │
-│  2. `docker save` image stream  │     Tunnel      │  5. NestJS boots, applies Neon   │
+│  2. `docker save` image stream  │     Tunnel      │  5. NestJS boots, applies DB     │
 │                                 │                 │     migrations, runs cron syncs │
 └─────────────────────────────────┘                 └─────────────────────────────────┘
 ```
@@ -23,7 +23,7 @@ Key features:
 - **Zero Pi Compilation**: Fast local build on Mac via Docker Buildx; the Pi never struggles with npm installs or webpack builds.
 - **Direct SSH Streaming**: `docker save ... | ssh pi@host 'docker load'` eliminates the need for an external Docker registry.
 - **Lean Runtime**: Node 22 Alpine non-root image with production dependencies only.
-- **Automated Neon Syncs**: Automated cron schedules (`CRON_DELTA_SCHEDULE` and `CRON_DEEP_SCHEDULE`) run independently 24/7.
+- **Automated Match Syncs**: Automated cron schedules (`CRON_DELTA_SCHEDULE` and `CRON_DEEP_SCHEDULE`) run independently 24/7.
 - **Monolithic SPA Serving**: Optional frontend static assets served under `/` alongside `/api/*` endpoints (ADR-0001).
 
 ---
@@ -89,8 +89,8 @@ nano .env
 Add your production environment variables to `~/heimspielradar/.env`:
 
 ```env
-# Neon PostgreSQL Connection URL
-DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-cool-fog-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+# PostgreSQL Connection URL (e.g. self-hosted on Pi or remote)
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/heimspielradar"
 
 # Enable cron scrapers (default: true)
 ENABLE_CRON_SYNC=true
@@ -204,8 +204,8 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-### Neon Database SSL Connection
-Ensure `sslmode=require` is present in the `DATABASE_URL` query parameters:
+### Database SSL Connection
+If connecting to a remote PostgreSQL database requiring TLS/SSL, ensure `sslmode=require` is present in the `DATABASE_URL` query parameters or set `DB_SSL=true`:
 ```env
 DATABASE_URL="postgresql://...?sslmode=require"
 ```

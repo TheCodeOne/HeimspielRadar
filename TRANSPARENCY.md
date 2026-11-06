@@ -21,7 +21,7 @@ Hier ist die detaillierte Aufschlüsselung der monatlichen Betriebskosten nach S
 | Kostenkomponente | Stufe 1: Hobby / Lokal (1 Verband, z. B. BBW, ~35k Matches, < 1k MAU) | Stufe 2: Regional (3–5 Verbände, ~150k Matches, 1k–10k MAU) | Stufe 3: Bundesweit (16 Verbände, ~400k Matches, 10k–100k MAU) | Stufe 4: Multi-Sport (Bundesweit + Fußball/Handball) |
 | :--- | :--- | :--- | :--- | :--- |
 | **Compute (Backend / API)** | **~1,30 €** (Raspberry Pi 4/5 zu Hause, ~5W Strom) | **~3,79 €** (Hetzner Cloud VPS CX22, 2 vCPU, 4GB RAM) | **~7,00 €** (Hetzner Cloud CPX21, 3 vCPU, 4GB RAM) | **~15,00 €** (Hetzner Dedicated / 2x Cloud VPS) |
-| **Datenbank (PostgreSQL / PostGIS)** | **0,00 €** (Neon Serverless Free Tier) | **0,00 €** (Postgres direkt im Docker auf dem Hetzner VPS) | **3,81 €** (Hetzner VPS + 1 TB Storage Box für Backups) | **10,00 €** (Managed Postgres oder Hetzner VPS Cluster) |
+| **Datenbank (PostgreSQL / PostGIS)** | **0,00 €** (Postgres direkt im Docker auf dem Pi / VPS) | **0,00 €** (Postgres direkt im Docker auf dem Hetzner VPS) | **3,81 €** (Hetzner VPS + 1 TB Storage Box für Backups) | **10,00 €** (Managed Postgres oder Hetzner VPS Cluster) |
 | **Frontend CDN & Edge Caching** | **0,00 €** (Cloudflare Free Tier) | **0,00 €** (Cloudflare Free Tier) | **0,00 €** (Cloudflare Free Tier) | **0,00 € – 20,00 €** (Cloudflare Pro / CDN) |
 | **Geocoding & Karten-Tiles** | **0,00 €** (Nominatim Cache + OSM Fair-Use) | **0,00 €** (OSM Tiles / MapTiler Free bis 100k Aufrufe) | **~5,00 €** (Protomaps / eigene PMTiles Vektorkacheln via Cloudflare R2) | **~15,00 €** (PMTiles CDN Storage & Egress) |
 | **Domain & DNS (`heimspielradar.app`)** | **~1,18 €** ($14.20/Jahr) | **~1,18 €** | **~1,18 €** | **~2,50 €** (inkl. Fallback-Domains) |

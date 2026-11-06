@@ -3,7 +3,6 @@ import {
   Activity,
   Calendar,
   Clock,
-  Coffee,
   Loader2,
   MapPin,
   RotateCcw,
@@ -37,7 +36,6 @@ import {
   StoryMatchRouteContainer,
 } from '@/components/story';
 import { ReloadPrompt } from '@/components/pwa';
-import { ColdStartOverlay } from '@/components/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
@@ -159,13 +157,8 @@ function MainView() {
     }
   };
 
-  // Server health and cold-start detection
-  const {
-    isColdStarting,
-    isDismissed: isHealthDismissed,
-    dismiss: dismissColdStart,
-    lastSyncedAt,
-  } = useServerHealth({ thresholdMs: 1500 });
+  // Server health and sync status
+  const { lastSyncedAt } = useServerHealth();
 
   // Query matches with debounced API integration and hierarchical filter params
   const { matches, isLoading } = useMatches({
@@ -503,12 +496,6 @@ function MainView() {
               mapHeightClassName="w-full h-full"
             />
 
-            {/* Cold-Start Map Overlay */}
-            <ColdStartOverlay
-              isVisible={isColdStarting && !isHealthDismissed}
-              onDismiss={dismissColdStart}
-            />
-
             {/* Venue Details Modal / Bottom Sheet (Zero overlap with bottom bar) */}
             <VenueModal
               selectedMatch={selectedMatch}
@@ -522,22 +509,6 @@ function MainView() {
           /* Full-Screen Scrollable List View */
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
             <div className="mx-auto max-w-4xl space-y-4">
-              {isColdStarting && !isHealthDismissed && (
-                <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground backdrop-blur-xs">
-                  <div className="flex items-center gap-2">
-                    <Coffee className="h-4 w-4 shrink-0 animate-pulse text-primary" />
-                    <span>☕ Kostenloser Server wacht auf (~30 Sek.)...</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={dismissColdStart}
-                    className="shrink-0 text-[11px] text-muted-foreground underline hover:text-foreground"
-                  >
-                    Ausblenden
-                  </button>
-                </div>
-              )}
-
               {/* Active Filter Summary Bar */}
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/60 p-3 text-xs">
                 <div className="flex flex-wrap items-center gap-1.5">

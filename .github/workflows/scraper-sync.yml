@@ -9,9 +9,9 @@ on:
         default: '1'
         type: string
       backendUrl:
-        description: 'Backend Base URL (defaults to production Render service)'
+        description: 'Backend Base URL (defaults to production API)'
         required: false
-        default: 'https://heimspiel-radar.onrender.com'
+        default: 'https://api.heimspielradar.app'
         type: string
 
 jobs:

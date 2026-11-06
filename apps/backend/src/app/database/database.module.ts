@@ -39,7 +39,7 @@ function resolveMigrationsFolder(): string | null {
 
         if (!databaseUrl) {
           logger.warn(
-            '⚠️ DATABASE_URL is not configured! Please provide a DATABASE_URL in .env (e.g. from Neon Postgres).'
+            '⚠️ DATABASE_URL is not configured! Please provide a DATABASE_URL in .env.'
           );
 
           // Return null so the app can still boot for testing/preview endpoints
@@ -47,9 +47,14 @@ function resolveMigrationsFolder(): string | null {
         }
 
         try {
+          const requiresSsl =
+            databaseUrl.includes('sslmode=require') ||
+            process.env.DB_SSL === 'true' ||
+            configService.get<string>('DB_SSL') === 'true';
+
           const pool = new Pool({
             connectionString: databaseUrl,
-            ssl: databaseUrl.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
+            ssl: requiresSsl ? { rejectUnauthorized: false } : undefined,
           });
 
           logger.log('Connected to PostgreSQL database via Drizzle');
