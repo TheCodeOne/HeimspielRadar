@@ -3,7 +3,7 @@
 # ==============================================================================
 # Stage 1: Build Backend & Frontend
 # ==============================================================================
-FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN npx nx build backend && npx nx build frontend
 # ==============================================================================
 # Stage 2: Lean Production Runtime
 # ==============================================================================
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 # Install curl for container healthcheck
 RUN apk add --no-cache curl
