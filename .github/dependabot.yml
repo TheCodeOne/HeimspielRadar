@@ -1,0 +1,124 @@
+# ==============================================================================
+# Dependabot Configuration for HeimspielRadar
+# ==============================================================================
+# Schedules: Weekly on Fridays at 05:00 (Europe/Berlin)
+# Ecosystems: npm (monorepo root), github-actions, docker
+# Grouping: Thematic groups to minimize PR noise and lockfile churn
+# Protection: Expo & React Native ecosystems frozen to prevent breaking Expo SDK 58
+# ==============================================================================
+
+version: 2
+updates:
+  # ----------------------------------------------------------------------------
+  # 1. Monorepo Root npm Ecosystem
+  # ----------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "05:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    # Freeze Expo and React Native: Expo SDK 58 mandates strict peer dependency locks
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "@react-native-async-storage/*"
+      - dependency-name: "@gorhom/bottom-sheet"
+      - dependency-name: "nativewind"
+      - dependency-name: "babel-preset-expo"
+      - dependency-name: "posthog-react-native"
+    groups:
+      # Nx monorepo core toolchain (must stay in lockstep)
+      nx-workspace:
+        patterns:
+          - "nx"
+          - "@nx/*"
+      # Developer tooling, linters, test harnesses, and type definitions
+      dev-tooling:
+        patterns:
+          - "oxlint"
+          - "@oxlint/*"
+          - "jest"
+          - "jest-*"
+          - "@types/jest"
+          - "ts-jest"
+          - "ts-node"
+          - "@playwright/*"
+          - "typescript"
+          - "@types/*"
+      # Production frameworks, database ORM, runtime utilities, and UI libraries
+      framework-prod:
+        patterns:
+          - "@nestjs/*"
+          - "react"
+          - "react-dom"
+          - "@radix-ui/*"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "vite"
+          - "vite-*"
+          - "@vitejs/*"
+          - "lightningcss"
+          - "drizzle-orm"
+          - "drizzle-kit"
+          - "pg"
+          - "dotenv"
+          - "clsx"
+          - "tailwind-merge"
+          - "lucide-react"
+          - "leaflet"
+          - "react-leaflet"
+          - "maplibre-gl"
+          - "ol"
+          - "pigeon-maps"
+          - "class-variance-authority"
+          - "rxjs"
+          - "reflect-metadata"
+          - "tslib"
+
+  # ----------------------------------------------------------------------------
+  # 2. GitHub Actions Workflows
+  # ----------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "05:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # ----------------------------------------------------------------------------
+  # 3. Docker Base & Runtime Images
+  # ----------------------------------------------------------------------------
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "05:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      docker:
+        patterns:
+          - "*"
