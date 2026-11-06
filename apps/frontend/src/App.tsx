@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Settings,
   SlidersHorizontal,
+  WifiOff,
 } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
@@ -49,10 +50,13 @@ import { getDonationUrl } from '@/lib/donation';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
+import { useOnlineStatus } from '@/hooks';
 
 const DONATION_URL = getDonationUrl();
 
 function MainView() {
+  const isOnline = useOnlineStatus();
+
   // Fetch available leagues and distinct hierarchy options from /api/leagues
   const {
     leagues,
@@ -269,6 +273,16 @@ function MainView() {
               <Clock className="mr-1 h-3 w-3 text-primary/70" />
               {formatLastSyncedAt(lastSyncedAt)}
             </Badge>
+            {!isOnline && (
+              <Badge
+                variant="outline"
+                data-testid="offline-badge"
+                className="hidden md:inline-flex items-center gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-medium"
+              >
+                <WifiOff className="h-3 w-3 text-amber-400" />
+                <span>Offline</span>
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -356,6 +370,19 @@ function MainView() {
           )}
         </div>
       </header>
+
+      {/* Offline Status Banner */}
+      {!isOnline && (
+        <aside
+          role="status"
+          aria-live="polite"
+          data-testid="offline-indicator"
+          className="flex items-center justify-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 shrink-0 shadow-xs z-30"
+        >
+          <WifiOff className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+          <span>Offline-Modus – gespeicherte Spiele aktiv</span>
+        </aside>
+      )}
 
       {/* Feedback Toast Notification */}
       {toastMessage && (

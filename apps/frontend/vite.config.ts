@@ -61,6 +61,34 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
+            urlPattern: /\/api\/matches.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'api-matches-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /\/api\/leagues.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'api-leagues-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
             urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {

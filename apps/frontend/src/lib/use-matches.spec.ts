@@ -623,4 +623,18 @@ describe('useMatches hook instant filtering behavior', () => {
 
     expect(result.isLoading).toBe(true);
   });
+
+  it('serves matches from loaded master pool as resilient fallback during offline or network error', () => {
+    const result = executeHook({
+      lat: 48.5200,
+      lng: 9.0550,
+      radiusKm: 20,
+      date: '2026-11-07',
+      initialMasterPool: loadedPool,
+    });
+
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].id).toBe(1);
+    expect(result.error).toBeNull();
+  });
 });

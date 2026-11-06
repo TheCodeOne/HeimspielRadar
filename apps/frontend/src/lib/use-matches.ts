@@ -7,7 +7,6 @@ import {
   type Match,
   type NearbyMatchesQuery,
 } from '@sundayleague/shared-types';
-import { getSampleMatches } from './sample-matches';
 import { getBerlinDateString } from './use-match-filters';
 
 export { isTeamNumberMatch, sortMatches };
@@ -366,10 +365,36 @@ export function useMatches({
 
         // SAFETY: The /api/matches endpoint returns an array of Match objects according to OpenAPI/NestJS contract
         const data = (await res.json()) as Match[];
-        const localMatches = filterAndSortMatchesLocally(data, currentOptions);
+
+        // Recompute distances relative to current reference point if missing
+        const processed: Match[] = [];
+
+        for (const item of data) {
+          let distance = item.distanceKm;
+
+          if (
+            distance == null &&
+            item.venue?.latitude != null &&
+            item.venue?.longitude != null
+          ) {
+            distance = calculateDistanceKm(
+              lat,
+              lng,
+              item.venue.latitude,
+              item.venue.longitude,
+            );
+          }
+
+          processed.push({
+            ...item,
+            distanceKm: distance,
+          });
+        }
+
+        const sorted = sortMatches(processed, { teamQuery });
 
         if (!abortController.signal.aborted) {
-          setNetworkMatches(localMatches);
+          setNetworkMatches(sorted);
           setIsNetworkLoading(false);
         }
       } catch (err) {
@@ -377,8 +402,8 @@ export function useMatches({
           return;
         }
 
-        // Best effort: If master pool exists, filter from it even if out of bounds
-        if (masterPool.isLoaded && masterPool.matches.length > 0) {
+        // Offline / Network fallback: Serve from in-memory master pool if available
+        if (masterPool.matches.length > 0) {
           const fallbackMatches = filterAndSortMatchesLocally(
             masterPool.matches,
             currentOptions,
@@ -390,29 +415,8 @@ export function useMatches({
           return;
         }
 
-        // Ultimate fallback to sample matches
-        const fallbackQuery: NearbyMatchesQuery = {
-          date,
-          dateFrom,
-          dateTo,
-          lat,
-          lng,
-          radiusKm,
-          leagueId,
-          leagueIds,
-          genders,
-          ageClasses,
-          skillLevels,
-          onlyUpcoming,
-          teamQuery,
-        };
-
-        const fallbackResults = evaluateMatchesQuery(
-          getSampleMatches(),
-          fallbackQuery,
-        );
-
-        setNetworkMatches(fallbackResults);
+        // When offline or fetch failed without cached master pool data, clear matches
+        setNetworkMatches([]);
         setIsNetworkLoading(false);
 
         if (err instanceof Error) {
