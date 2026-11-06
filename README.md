@@ -1,9 +1,10 @@
 # HeimspielRadar Monorepo
 
 > **Live:** [**heimspielradar.app**](https://heimspielradar.app)  
-> Entdecke Amateur-Basketballspiele in deiner Nähe auf einer interaktiven Karte mit Hallen-Navigation, Live-Ergebnissen und Kiosk-Infos.
+> **API:** [**api.heimspielradar.app**](https://api.heimspielradar.app)  
+> Entdecke Amateur-Basketballspiele in deiner Nähe auf einer interaktiven Karte mit Hallen-Navigation, Kiosk-Infos und Offline-Fähigkeit.
 
-Ein modernes Fullstack-Monorepo auf Basis von **Nx**, mit einem **Nest.js**-Backend und einem **React 19 (Vite)** Frontend.
+Ein modernes Fullstack-Monorepo auf Basis von **Nx**, mit einem **Nest.js**-Backend, einem **React 19 (Vite)** Frontend (PWA) und einer **Expo/React Native** Mobile App.
 
 ---
 
@@ -12,124 +13,81 @@ Ein modernes Fullstack-Monorepo auf Basis von **Nx**, mit einem **Nest.js**-Back
 ```text
 heimspielradar/
 ├── apps/
-│   ├── backend/             # Nest.js API-Server (Port 3000, Prefix: /api)
-│   └── frontend/            # React 19 + Vite PWA (Karten- und Listenansicht)
+│   ├── backend/             # Nest.js API-Server (Port 3000, Prefix: /api) mit Drizzle ORM
+│   ├── frontend/            # React 19 + Vite PWA (Karten- & Listenansicht, Offline-Fähig)
+│   └── mobile/              # Expo / React Native App (NativeWind, iOS/Android)
 ├── libs/
-│   └── shared-types/        # Geteilte TypeScript-Typen & Interfaces (@sundayleague/shared-types)
-├── nx.json                  # Nx-Konfiguration
-├── tsconfig.base.json       # Globale TS-Pfade (z.B. @sundayleague/shared-types)
+│   └── shared-types/        # Geteilte TypeScript-Typen & Logik (@sundayleague/shared-types)
+├── docs/                    # Architekturentscheidungen (ADRs), Deployment- & Setup-Guides
+├── nx.json                  # Nx-Monorepo Konfiguration
 └── package.json             # NPM-Skripte & Abhängigkeiten
 ```
 
 ---
 
-## 🚀 Schnellstart
+## 🚀 Architektur-Highlights & Features
 
-### Backend starten
+### 1. Offline-Fähigkeit & Instant Masterpool (PWA)
+- **Zero-Latency In-Memory Filtering:** Nach Standorterfassung (GPS oder Stadtsuche) lädt die Web-App im Hintergrund automatisch einen **50-km-Masterpool für bis zu 4 Wochen** (~1.700 Spiele, ~250 KB gzipped).
+- **Synchrones Umschalten:** Standardfilter wie *Heute*, *Morgen*, *Dieses Wochenende*, *Nächstes Wochenende*, Ligen- und Umkreisfilter werden lokal über `evaluateMatchesQuery` ohne Ladebalken und mit 0 ms Latenz berechnet.
+- **Service Worker & Cache-API:** Über Workbox (`StaleWhileRevalidate`) bleiben Spieldaten persistent im Speicher, sodass die App auch in Hallen oder Funklöchern voll bedienbar bleibt (inklusive subtiler Offline-Status-Pill).
 
+### 2. Request Throttling & DDoS-Schutz
+- **Cloudflare Edge Protection:** Cloudflare WAF fängt DoS-Spitzen an der Edge vor dem Server ab.
+- **Tiered NestJS Rate-Limiting:**
+  - Standard API-Limit: 60 Req / Min
+  - Teams Typeahead: 120 Req / Min
+  - Kiosk-Meldungen: 5 Req / 10 Min (Spam-Schutz)
+- **Cloudflare Client-IP:** Echte IP-Erkennung über `cf-connecting-ip` und aktivierten `trust proxy`.
+
+### 3. Selbstgehostetes Deployment & Datenbank
+- **Server:** Läuft produktiv und energiesparend auf einem Raspberry Pi via Docker Compose hinter Cloudflare.
+- **Datenbank:** PostgreSQL via **Drizzle ORM** (keine Abhängigkeit mehr von proprietären Cloud-Diensten wie Neon oder Render).
+
+---
+
+## 🛠️ Schnellstart & Entwicklung
+
+### 1. Installation
 ```bash
-# Entweder via npm:
+npm install
+cp .env.example .env.local
+```
+
+### 2. Lokale Services starten
+```bash
+# Backend (Port 3000, API: http://localhost:3000/api)
 npm run start:backend
 
-# Oder direkt via Nx:
-npx nx serve backend
+# Frontend (Port 4200, Web: http://localhost:4200)
+npm run start:frontend
+
+# Expo Mobile App
+npm run start:mobile
 ```
 
-Das Backend läuft anschließend auf:
-- **API URL:** [http://localhost:3000/api](http://localhost:3000/api)
-- CORS ist für die lokale Frontend-Entwicklung bereits aktiviert (`app.enableCors()`).
-
-### Tests & Build
-
+### 3. Quality Gates, Tests & Linting
+Vor jedem Commit und Pull Request müssen folgende Gates grün sein:
 ```bash
-# Tests ausführen
-npm test              # Alle Projekte
-npm run test:backend  # Nur Backend
-
-# Build ausführen
-npm run build         # Alle Projekte
-npm run build:backend # Nur Backend
-```
-
----
-
-## 🎨 Frontend hinzufügen (Sobald du dich entschieden hast)
-
-Da du noch überlegst, welches Frontend du nutzen möchtest, kannst du mit den folgenden Befehlen jederzeit dein gewünschtes Framework mit einem einzigen Befehl zum Monorepo hinzufügen:
-
-### Option A: Next.js
-```bash
-npx nx add @nx/next
-npx nx g @nx/next:app apps/frontend --style=css
-```
-
-### Option B: React (mit Vite)
-```bash
-npx nx add @nx/react
-npx nx g @nx/react:app apps/frontend --bundler=vite
-```
-
-### Option C: Vue.js (mit Vite)
-```bash
-npx nx add @nx/vue
-npx nx g @nx/vue:app apps/frontend
-```
-
-### Option D: Angular
-```bash
-npx nx add @nx/angular
-npx nx g @nx/angular:app apps/frontend
-```
-
----
-
-## 🔗 Geteilte Typen (`@sundayleague/shared-types`)
-
-Sowohl das Nest.js-Backend als auch dein zukünftiges Frontend können Code und Typen aus `libs/shared-types` teilen.
-
-Importiere sie einfach wie folgt in deinen Dateien:
-
-```typescript
-import { ApiResponse, User } from '@sundayleague/shared-types';
-```
-
----
-
-## 📊 Nx Dependency Graph
-
-Um die Beziehungen zwischen Apps und Libraries visuell im Browser anzuzeigen:
-
-```bash
-npx nx graph
+npx oxlint                 # Rust-Linter (0 Errors, 0 Warnings)
+npm run typecheck          # TypeScript Check für alle Projekte
+npm test                   # Unit-Tests
+npm run build              # Produktions-Build aller Projekte
 ```
 
 ---
 
 ## 🤖 Scraper Sync & GitHub Actions
 
-Das Projekt enthält einen manuell auslösbaren GitHub-Actions-Workflow (`.github/workflows/scraper-sync.yml`), um DBB-Spieldaten in der Render-Backend-Instanz zu synchronisieren.
+Das Projekt enthält einen manuell auslösbaren GitHub-Actions-Workflow (`.github/workflows/scraper-sync.yml`), um DBB-Spieldaten zu synchronisieren.
 
 ### Workflow ausführen
-1. Gehe im GitHub Repository zum Reiter **Actions**.
-2. Wähle **Manual DBB Scraper Sync** in der linken Seitenleiste.
-3. Klicke auf **Run workflow**.
-4. Wähle optional die `verbandId` (Standard: `1` für Baden-Württemberg) und die `backendUrl` (Standard: `https://heimspielradar.app` bzw. Backend-Instanz).
-5. Nach Abschluss zeigt das Job-Summary eine strukturierte Übersicht der synchronisierten Ligen, Spiele und Sporthallen.
-
-Alternativ via GitHub CLI:
 ```bash
-gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://heimspielradar.app
+gh workflow run scraper-sync.yml -f verbandId=1 -f backendUrl=https://api.heimspielradar.app
 ```
-
-### GitHub Secret Konfiguration
-Der Workflow benötigt das Secret `SCRAPER_SECRET` zur Authentifizierung am Backend (`Authorization: Bearer <SCRAPER_SECRET>`):
-- Gehe zu **Settings** → **Secrets and variables** → **Actions** im GitHub Repository.
-- Erstelle ein neues Repository-Secret mit dem Namen `SCRAPER_SECRET` und trage denselben Wert wie in der Backend-Umgebungsvariable ein.
 
 ---
 
 ## 💎 Open Source Transparenz & Kosten
 
 HeimspielRadar ist zu 100% Open Source und gemeinnützig orientiert. Alle Betriebskosten, Einnahmen und Ausgaben werden transparent in [**`TRANSPARENCY.md`**](TRANSPARENCY.md) offengelegt.
-
-

@@ -33,6 +33,10 @@ Universal operating rules and context pointers for all agents working in this re
 
 ## 2. Context Pointers & Co-Change Couplings
 
+- **Documentation & README Maintenance Rule (MANDATORY)**:
+  - Whenever an agent implements significant or foundational changes (such as new architectural features, caching layers, offline behaviors, rate-limiting, deployment target changes, or new public APIs), the agent **MUST** update the root [**`README.md`**](README.md) in the same PR or commit.
+  - Keep the documentation accurate, up-to-date, and free of obsolete legacy pointers (e.g. removed third-party services or deprecated workflows).
+
 - **Coding Standards & Invariants**: Consult [**`CODING_STANDARDS.md`**](CODING_STANDARDS.md) when writing or reviewing code (Oxlint `anti-slop` rules, `100dvh` mobile viewport lock, `isolate z-0` map stacking context, `Europe/Berlin` kickoff timezone, chronological match sorting).
 - **Domain Glossary**: Consult [**`GLOSSARY.md`**](GLOSSARY.md) for canonical domain terms (*Heimspiel*, *Match*, *Venue*, *Radius*, *Map Spike*).
 - **Architecture Decision Records**:
