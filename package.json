@@ -69,7 +69,7 @@
     "vite-plugin-pwa": "^2.0.0",
     "webpack": "~5.110.0",
     "webpack-cli": "^7.0.0",
-    "webpack-dev-server": "^5.2.1"
+    "webpack-dev-server": "^6.1.0"
   },
   "dependencies": {
     "@expo/metro": "~58.0.0",
