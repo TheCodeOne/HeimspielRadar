@@ -67,7 +67,7 @@
     "typescript": "~6.0.3",
     "vite": "^8.3.4",
     "vite-plugin-pwa": "^2.0.0",
-    "webpack": "~5.110.0",
+    "webpack": "~5.112.2",
     "webpack-cli": "^7.0.0",
     "webpack-dev-server": "^5.2.1"
   },
