@@ -9,3 +9,5 @@ export * from './slider';
 export * from './tabs';
 
 export * from './TopLoadingBar';
+
+export * from './BrandLogo';

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import {
-  Activity,
   Calendar,
   Clock,
   Loader2,
@@ -38,6 +37,7 @@ import {
 } from '@/components/story';
 import { ReloadPrompt } from '@/components/pwa';
 import { Badge } from '@/components/ui/badge';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
 import {
@@ -247,9 +247,7 @@ function MainView() {
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
         {/* Left: Brand Logo & Title */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card shadow-xs">
-            <Activity className="h-4 w-4 text-primary" />
-          </div>
+          <BrandLogo className="h-8 w-8 shrink-0 rounded-lg shadow-xs" />
 
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-bold tracking-tight text-base sm:text-lg text-slate-100 flex items-center gap-2">

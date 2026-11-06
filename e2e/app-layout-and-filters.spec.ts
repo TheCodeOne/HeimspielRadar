@@ -161,7 +161,10 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     const headerBoxAfterScroll = await header.boundingBox();
     expect(headerBoxAfterScroll?.y).toBe(0);
 
-    // 4. Verify brand title is fully visible and not squished/truncated
+    // 4. Verify brand logo & title are fully visible and not squished/truncated
+    const brandLogo = header.getByTestId('brand-logo');
+    await expect(brandLogo).toBeVisible();
+
     const brandTitle = header.getByText('HeimspielRadar');
     await expect(brandTitle).toBeVisible();
 
