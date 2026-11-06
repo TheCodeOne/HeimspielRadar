@@ -1,37 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Background with slight rounding -->
-  <rect width="512" height="512" rx="104" fill="#020617"/>
-  
-  <!-- Subtle Radar Rings -->
-  <circle cx="256" cy="256" r="215" stroke="#1e293b" stroke-width="4" stroke-dasharray="8 8" opacity="0.6"/>
-  <circle cx="256" cy="256" r="165" stroke="#334155" stroke-width="5" opacity="0.4"/>
-  <circle cx="256" cy="256" r="120" stroke="#0284c7" stroke-width="5" stroke-dasharray="10 10" opacity="0.5"/>
-
-  <!-- Radar Pulse Sweep Glow -->
-  <path d="M 256 256 L 390 122 A 190 190 0 0 0 256 66 Z" fill="url(#radarGradient)" opacity="0.3"/>
   <defs>
-    <radialGradient id="radarGradient" cx="256" cy="256" r="190" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#0284c7" stop-opacity="0"/>
+    <radialGradient id="bg2c" cx="256" cy="256" r="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#172554" stop-opacity="0.55"/>
+      <stop offset="65%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
     </radialGradient>
-    <linearGradient id="ballGradient" x1="160" y1="160" x2="350" y2="350" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#fb923c"/>
-      <stop offset="40%" stop-color="#ea580c"/>
-      <stop offset="100%" stop-color="#c2410c"/>
+    <linearGradient id="sweep2c" x1="256" y1="256" x2="435" y2="95" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.45"/>
+      <stop offset="45%" stop-color="#38bdf8" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
     </linearGradient>
+    <linearGradient id="outerRing2c" x1="60" y1="60" x2="452" y2="452" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0284c7" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0.7"/>
+    </linearGradient>
+    <radialGradient id="ballGrad2c" cx="215" cy="205" r="155" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fdba74"/>
+      <stop offset="30%" stop-color="#f97316"/>
+      <stop offset="80%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#9a3412"/>
+    </radialGradient>
+    <clipPath id="ballClip2c">
+      <circle cx="256" cy="256" r="112"/>
+    </clipPath>
   </defs>
 
-  <!-- Basketball Core -->
-  <circle cx="256" cy="256" r="110" fill="url(#ballGradient)"/>
-  <circle cx="256" cy="256" r="110" stroke="#020617" stroke-width="7"/>
+  <rect width="512" height="512" rx="112" fill="#020617"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg2c)"/>
+  <rect x="8" y="8" width="496" height="496" rx="104" stroke="#1e293b" stroke-width="3"/>
 
-  <!-- Basketball Seams -->
-  <line x1="146" y1="256" x2="366" y2="256" stroke="#020617" stroke-width="6" stroke-linecap="round"/>
-  <line x1="256" y1="146" x2="256" y2="366" stroke="#020617" stroke-width="6" stroke-linecap="round"/>
-  <path d="M 178 178 C 220 216 220 296 178 334" stroke="#020617" stroke-width="6" stroke-linecap="round" fill="none"/>
-  <path d="M 334 178 C 292 216 292 296 334 334" stroke="#020617" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <!-- Clean Dual-Tone Outer Ring + Pulsing Inner Ring -->
+  <circle cx="256" cy="256" r="210" stroke="url(#outerRing2c)" stroke-width="5"/>
+  <circle cx="256" cy="256" r="168" stroke="#38bdf8" stroke-width="3.5" stroke-dasharray="10 12" opacity="0.55"/>
 
-  <!-- Location Pin Accent / Beacon -->
-  <circle cx="256" cy="91" r="14" fill="#38bdf8"/>
-  <circle cx="256" cy="91" r="22" stroke="#38bdf8" stroke-width="3" opacity="0.75"/>
+  <!-- Radar Sweep Sector -->
+  <path d="M 256 256 L 256 46 A 210 210 0 0 1 446 166 Z" fill="url(#sweep2c)"/>
+  <line x1="256" y1="256" x2="446" y2="166" stroke="#38bdf8" stroke-width="6" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="256" y2="46" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- Subtle Target Brackets around the Ball -->
+  <path d="M 122 180 A 152 152 0 0 1 180 122" stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 390 332 A 152 152 0 0 1 332 390" stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M 180 390 A 152 152 0 0 1 122 332" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Center Basketball -->
+  <circle cx="256" cy="256" r="112" fill="url(#ballGrad2c)"/>
+  <g clip-path="url(#ballClip2c)" stroke="#090d16" stroke-width="10.5" stroke-linecap="round" fill="none">
+    <line x1="136" y1="256" x2="376" y2="256"/>
+    <line x1="256" y1="136" x2="256" y2="376"/>
+    <path d="M 160 160 C 216 200 216 312 160 352"/>
+    <path d="M 352 160 C 296 200 296 312 352 352"/>
+  </g>
+  <circle cx="256" cy="256" r="112" stroke="#090d16" stroke-width="10"/>
+  <circle cx="256" cy="256" r="117" stroke="#fb923c" stroke-width="3" opacity="0.55"/>
+
+  <!-- Map-Pin Beacon inside the Radar Sweep (Top Right) -->
+  <circle cx="366" cy="144" r="28" fill="#38bdf8" fill-opacity="0.2"/>
+  <path d="M 366 168 C 366 168 342 144 342 128 C 342 114.7 352.7 104 366 104 C 379.3 104 390 114.7 390 128 C 390 144 366 168 366 168 Z" fill="#38bdf8" stroke="#020617" stroke-width="4"/>
+  <circle cx="366" cy="128" r="9" fill="#ffffff"/>
 </svg>

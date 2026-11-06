@@ -34,6 +34,7 @@ import {
   VenueSubmissionFilterStatus,
 } from '@sundayleague/shared-types';
 import { Badge } from '@/components/ui/badge';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
@@ -972,9 +973,7 @@ export function AdminDashboard() {
       {/* Header Bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Activity className="size-5" />
-          </div>
+          <BrandLogo className="size-9 shrink-0 rounded-lg shadow-xs" />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold tracking-tight sm:text-lg">
