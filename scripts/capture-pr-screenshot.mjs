@@ -134,6 +134,7 @@ async function captureView(browser, {
   hasTouch = false,
   url,
   clickSelector,
+  offline = false,
   waitMs,
   outputPath,
 }) {
@@ -148,6 +149,11 @@ async function captureView(browser, {
 
     // Hard 5-second timeout for navigation
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 5000 });
+
+    if (offline) {
+      await context.setOffline(true);
+      await page.waitForTimeout(500);
+    }
 
     if (waitMs > 0) {
       await page.waitForTimeout(waitMs);
@@ -184,6 +190,7 @@ async function main() {
       click: { type: "string", short: "c" },
       wait: { type: "string", short: "w", default: "1000" },
       path: { type: "string", default: "/" },
+      offline: { type: "boolean" },
       "output-dir": { type: "string", short: "o", default: "test-results" },
       outputDir: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -239,6 +246,7 @@ async function main() {
       hasTouch: false,
       url,
       clickSelector,
+      offline: Boolean(values.offline),
       waitMs,
       outputPath: desktopPath,
     });
@@ -250,6 +258,7 @@ async function main() {
       hasTouch: true,
       url,
       clickSelector,
+      offline: Boolean(values.offline),
       waitMs,
       outputPath: mobilePath,
     });
