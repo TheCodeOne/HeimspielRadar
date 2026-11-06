@@ -27,6 +27,7 @@ updates:
     # Freeze Expo and React Native: Expo SDK 58 mandates strict peer dependency locks
     ignore:
       - dependency-name: "expo"
+      - dependency-name: "expo-*"
       - dependency-name: "@expo/*"
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
@@ -36,12 +37,10 @@ updates:
       - dependency-name: "nativewind"
       - dependency-name: "babel-preset-expo"
       - dependency-name: "posthog-react-native"
+      # Freeze Nx: upgrades must run via `npx nx migrate`
+      - dependency-name: "nx"
+      - dependency-name: "@nx/*"
     groups:
-      # Nx monorepo core toolchain (must stay in lockstep)
-      nx-workspace:
-        patterns:
-          - "nx"
-          - "@nx/*"
       # Developer tooling, linters, test harnesses, and type definitions
       dev-tooling:
         patterns:
@@ -55,6 +54,9 @@ updates:
           - "@playwright/*"
           - "typescript"
           - "@types/*"
+          - "@swc/*"
+          - "webpack"
+          - "webpack-*"
       # Production frameworks, database ORM, runtime utilities, and UI libraries
       framework-prod:
         patterns:
