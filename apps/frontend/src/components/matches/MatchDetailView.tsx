@@ -211,20 +211,20 @@ export function MatchDetailView({
       )}
 
       {/* Main Body - Centered Ticket layout that fits completely within 100dvh without scrolling */}
-      <main className="relative flex flex-1 min-h-0 w-full flex-col items-center justify-center p-2 sm:p-4 overflow-hidden bg-radial from-slate-900/60 to-slate-950/95">
-        <div className="relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border border-slate-700/80 bg-slate-900/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
+      <main className="relative flex flex-1 min-h-0 w-full flex-col items-center justify-center p-2 sm:p-4 overflow-hidden bg-radial from-muted/30 to-background dark:from-slate-900/60 dark:to-slate-950/95">
+        <div className="relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border border-border bg-card/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
           {/* Perforation Cutouts */}
           <div
             aria-hidden="true"
-            className="absolute top-[68px] sm:top-[76px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-slate-700/80 shadow-inner"
+            className="absolute top-[68px] sm:top-[76px] -left-3.5 z-20 h-7 w-7 rounded-full bg-background border-r border-border shadow-inner"
           />
           <div
             aria-hidden="true"
-            className="absolute top-[68px] sm:top-[76px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-slate-700/80 shadow-inner"
+            className="absolute top-[68px] sm:top-[76px] -right-3.5 z-20 h-7 w-7 rounded-full bg-background border-l border-border shadow-inner"
           />
 
           {/* 1. Ticket Header Stub */}
-          <div className="relative shrink-0 bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-2.5 sm:py-3 border-b border-dashed border-slate-700/80">
+          <div className="relative shrink-0 bg-gradient-to-r from-orange-600/25 via-primary/20 to-amber-600/25 px-5 py-2.5 sm:py-3 border-b border-dashed border-border">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -234,7 +234,7 @@ export function MatchDetailView({
               </div>
 
               {match.matchDay && (
-                <span className="font-mono text-[10px] text-slate-400">
+                <span className="font-mono text-[10px] text-muted-foreground">
                   {match.matchDay}. Spieltag {match.matchNo ? `• #${match.matchNo}` : ''}
                 </span>
               )}
@@ -270,7 +270,7 @@ export function MatchDetailView({
                       {match.result}
                     </div>
                   ) : (
-                    <div className="rounded-full bg-slate-800/90 border border-slate-700/70 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
+                    <div className="rounded-full bg-muted border border-border px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
                       VS
                     </div>
                   )}
@@ -281,10 +281,10 @@ export function MatchDetailView({
                   <div className="text-xs sm:text-sm md:text-base font-black text-foreground leading-tight">
                     <span>{guestParts.base}</span>
                     {guestParts.suffix && (
-                      <span className="whitespace-nowrap ml-1 text-slate-300">{guestParts.suffix}</span>
+                      <span className="whitespace-nowrap ml-1 text-foreground">{guestParts.suffix}</span>
                     )}
                   </div>
-                  <span className="text-[9px] font-mono uppercase text-slate-400 font-bold">Gast</span>
+                  <span className="text-[9px] font-mono uppercase text-muted-foreground font-bold">Gast</span>
                 </div>
               </div>
 
@@ -326,7 +326,7 @@ export function MatchDetailView({
 
               {/* Venue Overlay inside Map */}
               {match.venue && (
-                <div className="absolute bottom-2 left-2 right-2 z-10 rounded-xl bg-slate-950/85 p-2 backdrop-blur-md border border-slate-800/80 shadow-md flex items-center justify-between gap-2">
+                <div className="absolute bottom-2 left-2 right-2 z-10 rounded-xl bg-card/90 p-2 backdrop-blur-md border border-border shadow-md flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1 text-[11px] font-bold text-foreground truncate">
                       <MapPin className="h-3 w-3 text-primary shrink-0" />

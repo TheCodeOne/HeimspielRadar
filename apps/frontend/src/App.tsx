@@ -42,7 +42,7 @@ import { compareMatchesChronologically } from '@/lib/date-utils';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
-import { useOnlineStatus } from '@/hooks';
+import { ThemeProvider, useOnlineStatus } from '@/hooks';
 
 interface MainViewProps {
   filters: ReturnType<typeof useMatchFilters>['filters'];
@@ -399,7 +399,7 @@ function MainView({
                 onClick={() => setIsFilterDrawerOpen(true)}
                 aria-label="Filter öffnen"
                 title="Filter und Standort anpassen"
-                className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-slate-700/60 bg-slate-900/90 px-3 sm:px-3.5 py-1.5 text-xs text-slate-200 shadow-lg backdrop-blur-md transition-all hover:border-slate-500/80 hover:bg-slate-900 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-border bg-card/90 px-3 sm:px-3.5 py-1.5 text-xs text-foreground shadow-lg backdrop-blur-md transition-all hover:border-primary/50 hover:bg-muted active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               >
                 {filters.teamQuery ? (
                   <>
@@ -407,7 +407,7 @@ function MainView({
                     <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
                       {filters.teamQuery}
                     </span>
-                    <span className="font-mono text-slate-400 shrink-0 flex items-center gap-1.5">
+                    <span className="font-mono text-muted-foreground shrink-0 flex items-center gap-1.5">
                       • {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
                       {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
                     </span>
@@ -418,15 +418,15 @@ function MainView({
                     <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
                       {filters.location.name}
                     </span>
-                    <span className="font-mono text-slate-400 shrink-0">
+                    <span className="font-mono text-muted-foreground shrink-0">
                       • {filters.radiusKm} km
                     </span>
-                    <span className="hidden text-slate-400 sm:inline shrink-0">
+                    <span className="hidden text-muted-foreground sm:inline shrink-0">
                       • {filters.dateRangeDisplay}
                     </span>
                     <Badge
                       variant="outline"
-                      className="ml-0.5 shrink-0 border-slate-700/80 bg-slate-800/80 font-mono text-[10px] text-slate-200 flex items-center gap-1"
+                      className="ml-0.5 shrink-0 border-border bg-muted/80 font-mono text-[10px] text-foreground flex items-center gap-1"
                     >
                       {isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
                       <span>{matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}</span>
@@ -778,7 +778,7 @@ export function App() {
   }
 
   return (
-    <>
+    <ThemeProvider>
       {content}
 
       {/* Global Slide-over Navigation Drawer */}
@@ -796,6 +796,6 @@ export function App() {
         }}
         lastSyncedAt={lastSyncedAt}
       />
-    </>
+    </ThemeProvider>
   );
 }

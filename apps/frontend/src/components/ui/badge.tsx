@@ -23,7 +23,7 @@ export const badgeVariants = cva(
         kickoff:
           'border-border/80 bg-muted/80 text-foreground font-mono text-xs',
         featured:
-          'border-amber-400/70 bg-amber-500/20 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.28)] font-bold tracking-wide',
+          'border-amber-500/50 dark:border-amber-400/70 bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.28)] font-bold tracking-wide',
       },
     },
     defaultVariants: {

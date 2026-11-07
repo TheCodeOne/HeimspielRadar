@@ -175,7 +175,7 @@ export function KioskSubmissionModal({
       />
 
       {/* Modal Card */}
-      <div className="relative z-10 flex w-full sm:max-w-lg max-h-[92dvh] sm:max-h-[88dvh] flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-slate-700/80 bg-slate-950/98 shadow-2xl backdrop-blur-xl overflow-hidden">
+      <div className="relative z-10 flex w-full sm:max-w-lg max-h-[92dvh] sm:max-h-[88dvh] flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-border bg-card/98 shadow-2xl backdrop-blur-xl overflow-hidden">
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 p-4 sm:p-5 pb-3.5 bg-card/40">
           <div className="min-w-0 flex-1">
@@ -502,7 +502,7 @@ export function KioskSubmissionModal({
           </div>
 
           {/* Modal Footer */}
-          <div className="shrink-0 flex items-center justify-end gap-2 border-t border-border/60 p-3 sm:p-4 bg-slate-950/95">
+          <div className="shrink-0 flex items-center justify-end gap-2 border-t border-border/60 p-3 sm:p-4 bg-card/95">
             <Button
               type="button"
               variant="ghost"

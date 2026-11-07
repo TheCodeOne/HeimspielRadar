@@ -49,6 +49,11 @@ heimspielradar/
 - **Slide-over Navigation Drawer:** Schneller Zugriff auf Kartenansicht, Listenansicht, Club Story Hub, Einstellungen und optionales Admin-Dashboard – responsiv (`85vw` mobil, `360px` Desktop) und voll tastaturbedienbar (`Escape`, Backdrop-Dismiss, automatische Routenschließung).
 - **Vollwertige Einstellungsseite (`/settings`):** Dedizierte Einstellungsroute mit Karten-Engine-Auswahl (MapLibre, OpenLayers, Leaflet, Pigeon Maps), Radiuskreis-Toggle, Standardansichts-Präferenz, Push-Benachrichtigungen, Offline-Speicher-Reset und DBB-Synchronisationsstatus.
 
+### 5. System / Light / Dark Theme Switcher & Zero-FOUC
+- **3-stufige Theme-Auswahl:** Nutzer können unter `/settings` zwischen **System** (folgt OS `prefers-color-scheme`), **Hell** (Light Mode) und **Dunkel** (Dark Mode) wählen. Standardwert bei Erstaufruf ist `system`.
+- **Zero-FOUC (Flash of Unstyled Content):** Ein synchrones Inline-Script in `index.html` wertet `localStorage` (`heimspielradar:theme`) und Media-Queries vor dem First-Paint aus und setzt die `.dark`-Klasse sowie dynamische `<meta name="theme-color">` Tags ohne sichtbares Flackern.
+- **Semantische Theme-Tokens & Karten-Harmonisierung:** Alle Modals, Bottom-Sheets, Dialoge, Badges und Map-Bedienelemente (`ol-zoom`, `leaflet-control-zoom`, `maplibregl-ctrl-group`, `pigeon-zoom-buttons`) passen sich nahtlos an das gewählte Theme an, während Kartentiles für maximale Lesbarkeit von Hallen und Straßen unverändert hell bleiben.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung

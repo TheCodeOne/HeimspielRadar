@@ -177,7 +177,7 @@ export function MapContainer({
           type="button"
           onClick={onLocateUser}
           disabled={isLocating}
-          className="absolute top-[5.75rem] left-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700/60 bg-slate-900/90 text-slate-200 shadow-md backdrop-blur-md transition-all hover:bg-slate-900 hover:text-white active:scale-95 disabled:opacity-60 cursor-pointer"
+          className="absolute top-[5.75rem] left-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card/95 text-foreground shadow-md backdrop-blur-md transition-all hover:bg-muted active:scale-95 disabled:opacity-60 cursor-pointer"
           title="Auf meinen Standort zentrieren"
           aria-label="Auf meinen Standort zentrieren"
         >

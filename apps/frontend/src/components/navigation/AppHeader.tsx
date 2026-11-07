@@ -54,7 +54,7 @@ export function AppHeader({
           <BrandLogo className="h-8 w-8 shrink-0 rounded-lg shadow-xs transition group-hover:scale-105" />
 
           <span
-            className={`font-bold tracking-tight text-base sm:text-lg text-slate-100 group-hover:text-primary transition-colors ${
+            className={`font-bold tracking-tight text-base sm:text-lg text-foreground group-hover:text-primary transition-colors ${
               backLink ? 'hidden sm:inline' : ''
             }`}
           >
@@ -99,9 +99,9 @@ export function AppHeader({
               <Badge
                 variant="outline"
                 data-testid="offline-badge"
-                className="hidden md:inline-flex items-center gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-medium"
+                className="hidden md:inline-flex items-center gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-medium"
               >
-                <WifiOff className="h-3 w-3 text-amber-400" />
+                <WifiOff className="h-3 w-3 text-amber-500" />
                 <span>Offline</span>
               </Badge>
             )}
@@ -120,7 +120,7 @@ export function AppHeader({
           rel="noopener noreferrer"
           title="Hallenkaffee spendieren (Serverkosten unterstützen)"
           aria-label="Hallenkaffee spendieren (Serverkosten unterstützen)"
-          className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <span className="text-sm leading-none" role="img" aria-hidden="true">
             ☕
@@ -139,7 +139,7 @@ export function AppHeader({
           title="Navigation öffnen"
           data-testid="nav-menu-button"
         >
-          <Menu className="h-4 w-4 text-slate-300" />
+          <Menu className="h-4 w-4 text-foreground" />
         </Button>
       </div>
     </header>
