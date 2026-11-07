@@ -11,18 +11,18 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     });
   });
 
-  test('Variant D (Favorit Hybrid): Bottom-Bar, Mobile Bottom-Sheet & Gear Settings', async ({ page }) => {
+  test('Variant D (Favorit Hybrid): Bottom-Bar, Mobile Bottom-Sheet & Navigation to Settings', async ({ page }) => {
     await page.goto('/?variant=D');
     await page.waitForLoadState('networkidle');
 
-    // 1. Verify Header Gear Icon is present
-    const settingsBtn = page.getByRole('button', { name: /Einstellungen/i });
-    await expect(settingsBtn).toBeVisible();
+    // 1. Verify Header Menu Button is present
+    const menuBtn = page.getByRole('button', { name: /Menü/i });
+    await expect(menuBtn).toBeVisible();
 
     // 2. Verify Bottom Quick-Filter Bar is visible
     const bottomBar = page.getByTestId('bottom-filter-bar');
     await expect(bottomBar).toBeVisible();
-    await expect(bottomBar.getByText(/Heute|Termin/i).first()).toBeVisible();
+    await expect(bottomBar.getByText(/Heute|Termin|Wochenende|Dieses WE/i).first()).toBeVisible();
     await expect(bottomBar.getByText(/30 km/i).first()).toBeVisible();
     await expect(bottomBar.getByText(/Verein.*suchen/i).first()).toBeVisible();
 
@@ -56,20 +56,26 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(locateBtn).toBeVisible();
     await expect(locateBtn).not.toContainText('Mein Standort');
 
-    // 3. Test Settings Dialog (Verify header and footer are NOT cut off on any screen)
-    await settingsBtn.click();
-    const settingsModal = page.getByRole('dialog', { name: /Einstellungen/i });
-    await expect(settingsModal.getByRole('heading', { name: /Einstellungen & Optionen/i })).toBeVisible();
-    await expect(settingsModal.getByText(/Karten-Engine/i)).toBeVisible();
-    await expect(settingsModal.getByRole('button', { name: /Fertig/i })).toBeVisible();
+    // 3. Test Navigation Drawer & Settings View
+    await menuBtn.click();
+    const navDrawer = page.getByRole('dialog', { name: /Navigation & Menü|Navigation/i });
+    await expect(navDrawer).toBeVisible();
+    await expect(page.getByTestId('nav-item-settings')).toBeVisible();
+
+    // Navigate to /settings
+    await page.getByTestId('nav-item-settings').click();
+    await expect(page).toHaveURL(/\/settings/);
+    await expect(page.getByRole('heading', { name: /Einstellungen & Optionen/i })).toBeVisible();
+    await expect(page.getByText('Karten-Engine', { exact: true })).toBeVisible();
 
     await page.screenshot({
       path: `test-results/settings-dialog-${test.info().project.name}.png`,
       fullPage: true,
     });
 
-    // Close settings modal
-    await settingsModal.getByRole('button', { name: /Fertig/i }).click();
+    // Navigate back to main view
+    await page.getByRole('button', { name: /Zurück/i }).click();
+    await expect(page).toHaveURL(/\//);
   });
 
   test('Variant A: Quick-Filter Pill Bar on Map renders cleanly', async ({ page }) => {
@@ -78,7 +84,7 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
 
     // Verify Quick Filter Bar Pills are visible
     const barA = page.getByTestId('quick-filter-bar-a');
-    await expect(barA.getByText(/Heute|Termin/i)).toBeVisible();
+    await expect(barA.getByText(/Heute|Termin|Wochenende|Dieses WE/i)).toBeVisible();
     await expect(barA.getByText('30 km')).toBeVisible();
     await expect(barA.getByPlaceholder(/Verein \/ Team/i)).toBeVisible();
 
@@ -242,7 +248,7 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       await sheet.getByRole('button', { name: /Spiele anzeigen/i }).click();
     } else {
       // On desktop, click "Wochenende" in sidebar
-      await page.getByRole('button', { name: 'Wochenende' }).click();
+      await page.getByRole('complementary').getByRole('button', { name: 'Wochenende' }).click();
 
       // Reset filters in sidebar
       await page.getByRole('button', { name: 'Zurücksetzen' }).first().click();

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import {
-  ArrowLeft,
   Calendar,
   Camera,
   Clock,
@@ -21,16 +20,18 @@ import {
 } from '@/lib/story-club-storage';
 import { parseMatchScore } from '@/lib/story-image-generator';
 import { StoryEditorView } from './StoryEditorView';
+import { AppHeader } from '@/components/navigation';
 
 export interface ClubStoryHubProps {
   onNavigateHome: () => void;
+  onOpenNav?: () => void;
 }
 
 export type ClubStoryHubTab = 'upcoming' | 'results' | 'all';
 
 export { STORY_CLUB_STORAGE_KEY };
 
-export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
+export function ClubStoryHub({ onNavigateHome, onOpenNav }: ClubStoryHubProps) {
   const [selectedClub, setSelectedClub] = React.useState<string>(getInitialStoryClub);
   const [activeTab, setActiveTab] = React.useState<ClubStoryHubTab>('upcoming');
   const [allMatches, setAllMatches] = React.useState<Match[]>([]);
@@ -172,19 +173,15 @@ export function ClubStoryHub({ onNavigateHome }: ClubStoryHubProps) {
         </div>
       )}
 
-      {/* Top Navigation */}
-      <header className="shrink-0 flex items-center justify-between border-b border-border/50 px-4 py-3 sm:px-8 bg-card/70 backdrop-blur-md z-20">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onNavigateHome}
-          className="text-xs sm:text-sm font-semibold -ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Zum Heimspielradar</span>
-        </Button>
-      </header>
+      {/* Global Unified App Header */}
+      <AppHeader
+        onOpenNav={onOpenNav ?? (() => {})}
+        onNavigateHome={onNavigateHome}
+        backLink={{
+          label: 'Zum Heimspielradar',
+          onClick: onNavigateHome,
+        }}
+      />
 
       {/* Hero / Header */}
       <section className="px-4 pt-8 pb-6 sm:px-8 max-w-5xl mx-auto w-full text-center sm:text-left">

@@ -44,6 +44,11 @@ heimspielradar/
 - **Server:** Läuft produktiv und energiesparend auf einem Raspberry Pi via Docker Compose hinter Cloudflare.
 - **Datenbank:** PostgreSQL via **Drizzle ORM** (keine Abhängigkeit mehr von proprietären Cloud-Diensten wie Neon oder Render).
 
+### 4. Einheitliche Navigation & Dedizierte Einstellungen (`/settings`)
+- **Globaler App-Header:** Einheitliche Navigationsleiste über alle Routen (`/`, `/story`, `/creator`, `/matches/:id`, `/settings`) mit Branding, kontextueller Zurück-Navigation und Hamburger-Menü (`data-testid="nav-menu-button"`).
+- **Slide-over Navigation Drawer:** Schneller Zugriff auf Kartenansicht, Listenansicht, Club Story Hub, Einstellungen und optionales Admin-Dashboard – responsiv (`85vw` mobil, `360px` Desktop) und voll tastaturbedienbar (`Escape`, Backdrop-Dismiss, automatische Routenschließung).
+- **Vollwertige Einstellungsseite (`/settings`):** Dedizierte Einstellungsroute mit Karten-Engine-Auswahl (MapLibre, OpenLayers, Leaflet, Pigeon Maps), Radiuskreis-Toggle, Standardansichts-Präferenz, Push-Benachrichtigungen, Offline-Speicher-Reset und DBB-Synchronisationsstatus.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung

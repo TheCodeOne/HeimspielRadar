@@ -1,11 +1,9 @@
 import * as React from 'react';
 import {
   Calendar,
-  Clock,
   Loader2,
   MapPin,
   RotateCcw,
-  Settings,
   SlidersHorizontal,
   WifiOff,
 } from 'lucide-react';
@@ -18,7 +16,8 @@ import {
   VariantC_DesktopSidebar,
   VariantD_BottomBarSheet,
 } from '@/components/filters/prototypes';
-import { SettingsDialog } from '@/components/settings';
+import { SettingsView } from '@/components/settings';
+import { AppHeader, NavigationDrawer } from '@/components/navigation';
 import {
   PrototypeSwitcher,
   type PrototypeVariant,
@@ -37,39 +36,38 @@ import {
 } from '@/components/story';
 import { ReloadPrompt } from '@/components/pwa';
 import { Badge } from '@/components/ui/badge';
-import { BrandLogo } from '@/components/ui/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
-import {
-  compareMatchesChronologically,
-  formatLastSyncedAt,
-} from '@/lib/date-utils';
-import { getDonationUrl } from '@/lib/donation';
+import { compareMatchesChronologically } from '@/lib/date-utils';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
 import { useOnlineStatus } from '@/hooks';
 
-const DONATION_URL = getDonationUrl();
+interface MainViewProps {
+  filters: ReturnType<typeof useMatchFilters>['filters'];
+  actions: ReturnType<typeof useMatchFilters>['actions'];
+  leagues: ReturnType<typeof useLeagues>['leagues'];
+  availableGenders: string[];
+  availableAgeClasses: string[];
+  availableSkillLevels: string[];
+  lastSyncedAt: string | null;
+  onOpenNav: () => void;
+}
 
-function MainView() {
+function MainView({
+  filters,
+  actions,
+  leagues,
+  availableGenders,
+  availableAgeClasses,
+  availableSkillLevels,
+  lastSyncedAt,
+  onOpenNav,
+}: MainViewProps) {
   const isOnline = useOnlineStatus();
 
-  // Fetch available leagues and distinct hierarchy options from /api/leagues
-  const {
-    leagues,
-    genders: availableGenders,
-    ageClasses: availableAgeClasses,
-    skillLevels: availableSkillLevels,
-  } = useLeagues();
-
-  // Deep match filters and location controller module
-  const { filters, actions } = useMatchFilters({
-    leagues,
-  });
-
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState<boolean>(false);
 
   // Fallback: Support legacy FilterBar if ?legacy=true is present in URL
   const isLegacy = React.useMemo(() => {
@@ -161,9 +159,6 @@ function MainView() {
     }
   };
 
-  // Server health and sync status
-  const { lastSyncedAt } = useServerHealth();
-
   // Query matches with debounced API integration and hierarchical filter params
   const { matches, isLoading } = useMatches({
     dateFrom: filters.dateFrom || undefined,
@@ -244,123 +239,64 @@ function MainView() {
       <TopLoadingBar isLoading={isLoading} />
 
       {/* Unified Application Header (Desktop & Mobile) */}
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
-        {/* Left: Brand Logo & Title */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <BrandLogo className="h-8 w-8 shrink-0 rounded-lg shadow-xs" />
-
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-bold tracking-tight text-base sm:text-lg text-slate-100 flex items-center gap-2">
-              HeimspielRadar
-            </span>
-            <Badge variant="outline" className="hidden text-[10px] lg:inline-flex">
-              Amateur-Basketball
-            </Badge>
-            <Badge
-              variant="outline"
-              className="hidden text-[10px] font-mono text-muted-foreground xl:inline-flex border-border/60 bg-muted/30"
-              title={lastSyncedAt ? `Letzte DBB-Synchronisierung: ${lastSyncedAt}` : undefined}
-            >
-              <Clock className="mr-1 h-3 w-3 text-primary/70" />
-              {formatLastSyncedAt(lastSyncedAt)}
-            </Badge>
-            {!isOnline && (
-              <Badge
-                variant="outline"
-                data-testid="offline-badge"
-                className="hidden md:inline-flex items-center gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-medium"
-              >
-                <WifiOff className="h-3 w-3 text-amber-400" />
-                <span>Offline</span>
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Actions (Hallenkaffee, Filter Trigger & Settings Gear Icon) */}
-        <div className="flex items-center gap-2">
-          {/* Hallenkaffee Donation Link */}
-          <a
-            href={DONATION_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Hallenkaffee spendieren (Serverkosten unterstützen)"
-            aria-label="Hallenkaffee spendieren (Serverkosten unterstützen)"
-            className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      <AppHeader
+        onOpenNav={onOpenNav}
+        lastSyncedAt={lastSyncedAt}
+        isOnline={isOnline}
+      >
+        {isLegacy ? (
+          /* Legacy Filter Trigger Button */
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
           >
-            <span className="text-sm leading-none" role="img" aria-hidden="true">
-              ☕
-            </span>
-            <span className="hidden sm:inline">Hallenkaffee</span>
-          </a>
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            <span>Filter</span>
+            {filters.activeFilterCount > 0 && (
+              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                {filters.activeFilterCount}
+              </span>
+            )}
+          </Button>
+        ) : (
+          <>
+            {/* Active filter count badge in header for Variant D */}
+            {currentVariant === 'D' && filters.activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+                title="Aktive Filter bearbeiten"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>{filters.activeFilterCount} aktiv</span>
+              </button>
+            )}
 
-          {isLegacy ? (
-            /* Legacy Filter Trigger Button */
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-              <span>Filter</span>
-              {filters.activeFilterCount > 0 && (
-                <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                  {filters.activeFilterCount}
-                </span>
-              )}
-            </Button>
-          ) : (
-            <>
-              {/* Active filter count badge in header for Variant D */}
-              {currentVariant === 'D' && filters.activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsFilterDrawerOpen(true)}
-                  className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
-                  title="Aktive Filter bearbeiten"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span>{filters.activeFilterCount} aktiv</span>
-                </button>
-              )}
-
-              {/* Filter Drawer Trigger Button for Variants A, B, C */}
-              {currentVariant !== 'D' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsFilterDrawerOpen(true)}
-                  className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-                  <span>Filter</span>
-                  {filters.activeFilterCount > 0 && (
-                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                      {filters.activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-              )}
-
-              {/* Settings Gear Button (User requested: oben rechts ein gear icon fuer 'Einstellungen') */}
+            {/* Filter Drawer Trigger Button for Variants A, B, C */}
+            {currentVariant !== 'D' && (
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
-                onClick={() => setIsSettingsOpen(true)}
-                className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Einstellungen"
-                title="Einstellungen & Karten-Optionen"
+                size="sm"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
               >
-                <Settings className="h-4 w-4 text-slate-300" />
+                <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                <span>Filter</span>
+                {filters.activeFilterCount > 0 && (
+                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+                    {filters.activeFilterCount}
+                  </span>
+                )}
               </Button>
-            </>
-          )}
-        </div>
-      </header>
+            )}
+          </>
+        )}
+      </AppHeader>
 
       {/* Offline Status Banner */}
       {!isOnline && (
@@ -682,20 +618,6 @@ function MainView() {
         />
       )}
 
-      {/* Settings & System Options Modal (Triggered by Header Gear Icon) */}
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        mapEngine={filters.mapEngine}
-        onEngineChange={actions.setMapEngine}
-        showRadiusCircle={filters.showRadiusCircle}
-        onToggleRadiusCircle={actions.setShowRadiusCircle}
-        viewMode={filters.viewMode}
-        onViewModeChange={actions.setViewMode}
-        lastSyncedAt={lastSyncedAt}
-        matchCount={matches.length}
-      />
-
       {/* Kiosk & Venue Info Submission Modal */}
       <KioskSubmissionModal
         match={kioskModalMatch}
@@ -749,6 +671,8 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const [isNavDrawerOpen, setIsNavDrawerOpen] = React.useState<boolean>(false);
+
   const navigateTo = React.useCallback((path: string) => {
     if (typeof window !== 'undefined') {
       window.history.pushState({}, '', path);
@@ -756,16 +680,30 @@ export function App() {
     }
   }, []);
 
+  // Shared leagues and filter controller
+  const {
+    leagues,
+    genders: availableGenders,
+    ageClasses: availableAgeClasses,
+    skillLevels: availableSkillLevels,
+  } = useLeagues();
+
+  const { filters, actions } = useMatchFilters({ leagues });
+  const { lastSyncedAt } = useServerHealth();
+
   const isAdminRoute = currentPath.startsWith('/admin');
+  const isSettingsRoute = currentPath === '/settings' || currentPath.startsWith('/settings');
   const storyMatchId = getStoryMatchIdFromPath(currentPath);
   const isStoryHubRoute = currentPath.startsWith('/story') || currentPath.startsWith('/creator');
   const matchDetailId = getMatchDetailIdFromPath(currentPath);
+
+  let content: React.ReactNode;
 
   if (isAdminRoute) {
     const isAdminEnabled = import.meta.env.VITE_ENABLE_ADMIN_UI === 'true';
 
     if (!isAdminEnabled) {
-      return (
+      content = (
         <div className="flex h-dvh w-full flex-col items-center justify-center bg-background px-4 text-center text-foreground">
           <h1 className="text-4xl font-extrabold tracking-tight">404</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -773,13 +711,31 @@ export function App() {
           </p>
         </div>
       );
+    } else {
+      content = (
+        <AdminDashboard
+          onOpenNav={() => setIsNavDrawerOpen(true)}
+          onNavigateHome={() => navigateTo('/')}
+        />
+      );
     }
-
-    return <AdminDashboard />;
-  }
-
-  if (storyMatchId !== null) {
-    return (
+  } else if (isSettingsRoute) {
+    content = (
+      <SettingsView
+        mapEngine={filters.mapEngine}
+        onEngineChange={actions.setMapEngine}
+        showRadiusCircle={filters.showRadiusCircle}
+        onToggleRadiusCircle={actions.setShowRadiusCircle}
+        viewMode={filters.viewMode}
+        onViewModeChange={actions.setViewMode}
+        lastSyncedAt={lastSyncedAt}
+        onNavigateHome={() => navigateTo('/')}
+        onBack={() => navigateTo('/')}
+        onOpenNav={() => setIsNavDrawerOpen(true)}
+      />
+    );
+  } else if (storyMatchId !== null) {
+    content = (
       <StoryMatchRouteContainer
         matchId={storyMatchId}
         onBack={() => {
@@ -791,20 +747,55 @@ export function App() {
         }}
       />
     );
-  }
-
-  if (isStoryHubRoute) {
-    return <ClubStoryHub onNavigateHome={() => navigateTo('/')} />;
-  }
-
-  if (matchDetailId !== null) {
-    return (
+  } else if (isStoryHubRoute) {
+    content = (
+      <ClubStoryHub
+        onNavigateHome={() => navigateTo('/')}
+        onOpenNav={() => setIsNavDrawerOpen(true)}
+      />
+    );
+  } else if (matchDetailId !== null) {
+    content = (
       <MatchDetailView
         matchId={matchDetailId}
         onNavigateHome={() => navigateTo('/')}
+        onOpenNav={() => setIsNavDrawerOpen(true)}
+      />
+    );
+  } else {
+    content = (
+      <MainView
+        filters={filters}
+        actions={actions}
+        leagues={leagues}
+        availableGenders={availableGenders}
+        availableAgeClasses={availableAgeClasses}
+        availableSkillLevels={availableSkillLevels}
+        lastSyncedAt={lastSyncedAt}
+        onOpenNav={() => setIsNavDrawerOpen(true)}
       />
     );
   }
 
-  return <MainView />;
+  return (
+    <>
+      {content}
+
+      {/* Global Slide-over Navigation Drawer */}
+      <NavigationDrawer
+        isOpen={isNavDrawerOpen}
+        onClose={() => setIsNavDrawerOpen(false)}
+        currentPath={currentPath}
+        viewMode={filters.viewMode}
+        onNavigate={(path, options) => {
+          if (options?.viewMode) {
+            actions.setViewMode(options.viewMode);
+          }
+
+          navigateTo(path);
+        }}
+        lastSyncedAt={lastSyncedAt}
+      />
+    </>
+  );
 }
