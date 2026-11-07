@@ -1,6 +1,5 @@
 import * as React from 'react';
 import type { League, NearbyMatchesQuery } from '@sundayleague/shared-types';
-import type { MapEngineType } from '@/components/map/map-engine.types';
 import {
   type DateRange,
   formatDisplayDateRange,
@@ -27,7 +26,6 @@ export type DateMode = DateFilterMode;
 
 export interface PersistedFilterState {
   viewMode: ViewMode;
-  mapEngine: MapEngineType;
   location: LocationReference;
   radiusKm: number;
   showRadiusCircle: boolean;
@@ -45,7 +43,6 @@ export interface PersistedFilterState {
 
 export const DEFAULT_FILTER_STATE: PersistedFilterState = {
   viewMode: 'map',
-  mapEngine: 'openlayers',
   location: STUTTGART_FALLBACK,
   radiusKm: 30,
   showRadiusCircle: true,
@@ -64,7 +61,6 @@ export const DEFAULT_FILTER_STATE: PersistedFilterState = {
 export function cloneDefaultFilterState(): PersistedFilterState {
   return {
     viewMode: DEFAULT_FILTER_STATE.viewMode,
-    mapEngine: DEFAULT_FILTER_STATE.mapEngine,
     location: { ...DEFAULT_FILTER_STATE.location },
     radiusKm: DEFAULT_FILTER_STATE.radiusKm,
     showRadiusCircle: DEFAULT_FILTER_STATE.showRadiusCircle,
@@ -94,7 +90,6 @@ export interface MatchFiltersState extends PersistedFilterState {
 
 export interface MatchFiltersActions {
   setViewMode: (mode: ViewMode) => void;
-  setMapEngine: (engine: MapEngineType) => void;
   setLocation: (location: LocationReference) => void;
   setRadius: (radiusKm: number) => void;
   setShowRadiusCircle: (show: boolean) => void;
@@ -407,15 +402,6 @@ function isViewMode(value?: string): value is ViewMode {
   return value === 'map' || value === 'list';
 }
 
-function isMapEngine(value?: string): value is MapEngineType {
-  return (
-    value === 'openlayers' ||
-    value === 'maplibre' ||
-    value === 'leaflet' ||
-    value === 'pigeon'
-  );
-}
-
 function isDateMode(value?: string): value is DateFilterMode {
   return (
     value === 'today' ||
@@ -457,10 +443,6 @@ export function sanitizeFilters(
   const viewMode = isViewMode(parsed.viewMode)
     ? parsed.viewMode
     : DEFAULT_FILTER_STATE.viewMode;
-
-  const mapEngine = isMapEngine(parsed.mapEngine)
-    ? parsed.mapEngine
-    : DEFAULT_FILTER_STATE.mapEngine;
 
   const location = parseLocation(parsed.location);
   const rawRadius = Number(parsed.radiusKm);
@@ -535,7 +517,6 @@ export function sanitizeFilters(
 
   return {
     viewMode,
-    mapEngine,
     location,
     radiusKm,
     showRadiusCircle,
@@ -880,11 +861,6 @@ export class MatchFiltersController {
       this.saveAndNotify();
     },
 
-    setMapEngine: (engine: MapEngineType) => {
-      this.persisted.mapEngine = engine;
-      this.saveAndNotify();
-    },
-
     setLocation: (loc: LocationReference) => {
       this.persisted.location = loc;
       this.saveAndNotify();
@@ -1005,7 +981,6 @@ export class MatchFiltersController {
       this.persisted = {
         ...cloneDefaultFilterState(),
         viewMode: this.persisted.viewMode,
-        mapEngine: this.persisted.mapEngine,
       };
       this.saveAndNotify();
     },

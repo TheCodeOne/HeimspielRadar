@@ -48,25 +48,29 @@ heimspielradar/
 - **Server:** Läuft produktiv und energiesparend auf einem Raspberry Pi via Docker Compose hinter Cloudflare.
 - **Datenbank:** PostgreSQL via **Drizzle ORM** (keine Abhängigkeit mehr von proprietären Cloud-Diensten wie Neon oder Render).
 
-### 4. Einheitliche Navigation & Dedizierte Einstellungen (`/settings`)
+### 4. Hardwarebeschleunigte Vektorkarte & Deep Module (`useMapViewModel`)
+- **MapLibre GL & OpenFreeMap:** Hardwarebeschleunigter WebGL-Vektor-Renderer mit butterweichen 60fps-Pan/Zoom-Gesten, dynamischem Pitch und gestochen scharfen Hallen- und Straßennamen auf jedem Device (ADR-0003). Keine API-Keys oder externe Kosten.
+- **Deep Module `useMapViewModel`:** Zentraler Hook kapselt Koordinatenvalidierung, chronologische Venue-Gruppierung, dynamisches Mercator-Pixel-Clustering, GeoJSON-Suchradiuskreise und Bounding-Box-Fokussierung (`teamQuery`), wodurch der Karten-View-Adapter deklarativ und hochgradig wartbar bleibt.
+
+### 5. Einheitliche Navigation & Dedizierte Einstellungen (`/settings`)
 - **Globaler App-Header:** Einheitliche Navigationsleiste über alle Routen (`/`, `/story`, `/creator`, `/matches/:id`, `/settings`) mit Branding, kontextueller Zurück-Navigation und Hamburger-Menü (`data-testid="nav-menu-button"`).
 - **Slide-over Navigation Drawer:** Schneller Zugriff auf Kartenansicht, Listenansicht, Club Story Hub, Einstellungen und optionales Admin-Dashboard – responsiv (`85vw` mobil, `360px` Desktop) und voll tastaturbedienbar (`Escape`, Backdrop-Dismiss, automatische Routenschließung).
-- **Vollwertige Einstellungsseite (`/settings`):** Dedizierte Einstellungsroute mit Karten-Engine-Auswahl (MapLibre, OpenLayers, Leaflet, Pigeon Maps), Radiuskreis-Toggle, Standardansichts-Präferenz, Push-Benachrichtigungen, Offline-Speicher-Reset und DBB-Synchronisationsstatus.
+- **Vollwertige Einstellungsseite (`/settings`):** Dedizierte Einstellungsroute mit Radiuskreis-Toggle, Standardansichts-Präferenz, Push-Benachrichtigungen, Offline-Speicher-Reset und DBB-Synchronisationsstatus.
 
-### 5. System / Light / Dark Theme Switcher & Zero-FOUC
+### 6. System / Light / Dark Theme Switcher & Zero-FOUC
 - **3-stufige Theme-Auswahl:** Nutzer können unter `/settings` zwischen **System** (folgt OS `prefers-color-scheme`), **Hell** (Light Mode) und **Dunkel** (Dark Mode) wählen. Standardwert bei Erstaufruf ist `system`.
 - **Zero-FOUC (Flash of Unstyled Content):** Ein synchrones Inline-Script in `index.html` wertet `localStorage` (`heimspielradar:theme`) und Media-Queries vor dem First-Paint aus und setzt die `.dark`-Klasse sowie dynamische `<meta name="theme-color">` Tags ohne sichtbares Flackern.
-- **Semantische Theme-Tokens & Karten-Harmonisierung:** Alle Modals, Bottom-Sheets, Dialoge, Badges und Map-Bedienelemente (`ol-zoom`, `leaflet-control-zoom`, `maplibregl-ctrl-group`, `pigeon-zoom-buttons`) passen sich nahtlos an das gewählte Theme an, während Kartentiles für maximale Lesbarkeit von Hallen und Straßen unverändert hell bleiben.
+- **Semantische Theme-Tokens & Karten-Harmonisierung:** Alle Modals, Bottom-Sheets, Dialoge, Badges und Map-Bedienelemente (`maplibregl-ctrl-group`) passen sich nahtlos an das gewählte Theme an, während Kartentiles für maximale Lesbarkeit von Hallen und Straßen unverändert hell bleiben.
 
-### 6. Umfassende System- & Diagnose-Statistiken
+### 7. Umfassende System- & Diagnose-Statistiken
 - **Vier Diagnose-Kategorien:** Im ausgebauten Bereich „System & Diagnose“ auf der `/settings`-Seite sowie im `AdminDashboard`:
   1. *Versionen & Commits:* Unabhängige Versionen von Frontend & Backend, 7-stellige Git-Commit-SHAs, klickbare GitHub-Commit-Links sowie automatische Version-Mismatch-Erkennung bei veraltetem PWA-Cache.
   2. *Build- & Laufzeit-Infos:* Frontend Build-Zeitstempel (`builtAt`), Backend-Laufzeit (`uptimeSeconds`) und Live-API-Ping-Latenz in `ms`.
   3. *PWA- & Daten-Pool Status:* Service-Worker-Status (`Aktiv`, `Update bereit`, `Inaktiv / Dev`), Netzwerkstatus (`Online` / `Offline`), 50-km-Masterpool-Cache-Füllstand und letzter DBB-Sync.
-  4. *Client-Kontext:* Aktive Karten-Engine, Theme-Modus, Viewport-Auflösung und Standort-Quelle (GPS, Stadtsuche, Standard) mit Suchradius.
+  4. *Client-Kontext:* Karten-Engine (MapLibre GL), Theme-Modus, Viewport-Auflösung und Standort-Quelle (GPS, Stadtsuche, Standard) mit Suchradius.
 - **1-Klick „Debug-Info kopieren“:** Exportiert alle Diagnose-Werte als sauberen Markdown-Block direkt in die Zwischenablage für strukturierte Fehlerberichte.
 
-### 7. Web-Push Notifications (VAPID) für Tip-Off-Reminder & Spielverlegungen
+### 8. Web-Push Notifications (VAPID) für Tip-Off-Reminder & Spielverlegungen
 - **Zero-Config VAPID-Key-Management:** 3-stufiger Fallback beim Backend-Start: (1) Environment-Variablen `VAPID_PUBLIC_KEY` & `VAPID_PRIVATE_KEY`, (2) Datenbanktabelle `system_settings`, (3) automatische Generierung eines P-256 EC-Keypairs bei Erststart mit permanenter Persistierung in `system_settings`.
 - **Echte Hintergrund-Zustellung:** Service Worker Push-Handler (`apps/frontend/public/sw-push.js` via Workbox `importScripts`) empfängt Push-Payloads auch bei geschlossener App und fokussiert beim Antippen direkt die Spiel-Detailansicht (`/matches/:id`).
 - **Geplante Tip-Off-Reminder:** NestJS-Cronjob (alle 5 Minuten, Zeitzone `Europe/Berlin`) für Erinnerungen `1h`, `2h` vor Spielbeginn oder `1d` am Vorabend um 18:00 Uhr.

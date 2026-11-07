@@ -421,7 +421,7 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       expect(state.viewMode).toBe('map');
     });
 
-    it('resets filters while preserving current viewMode and mapEngine', () => {
+    it('resets filters while preserving current viewMode', () => {
       const storage = new MockStorage();
 
       const controller = createMatchFilters({
@@ -430,7 +430,6 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       });
 
       controller.actions.setViewMode('list');
-      controller.actions.setMapEngine('leaflet');
       controller.actions.setRadius(40);
       controller.actions.setGenders(['männlich']);
 
@@ -438,7 +437,6 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       const state = controller.getState();
 
       expect(state.viewMode).toBe('list');
-      expect(state.mapEngine).toBe('leaflet');
       expect(state.radiusKm).toBe(30);
       expect(state.genders).toEqual([]);
     });

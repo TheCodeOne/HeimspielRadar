@@ -20,7 +20,6 @@ import {
   Sun,
   Trash2,
 } from 'lucide-react';
-import type { MapEngineType } from '@/components/map/map-engine.types';
 import { AppHeader } from '@/components/navigation/AppHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,8 +41,6 @@ import { SystemDiagnosticsSection } from '@/components/settings/SystemDiagnostic
 const DONATION_URL = getDonationUrl();
 
 export interface SettingsViewProps {
-  mapEngine: MapEngineType;
-  onEngineChange: (engine: MapEngineType) => void;
   showRadiusCircle: boolean;
   onToggleRadiusCircle: (show: boolean) => void;
   viewMode: 'map' | 'list';
@@ -58,40 +55,7 @@ export interface SettingsViewProps {
   filteredMatchesCount?: number;
 }
 
-interface MapEngineOption {
-  id: MapEngineType;
-  title: string;
-  tagline: string;
-  badge?: string;
-}
-
-const MAP_ENGINES: MapEngineOption[] = [
-  {
-    id: 'openlayers',
-    title: 'OpenLayers',
-    tagline: 'Standard • Beste Vektordarstellung & Stabilität',
-    badge: 'Empfohlen',
-  },
-  {
-    id: 'maplibre',
-    title: 'MapLibre GL',
-    tagline: 'Hardwarebeschleunigte Vektorkarte & weiche Animationen',
-  },
-  {
-    id: 'leaflet',
-    title: 'Leaflet',
-    tagline: 'Klassische, bewährte Rasterkarten-Bibliothek',
-  },
-  {
-    id: 'pigeon',
-    title: 'Pigeon Maps',
-    tagline: 'Ultra-leichtgewichtige React-Only Map Engine',
-  },
-];
-
 export function SettingsView({
-  mapEngine,
-  onEngineChange,
   showRadiusCircle,
   onToggleRadiusCircle,
   viewMode,
@@ -240,72 +204,16 @@ export function SettingsView({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold text-foreground">
-                  Karten-Optionen (ADR-0002)
+                  Karten-Optionen
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Wähle deine bevorzugte Karten-Engine und visuelle Darstellungsoptionen.
+                  Visuelle Darstellungsoptionen für die interaktive Karte.
                 </p>
               </div>
 
               <Badge variant="outline" className="font-mono text-[10px]">
-                {mapEngine}
+                MapLibre GL
               </Badge>
-            </div>
-
-            {/* Map Engine Selector */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Karten-Engine
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {MAP_ENGINES.map((engine) => {
-                  const isSelected = mapEngine === engine.id;
-
-                  return (
-                    <button
-                      key={engine.id}
-                      type="button"
-                      onClick={() => onEngineChange(engine.id)}
-                      className={`flex items-start justify-between rounded-xl border p-3 text-left transition ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-foreground shadow-xs'
-                          : 'border-border/60 bg-background/50 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
-                      }`}
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-foreground">
-                            {engine.title}
-                          </span>
-                          {engine.badge && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-primary/20 text-primary text-[9px] px-1.5 py-0"
-                            >
-                              {engine.badge}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-muted-foreground leading-tight mt-1">
-                          {engine.tagline}
-                        </p>
-                      </div>
-
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border mt-0.5 ${
-                          isSelected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-muted-foreground/40'
-                        }`}
-                      >
-                        {isSelected && <Check className="h-3 w-3" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Radius Circle Toggle */}
@@ -846,7 +754,7 @@ export function SettingsView({
 
           {/* Section 5: System & Diagnose */}
           <SystemDiagnosticsSection
-            mapEngine={mapEngine}
+            mapEngine="MapLibre GL"
             radiusKm={radiusKm}
             locationName={locationName}
             masterPoolCount={masterPoolCount}

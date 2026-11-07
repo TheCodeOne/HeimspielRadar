@@ -39,7 +39,7 @@ export interface SystemDiagnosticsSectionProps {
 }
 
 export function SystemDiagnosticsSection({
-  mapEngine = 'openlayers',
+  mapEngine = 'MapLibre GL',
   radiusKm = 50,
   locationName,
   masterPoolCount,

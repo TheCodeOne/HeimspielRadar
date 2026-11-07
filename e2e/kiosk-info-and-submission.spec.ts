@@ -334,28 +334,23 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
       });
     });
 
-    const engines = ['openlayers', 'maplibre', 'leaflet', 'pigeon'] as const;
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:filters:v1',
+        JSON.stringify({
+          viewMode: 'map',
+          onlyUpcoming: false,
+          dateMode: 'all',
+        }),
+      );
+    });
 
-    for (const engine of engines) {
-      await page.addInitScript((eng) => {
-        window.localStorage.setItem(
-          'heimspielradar:filters:v1',
-          JSON.stringify({
-            viewMode: 'map',
-            mapEngine: eng,
-            onlyUpcoming: false,
-            dateMode: 'all',
-          }),
-        );
-      }, engine);
+    await page.goto('/');
 
-      await page.goto('/');
-
-      // Match 1001 has kiosk/parking info -> Pin should have pin-info-badge / info indicator
-      const infoIndicator = page.locator('[data-testid="pin-info-indicator"]').first();
-      await expect(infoIndicator).toBeVisible({ timeout: 10000 });
-      await expect(infoIndicator).toHaveText('ℹ️');
-    }
+    // Match 1001 has kiosk/parking info -> Pin should have pin-info-badge / info indicator
+    const infoIndicator = page.locator('[data-testid="pin-info-indicator"]').first();
+    await expect(infoIndicator).toBeVisible({ timeout: 10000 });
+    await expect(infoIndicator).toHaveText('ℹ️');
   });
 
   test('Issue #244: queues submission when offline or network fails, displays pending badge, and syncs via SettingsView', async ({

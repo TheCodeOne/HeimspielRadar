@@ -27,10 +27,11 @@ Consult this reference during implementation and code review (`/code-review`, `r
    - The root app shell (`apps/frontend/src/App.tsx`, `apps/frontend/src/index.css`) and slide-over drawers (`FilterBar.tsx`) use `h-dvh` (`height: 100dvh`), `overflow-hidden`, and `overscroll-none` / `overscroll-contain`.
    - Use `h-dvh` rather than `h-screen` (`100vh`) so mobile browser address/navigation bars never allow vertical page scrolling that pushes `<header>` off-screen.
 2. **Map Stacking Context Isolation (`isolate z-0`)**:
-   - Third-party map engines (especially Leaflet's `.leaflet-pane`, `.leaflet-top`, `.leaflet-bottom` with `z-index: 400–1000`) must stay trapped inside a `z-0` stacking context.
-   - Keep `isolate z-0` on the map canvas wrapper in `apps/frontend/src/components/map/MapContainer.tsx` and `isolation: isolate; z-index: 0 !important;` on `.leaflet-container` in `apps/frontend/src/index.css` so map layers never overlap the header (`z-30`), floating map pills (`z-20`), bottom Venue Overlay (`z-20`), or Filter Drawer (`z-50`).
-3. **4-Engine Map Spike Parity ([ADR-0002](docs/adr/0002-multi-spike-map-architecture.md))**:
-   - All four engines in `apps/frontend/src/components/map/engines/` (`OpenLayersEngine.tsx`, `MapLibreEngine.tsx`, `LeafletEngine.tsx`, `PigeonEngine.tsx`) implement `MapEngineProps`.
+   - The map container in `apps/frontend/src/components/map/MapContainer.tsx` is wrapped in an `isolate z-0` stacking context so map layers and WebGL canvas elements never overlap the header (`z-30`), floating map pills (`z-20`), bottom Venue Overlay (`z-20`), or Filter Drawer (`z-50`).
+3. **MapLibre GL & `useMapViewModel` ([ADR-0003](docs/adr/0003-maplibre-consolidation.md))**:
+   - MapLibre GL JS (`MapLibreEngine.tsx`) is the canonical map engine with hardware-accelerated vector tiles from OpenFreeMap.
+   - All spatial math, venue deduplication, Mercator clustering, search radius GeoJSON generation, and bounding-box focus logic are encapsulated inside `useMapViewModel.ts`.
+   - `MapLibreEngine.tsx` is a pure declarative view adapter consuming `useMapViewModel`.
    - Clicking a venue pin calls `onMarkerClick(group.matches[0])` to open the bottom Multi-Match Venue Overlay without rendering a duplicate in-map popup.
    - Selected venue pins render with a higher `z-index` than neighboring unselected pins.
 4. **Match Tile & Badge Parity (`MatchCard.tsx` ↔ `VenueModal.tsx`)**:

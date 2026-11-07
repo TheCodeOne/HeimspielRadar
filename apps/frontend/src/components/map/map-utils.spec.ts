@@ -9,6 +9,7 @@ import {
   getBasketballPinSvg,
   getClusterBadgeHtml,
   getSearchCenterPinHtml,
+  getUserLocationMarkerHtml,
   getUserLocationPinHtml,
   groupMatchesByVenue,
   isSameVenue,
@@ -258,6 +259,7 @@ describe('map-utils', () => {
 
       expect(html).toContain('user-location-ping');
       expect(html).toContain('#3b82f6');
+      expect(getUserLocationMarkerHtml()).toBe(html);
     });
 
     describe('DOM element creation', () => {
