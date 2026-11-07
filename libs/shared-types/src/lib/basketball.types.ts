@@ -149,6 +149,7 @@ export interface VenueSubmission {
 }
 
 export interface CreateKioskSubmissionDto {
+  matchId?: number;
   admissionFee?: string;
   kioskDescription?: string;
   parkingNotes?: string;

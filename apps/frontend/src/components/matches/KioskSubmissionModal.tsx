@@ -150,12 +150,15 @@ export function KioskSubmissionModal({
     }
 
     try {
-      const response = await fetch(`/api/matches/${match.id}/kiosk-submission`, {
+      const response = await fetch('/api/submissions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          matchId: match.id,
+        }),
       });
 
       if (response.status === 400) {

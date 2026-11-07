@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module';
 import { MatchesModule } from './matches/matches.module';
 import { PushModule } from './push/push.module';
 import { ScraperModule } from './scraper/scraper.module';
+import { SubmissionsModule } from './submissions/submissions.module';
 import { resolveFrontendDistPath } from './static-path.util';
 import { CloudflareThrottlerGuard } from './throttler/cloudflare-throttler.guard';
 
@@ -46,6 +47,7 @@ const isFrontendDisabled =
     PushModule,
     ScraperModule,
     MatchesModule,
+    SubmissionsModule,
     HealthModule,
   ],
   controllers: [AppController],

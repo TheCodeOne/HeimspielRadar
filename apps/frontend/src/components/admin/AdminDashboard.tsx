@@ -254,7 +254,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
             fetch('/api/admin/sync-runs?limit=20'),
             fetch('/api/admin/failures'),
             fetch('/api/admin/matches/featured?page=1&limit=25').catch(() => null),
-            fetch(`/api/admin/submissions?status=${submissionFilter}`).catch(
+            fetch(`/api/submissions?status=${submissionFilter}`).catch(
               () => null
             ),
           ]);
@@ -309,7 +309,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
             .get('content-type')
             ?.includes('application/json')
         ) {
-          // SAFETY: /api/admin/submissions returns VenueSubmission[]
+          // SAFETY: /api/submissions returns VenueSubmission[]
           const submissionsData =
             (await submissionsRes.json()) as VenueSubmission[];
 
@@ -332,14 +332,14 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
     async (filterStatus: VenueSubmissionFilterStatus) => {
       try {
         const res = await fetch(
-          `/api/admin/submissions?status=${encodeURIComponent(filterStatus)}`
+          `/api/submissions?status=${encodeURIComponent(filterStatus)}`
         );
 
         if (
           res.ok &&
           res.headers.get('content-type')?.includes('application/json')
         ) {
-          // SAFETY: /api/admin/submissions returns VenueSubmission[]
+          // SAFETY: /api/submissions returns VenueSubmission[]
           const data = (await res.json()) as VenueSubmission[];
 
           if (Array.isArray(data)) {
@@ -376,7 +376,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
         : '';
 
       const res = await fetch(
-        `/api/admin/submissions/${submission.id}/${action}${querySuffix}`,
+        `/api/submissions/${submission.id}/${action}${querySuffix}`,
         {
           method: 'POST',
         }
@@ -440,7 +440,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
     setIsSavingEdit(true);
 
     try {
-      const res = await fetch(`/api/admin/submissions/${editingSubmission.id}`, {
+      const res = await fetch(`/api/submissions/${editingSubmission.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editFormData),
@@ -485,7 +485,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
     setDeletingSubmissionId(sub.id);
 
     try {
-      const res = await fetch(`/api/admin/submissions/${sub.id}`, {
+      const res = await fetch(`/api/submissions/${sub.id}`, {
         method: 'DELETE',
       });
 

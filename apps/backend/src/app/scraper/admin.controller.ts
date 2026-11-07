@@ -1,14 +1,11 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  Headers,
   Inject,
   Optional,
   Param,
   ParseIntPipe,
-  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,12 +17,11 @@ import {
   PaginatedMatchesResponse,
   SyncRun,
   SyncTriggerDto,
-  UpdateSubmissionDto,
 } from '@sundayleague/shared-types';
 import { DRIZZLE_DB, DrizzleDb } from '../database/database.module';
 import { syncRuns } from '../database/schema';
 import { AdminApiGuard } from './admin-api.guard';
-import { AdminService, verifyAdminToken } from './admin.service';
+import { AdminService } from './admin.service';
 import { ScraperService } from './scraper.service';
 import { TelegramNotifierService } from './telegram-notifier.service';
 import { TopMatchScoringService } from './top-match-scoring.service';
@@ -129,60 +125,6 @@ export class AdminController {
   @Post('telegram/test')
   async testTelegram() {
     return this.telegramNotifier.sendTestMessage();
-  }
-
-  @Get('submissions')
-  async getSubmissions(@Query('status') status?: string) {
-    return this.resolvedAdminService.getSubmissions(status);
-  }
-
-  @Post('submissions/:id/approve')
-  async approveSubmission(
-    @Param('id', ParseIntPipe) id: number
-  ) {
-    return this.resolvedAdminService.approveSubmission(id);
-  }
-
-  @Get('submissions/:id/approve')
-  async approveSubmissionGet(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('token') token?: string,
-    @Headers('authorization') authHeader?: string
-  ) {
-    verifyAdminToken(token, authHeader);
-
-    return this.resolvedAdminService.approveSubmission(id);
-  }
-
-  @Post('submissions/:id/reject')
-  async rejectSubmission(
-    @Param('id', ParseIntPipe) id: number
-  ) {
-    return this.resolvedAdminService.rejectSubmission(id);
-  }
-
-  @Get('submissions/:id/reject')
-  async rejectSubmissionGet(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('token') token?: string,
-    @Headers('authorization') authHeader?: string
-  ) {
-    verifyAdminToken(token, authHeader);
-
-    return this.resolvedAdminService.rejectSubmission(id);
-  }
-
-  @Patch('submissions/:id')
-  async updateSubmission(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateSubmissionDto
-  ) {
-    return this.resolvedAdminService.updateSubmission(id, dto);
-  }
-
-  @Delete('submissions/:id')
-  async deleteSubmission(@Param('id', ParseIntPipe) id: number) {
-    return this.resolvedAdminService.deleteSubmission(id);
   }
 
   @Get('matches/search')
