@@ -225,16 +225,24 @@ test.describe('Issue #104: Featured Match Golden Map Marker (4 Engines) & Pinned
     await expect(matchCards.nth(1)).toHaveAttribute('data-match-id', '2001');
     await expect(matchCards.nth(2)).toHaveAttribute('data-match-id', '2003');
 
-    // Verify Star-Badge and Kiosk teaser on the Featured Match card
+    // Verify Star-Badge and Kiosk information on the Featured Match card
     const featuredCard = matchCards.nth(0);
     const featuredBadge = featuredCard.getByTestId('featured-match-badge');
     await expect(featuredBadge).toBeVisible();
     await expect(featuredBadge).toContainText('⭐');
-    await expect(featuredBadge).toContainText('Spiel des Tages / Derby-Tipp');
+    await expect(featuredBadge).toContainText('Topspiel');
 
-    const kioskTeaser = featuredCard.getByTestId('match-kiosk-teaser');
-    await expect(kioskTeaser).toBeVisible();
-    await expect(kioskTeaser).toContainText(
+    // Clicking the Topspiel badge opens the TopMatchInfoModal
+    await featuredBadge.click();
+    const modal = page.getByTestId('top-match-info-modal');
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText('Topspiel des Tages');
+    await page.keyboard.press('Escape');
+    await expect(modal).not.toBeVisible();
+
+    const kioskInfo = featuredCard.locator('[data-tile="kiosk-info"], [data-testid="match-kiosk-teaser"]');
+    await expect(kioskInfo).toBeVisible();
+    await expect(kioskInfo).toContainText(
       'Hallenkaffee, frische Waffeln, Brezeln & Kaltgetränke',
     );
 
@@ -246,5 +254,41 @@ test.describe('Issue #104: Featured Match Golden Map Marker (4 Engines) & Pinned
     );
 
     await page.screenshot({ path: listScreenshotPath, fullPage: true });
+  });
+
+  test('3. Match-Detail /matches/:id displays Topspiel Badge in Ticket Header and opens TopMatchInfoModal on click', async ({
+    page,
+  }) => {
+    await page.route('**/api/matches/2002', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_MATCHES[1]),
+      });
+    });
+
+    await page.goto('/matches/2002');
+
+    // Ticket container has data-featured="true"
+    const ticketContainer = page.getByTestId('match-detail-ticket');
+    await expect(ticketContainer).toBeVisible();
+    await expect(ticketContainer).toHaveAttribute('data-featured', 'true');
+
+    // Topspiel badge in ticket header stub
+    const featuredBadge = ticketContainer.getByTestId('featured-match-badge');
+    await expect(featuredBadge).toBeVisible();
+    await expect(featuredBadge).toContainText('⭐');
+    await expect(featuredBadge).toContainText('Topspiel');
+
+    // Clicking the Topspiel badge opens the TopMatchInfoModal
+    await featuredBadge.click();
+
+    const topMatchModal = page.getByTestId('top-match-info-modal');
+    await expect(topMatchModal).toBeVisible();
+    await expect(topMatchModal).toContainText('Topspiel des Tages');
+
+    // Close modal via Escape
+    await page.keyboard.press('Escape');
+    await expect(topMatchModal).not.toBeVisible();
   });
 });

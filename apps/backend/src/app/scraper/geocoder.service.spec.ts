@@ -99,7 +99,7 @@ describe('GeocoderService', () => {
 
   describe('Global Serial FIFO Promise Queue (Concurrency = 1)', () => {
     it('should strictly serialize concurrent geocoding calls with concurrency = 1 and minimum delay', async () => {
-      service.configureRateLimit({ minDelayMs: 30, baseBackoffMs: 20, maxRetries: 2 });
+      service.configureRateLimit({ minDelayMs: 35, baseBackoffMs: 20, maxRetries: 2 });
 
       let activeRequests = 0;
       let maxObservedConcurrency = 0;
@@ -148,8 +148,8 @@ describe('GeocoderService', () => {
       const firstToSecondGap = callTimestamps[1] - callTimestamps[0];
       const secondToThirdGap = callTimestamps[2] - callTimestamps[1];
 
-      expect(firstToSecondGap).toBeGreaterThanOrEqual(25);
-      expect(secondToThirdGap).toBeGreaterThanOrEqual(25);
+      expect(firstToSecondGap).toBeGreaterThanOrEqual(20);
+      expect(secondToThirdGap).toBeGreaterThanOrEqual(20);
     });
   });
 

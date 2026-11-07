@@ -18,6 +18,7 @@ import {
   KioskSubmissionModal,
   MatchDetailView,
   MatchList,
+  TopMatchInfoModal,
   VenueModal,
 } from '@/components/matches';
 import {
@@ -79,6 +80,7 @@ function MainView({
 
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [kioskModalMatch, setKioskModalMatch] = React.useState<Match | null>(null);
+  const [topMatchModalMatch, setTopMatchModalMatch] = React.useState<Match | null>(null);
 
   const showToastMessage = React.useCallback((message: string) => {
     setToastMessage(message);
@@ -289,6 +291,7 @@ function MainView({
               venueMatches={selectedVenueMatches}
               onSelectMatch={(matchId) => setSelectedMatchId(matchId)}
               onReportKioskInfo={(m) => setKioskModalMatch(m)}
+              onOpenTopMatchInfo={(m) => setTopMatchModalMatch(m)}
               onClose={() => setSelectedMatchId(null)}
             />
           </div>
@@ -388,6 +391,7 @@ function MainView({
                 }}
                 onHoverMatch={(match) => setSelectedMatchId(match.id)}
                 onReportKioskInfo={(match) => setKioskModalMatch(match)}
+                onOpenTopMatchInfo={(match) => setTopMatchModalMatch(match)}
                 isLoading={isLoading}
                 radiusKm={filters.radiusKm}
                 onExpandRadius={handleExpandRadius}
@@ -407,6 +411,13 @@ function MainView({
           showToastMessage(msg);
           refetch();
         }}
+      />
+
+      {/* Central Top Match Calculation Info Modal */}
+      <TopMatchInfoModal
+        match={topMatchModalMatch}
+        isOpen={topMatchModalMatch !== null}
+        onClose={() => setTopMatchModalMatch(null)}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}

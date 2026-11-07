@@ -13,6 +13,7 @@ import { formatLeagueName } from '@/components/map/map-utils';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
 import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
+import { TopMatchBadge } from '@/components/matches/TopMatchBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
@@ -162,6 +163,7 @@ export function MatchDetailView({
 
   const links = getMatchLinks(match);
   const isFinished = Boolean(match.result);
+  const isFeatured = Boolean(match.isFeatured);
   const leagueName = formatLeagueName(match.leagueId, match.league?.name);
   const dateFormatted = formatDisplayDate(match.kickoffDate);
   const timeFormatted = formatKickoffTime(match.kickoffTime);
@@ -173,6 +175,10 @@ export function MatchDetailView({
 
   const homeParts = splitTeamName(match.homeTeam.name);
   const guestParts = splitTeamName(match.guestTeam.name);
+
+  const ticketContainerClasses = isFeatured
+    ? 'border-amber-500/80 ring-1 ring-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.22)]'
+    : 'border-border shadow-2xl';
 
   return (
     <div className="fixed inset-0 flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
@@ -216,7 +222,11 @@ export function MatchDetailView({
 
       {/* Main Body - Centered Ticket layout that fits completely within 100dvh without scrolling */}
       <main className="relative flex flex-1 min-h-0 w-full flex-col items-center justify-center p-2 sm:p-4 overflow-hidden bg-radial from-muted/30 to-background dark:from-slate-900/60 dark:to-slate-950/95">
-        <div className="relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border border-border bg-card/95 shadow-2xl backdrop-blur-xl overflow-hidden select-none">
+        <div
+          data-testid="match-detail-ticket"
+          data-featured={isFeatured ? 'true' : undefined}
+          className={`relative w-full max-w-sm sm:max-w-md h-full max-h-[calc(100dvh-4rem)] flex flex-col rounded-3xl border bg-card/95 backdrop-blur-xl overflow-hidden select-none ${ticketContainerClasses}`}
+        >
           {/* Perforation Cutouts */}
           <div
             aria-hidden="true"
@@ -237,11 +247,15 @@ export function MatchDetailView({
                 </span>
               </div>
 
-              {match.matchDay && (
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {match.matchDay}. Spieltag {match.matchNo ? `• #${match.matchNo}` : ''}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                <TopMatchBadge match={match} size="sm" />
+
+                {match.matchDay && (
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {match.matchDay}. Spieltag {match.matchNo ? `• #${match.matchNo}` : ''}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="mt-1 flex items-baseline justify-between gap-2">

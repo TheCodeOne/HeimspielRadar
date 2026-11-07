@@ -12,10 +12,10 @@ Execute all branch creation, file edits, builds, and tests inside an isolated Gi
 ## 1. Lifecycle Tagging & Worktree Setup
 
 1. **Update GitHub Issue Label & Sync Kanban Board**:
-   Add issue to [**HeimspielRadar Kanban Board**](https://github.com/users/TheCodeOne/projects/2) (GitHub Project #2):
+   Add issue to [**HeimspielRadar Kanban Board**](https://github.com/orgs/heimspielradar/projects/1) (GitHub Project #1):
    ```bash
    gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
-   gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/issues/<issue-id>"
+   gh project item-add 1 --owner heimspielradar --url "https://github.com/heimspielradar/HeimspielRadar/issues/<issue-id>"
    ```
 2. **Read Issue Context**:
    ```bash
@@ -116,5 +116,5 @@ From within `.worktrees/issue-<issue-id>`:
    ```
 3. Add the newly created Pull Request to the Kanban Board in column `PR`:
    ```bash
-   gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/pull/<pr-number>"
+   gh project item-add 1 --owner heimspielradar --url "https://github.com/heimspielradar/HeimspielRadar/pull/<pr-number>"
    ```
