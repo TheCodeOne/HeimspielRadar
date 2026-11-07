@@ -384,8 +384,8 @@ export class TelegramNotifierService {
       ? `?token=${encodeURIComponent(adminToken)}`
       : '';
 
-    const approveUrl = `${this.adminBaseUrl}/api/admin/submissions/${alert.submissionId}/approve${tokenParam}`;
-    const rejectUrl = `${this.adminBaseUrl}/api/admin/submissions/${alert.submissionId}/reject${tokenParam}`;
+    const approveUrl = `${this.adminBaseUrl}/api/submissions/${alert.submissionId}/approve${tokenParam}`;
+    const rejectUrl = `${this.adminBaseUrl}/api/submissions/${alert.submissionId}/reject${tokenParam}`;
 
     const res = await this.callTelegramApi('sendMessage', {
       chat_id: this.chatId,

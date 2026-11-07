@@ -291,11 +291,11 @@ describe('TelegramNotifierService', () => {
       expect(callBody.reply_markup.inline_keyboard[0]).toEqual([
         {
           text: '✅ Freigeben',
-          url: expect.stringContaining('/api/admin/submissions/42/approve?token=secret-123'),
+          url: expect.stringContaining('/api/submissions/42/approve?token=secret-123'),
         },
         {
           text: '❌ Ablehnen',
-          url: expect.stringContaining('/api/admin/submissions/42/reject?token=secret-123'),
+          url: expect.stringContaining('/api/submissions/42/reject?token=secret-123'),
         },
       ]);
     });

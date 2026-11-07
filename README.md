@@ -73,6 +73,10 @@ heimspielradar/
 - **Echtzeit-Meldung bei Spielverlegungen:** Automatische Push-Zustellung bei Termin-, Anwurfzeit- oder Hallenänderungen im DBB-Sync (`ScraperService`) mit intelligentem Snapshot-Vergleich und Zurücksetzen des Erinnerungs-Status bei Verschiebung in die Zukunft.
 - **Auto-Pruning:** Automatisches Bereinigen abgelaufener Abonnements bei Push-Service HTTP `404` / `410`.
 
+### 8. Moderations- & Submissions-Lifecycle (`SubmissionsModule`)
+- **Entkoppelte Submissions-Architektur:** Crowd-gesourcte Kiosk-, Eintritts- und Hallenmeldungen laufen über das dedizierte `SubmissionsModule` (`/api/submissions`), getrennt vom reinen Match-Query-Service (`MatchesService`).
+- **One-Click Moderation & Benachrichtigung:** Automatische Moderations-Alerts an Moderatoren via Telegram mit 1-Klick Token-Freigabe (`/api/submissions/:id/approve` bzw. `/reject`) und direkter Freischaltung geprüfter Infos.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung

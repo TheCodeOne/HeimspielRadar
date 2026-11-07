@@ -124,12 +124,10 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     let submittedPayload: CreateKioskSubmissionDto | null = null;
     let submittedMatchId: string | null = null;
 
-    await page.route('**/api/matches/*/kiosk-submission', async (route) => {
-      const url = route.request().url();
-      const idMatch = url.match(/\/api\/matches\/(\d+)\/kiosk-submission/);
-      submittedMatchId = idMatch ? idMatch[1] : null;
+    await page.route('**/api/submissions', async (route) => {
       // SAFETY: Request JSON matches CreateKioskSubmissionDto object structure
       submittedPayload = route.request().postDataJSON() as CreateKioskSubmissionDto;
+      submittedMatchId = submittedPayload?.matchId ? String(submittedPayload.matchId) : null;
 
       await route.fulfill({
         status: 201,
@@ -249,12 +247,13 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(modal).toBeHidden();
     expect(submittedMatchId).toBe('1002');
     expect(submittedPayload).toEqual({
-      scope: 'matchday',
+      matchId: 1002,
       admissionFee: 'Eintritt frei',
       kioskDescription: 'Kaffee & Kuchen, Waffeln, Kaltgetränke',
       parkingNotes: 'Parkplätze direkt an der Hechinger Straße',
       submitterName: 'Sarah',
       submitterRole: 'Trainerin',
+      scope: 'matchday',
     });
 
     const toast = page.getByRole('status');
@@ -268,7 +267,7 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     { page },
     testInfo,
   ) => {
-    await page.route('**/api/matches/*/kiosk-submission', async (route) => {
+    await page.route('**/api/submissions', async (route) => {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -326,6 +325,7 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
   test('displays info indicator badge on map pins across all 4 map engines when match has venue/kiosk info', async ({
     page,
   }) => {
+    // Return single venue with info so nearby venues do not cluster at default zoom level
     await page.route(/\/api\/matches(\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
@@ -363,8 +363,8 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
   }) => {
     let syncCallCount = 0;
 
-    // Fail POST kiosk-submission initially with network error to simulate failure
-    await page.route('**/api/matches/*/kiosk-submission', async (route) => {
+    // Fail POST submissions initially with network error to simulate failure
+    await page.route('**/api/submissions', async (route) => {
       syncCallCount++;
 
       if (syncCallCount === 1) {

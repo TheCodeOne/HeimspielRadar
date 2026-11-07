@@ -273,12 +273,15 @@ export async function syncPendingKioskSubmissions(): Promise<SyncPendingResult> 
   try {
     for (const entry of currentQueue) {
       try {
-        const response = await fetch(`/api/matches/${entry.matchId}/kiosk-submission`, {
+        const response = await fetch('/api/submissions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(entry.payload),
+          body: JSON.stringify({
+            ...entry.payload,
+            matchId: entry.matchId,
+          }),
         });
 
         if (response.ok) {

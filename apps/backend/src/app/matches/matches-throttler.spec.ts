@@ -5,6 +5,8 @@ import type { CreateKioskSubmissionDto, HealthCheckResponse, Match } from '@sund
 import { HealthController } from '../health/health.controller';
 import { HealthService } from '../health/health.service';
 import { CloudflareThrottlerGuard } from '../throttler/cloudflare-throttler.guard';
+import { SubmissionsController } from '../submissions/submissions.controller';
+import { SubmissionsService } from '../submissions/submissions.service';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
 
@@ -12,9 +14,12 @@ class FakeMatchesService {
   findMatches = jest.fn<Promise<Match[]>, []>().mockResolvedValue([]);
   findTeamSuggestions = jest.fn<Promise<string[]>, []>().mockResolvedValue(['FC Test']);
   findById = jest.fn<Promise<Match | null>, []>().mockResolvedValue(null);
-  createKioskSubmission = jest.fn<Promise<{ id: number; success: boolean }>, []>().mockResolvedValue({
+}
+
+class FakeSubmissionsService {
+  createSubmission = jest.fn().mockResolvedValue({
     id: 1,
-    success: true,
+    status: 'pending',
   });
 }
 
@@ -40,11 +45,15 @@ class FakeHealthService {
       },
     ]),
   ],
-  controllers: [MatchesController, HealthController],
+  controllers: [MatchesController, HealthController, SubmissionsController],
   providers: [
     {
       provide: MatchesService,
       useClass: FakeMatchesService,
+    },
+    {
+      provide: SubmissionsService,
+      useClass: FakeSubmissionsService,
     },
     {
       provide: HealthService,
@@ -158,6 +167,7 @@ describe('Tiered Throttler Integration', () => {
       const submitterIp = '198.51.100.50';
 
       const payload: CreateKioskSubmissionDto = {
+        matchId: 101,
         kioskDescription: 'Kaffee und Kuchen vorhanden',
         admissionFee: 'Freier Eintritt',
         parkingNotes: 'Parkplätze vor der Halle',
@@ -165,7 +175,7 @@ describe('Tiered Throttler Integration', () => {
       };
 
       for (let i = 0; i < 5; i++) {
-        const response = await fetch(`${baseUrl}/api/matches/101/kiosk-submission`, {
+        const response = await fetch(`${baseUrl}/api/submissions`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -177,7 +187,7 @@ describe('Tiered Throttler Integration', () => {
         expect(response.status).toBe(201);
       }
 
-      const blockedResponse = await fetch(`${baseUrl}/api/matches/101/kiosk-submission`, {
+      const blockedResponse = await fetch(`${baseUrl}/api/submissions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
