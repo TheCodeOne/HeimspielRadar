@@ -40,6 +40,9 @@ updates:
       # Freeze Nx: upgrades must run via `npx nx migrate`
       - dependency-name: "nx"
       - dependency-name: "@nx/*"
+      # Prevent breaking major updates across all npm packages (allow only safe minor & patch)
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       # Developer tooling, linters, test harnesses, and type definitions
       dev-tooling:
