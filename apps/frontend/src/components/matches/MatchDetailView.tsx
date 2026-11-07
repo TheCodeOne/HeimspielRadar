@@ -18,10 +18,12 @@ import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { getMatchLinks } from '@/lib/match-links';
 import { getSampleMatches } from '@/lib/sample-matches';
 import { shareMatch } from '@/lib/share-utils';
+import { AppHeader } from '@/components/navigation';
 
 export interface MatchDetailViewProps {
   matchId: number;
   onNavigateHome: () => void;
+  onOpenNav?: () => void;
 }
 
 export interface SplitTeamNameResult {
@@ -45,7 +47,11 @@ function splitTeamName(name: string): SplitTeamNameResult {
   return { base: trimmed };
 }
 
-export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProps) {
+export function MatchDetailView({
+  matchId,
+  onNavigateHome,
+  onOpenNav,
+}: MatchDetailViewProps) {
   const [match, setMatch] = React.useState<Match | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
@@ -166,31 +172,26 @@ export function MatchDetailView({ matchId, onNavigateHome }: MatchDetailViewProp
 
   return (
     <div className="fixed inset-0 flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-primary/20 selection:text-primary">
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 flex h-12 sm:h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6">
+      {/* Global Unified App Header */}
+      <AppHeader
+        onOpenNav={onOpenNav ?? (() => {})}
+        onNavigateHome={onNavigateHome}
+        backLink={{
+          label: '← Zum Heimspielradar',
+          onClick: onNavigateHome,
+        }}
+      >
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={onNavigateHome}
-          className="gap-1.5 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          onClick={handleShare}
+          className="h-8 gap-1.5 text-xs font-medium"
         >
-          <span>← Zum Heimspielradar</span>
+          <Share2 className="h-3.5 w-3.5 text-primary" />
+          <span className="hidden sm:inline">Teilen</span>
         </Button>
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleShare}
-            className="h-8 gap-1.5 text-xs font-medium"
-          >
-            <Share2 className="h-3.5 w-3.5 text-primary" />
-            <span className="hidden sm:inline">Teilen</span>
-          </Button>
-        </div>
-      </header>
+      </AppHeader>
 
       {/* Toast Feedback */}
       {toastMessage && (

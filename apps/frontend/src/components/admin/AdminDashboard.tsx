@@ -11,6 +11,7 @@ import {
   Database,
   Edit2,
   MapPin,
+  Menu,
   RefreshCw,
   Search,
   Send,
@@ -146,7 +147,12 @@ function formatTargetLabel(target: string): string {
   return target;
 }
 
-export function AdminDashboard() {
+export interface AdminDashboardProps {
+  onOpenNav?: () => void;
+  onNavigateHome?: () => void;
+}
+
+export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProps = {}) {
   const [status, setStatus] = React.useState<AdminStatusResponse | null>(null);
   const [syncRuns, setSyncRuns] = React.useState<SyncRun[]>([]);
   const [failures, setFailures] = React.useState<SyncFailure[]>([]);
@@ -973,20 +979,27 @@ export function AdminDashboard() {
       {/* Header Bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md sm:px-6">
         <div className="flex items-center gap-3">
-          <BrandLogo className="size-9 shrink-0 rounded-lg shadow-xs" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight sm:text-lg">
-                HeimspielRadar Pi Admin
-              </h1>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                /admin
-              </Badge>
+          <button
+            type="button"
+            onClick={onNavigateHome}
+            className="flex items-center gap-3 text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-lg"
+            aria-label="Zum Heimspielradar"
+          >
+            <BrandLogo className="size-9 shrink-0 rounded-lg shadow-xs transition group-hover:scale-105" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight sm:text-lg group-hover:text-primary transition-colors">
+                  HeimspielRadar Pi Admin
+                </h1>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  /admin
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Raspberry Pi Scraper & Observability Dashboard
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Raspberry Pi Scraper & Observability Dashboard
-            </p>
-          </div>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -1013,6 +1026,21 @@ export function AdminDashboard() {
             />
             <span className="hidden sm:inline">Aktualisieren</span>
           </Button>
+
+          {onOpenNav && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={onOpenNav}
+              className="h-8 w-8 rounded-lg border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Menü öffnen"
+              title="Navigation öffnen"
+              data-testid="nav-menu-button"
+            >
+              <Menu className="h-4 w-4 text-slate-300" />
+            </Button>
+          )}
         </div>
       </header>
 

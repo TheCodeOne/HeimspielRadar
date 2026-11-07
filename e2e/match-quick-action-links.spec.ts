@@ -417,9 +417,10 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
     // Verify reminder button on card is now active (highlighted)
     await expect(reminderButton).toHaveAttribute('data-active', 'true');
 
-    // Open Settings Dialog via header button
-    const settingsButton = page.getByRole('button', { name: /Einstellungen|Settings/i });
-    await settingsButton.click({ force: true });
+    // Open Settings via Hamburger Menu Navigation Drawer
+    await page.getByRole('button', { name: /Menü/i }).click({ force: true });
+    await page.getByTestId('nav-item-settings').click({ force: true });
+    await expect(page).toHaveURL(/\/settings/);
 
     // Verify Active Reminders section in Settings
     const settingsSection = page.locator('[data-testid="settings-reminders-section"]');
@@ -435,8 +436,9 @@ test.describe('Match Quick-Action Links (Issue #95)', () => {
     await expect(settingsSection.getByText('0 aktiv')).toBeVisible();
     await expect(settingsSection.getByText('Keine aktiven Spiel-Erinnerungen vorhanden.')).toBeVisible();
 
-    // Close settings dialog
-    await page.getByRole('button', { name: 'Fertig' }).click({ force: true });
+    // Navigate back to main view
+    await page.getByRole('button', { name: /Zurück/i }).click({ force: true });
+    await expect(page).toHaveURL(/\//);
 
     // Verify card bell is no longer active
     await expect(reminderButton).not.toHaveAttribute('data-active', 'true');
