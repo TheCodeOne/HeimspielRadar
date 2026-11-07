@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { PushModule } from '../push/push.module';
 import { AdminApiGuard } from './admin-api.guard';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
@@ -13,7 +14,7 @@ import { TelegramNotifierService } from './telegram-notifier.service';
 import { TopMatchScoringService } from './top-match-scoring.service';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, PushModule],
   controllers: [ScraperController, AdminController],
   providers: [
     DbbClientService,

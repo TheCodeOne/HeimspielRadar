@@ -9,6 +9,8 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -225,6 +227,33 @@ export const systemSettings = pgTable('system_settings', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export type PushLeadTime = '1h' | '2h' | '1d';
+
+export const pushReminders = pgTable(
+  'push_reminders',
+  {
+    id: serial('id').primaryKey(),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    matchId: integer('match_id')
+      .notNull()
+      .references(() => matches.id, { onDelete: 'cascade' }),
+    leadTime: varchar('lead_time', { length: 8 }).$type<PushLeadTime>().notNull(),
+    reminderSentAt: timestamp('reminder_sent_at'),
+    kickoffDate: varchar('kickoff_date', { length: 32 }),
+    kickoffTime: varchar('kickoff_time', { length: 32 }),
+    venueId: integer('venue_id').references(() => venues.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('push_reminders_endpoint_match_id_idx').on(table.endpoint, table.matchId),
+    index('push_reminders_match_id_idx').on(table.matchId),
+    index('push_reminders_reminder_sent_at_idx').on(table.reminderSentAt),
+  ]
+);
+
 export const syncFailures = pgTable('sync_failures', {
   id: serial('id').primaryKey(),
   entityType: text('entity_type').notNull(), // 'league' | 'match'
@@ -297,6 +326,7 @@ export const matchesRelations = relations(matches, ({ one, many }) => ({
     references: [venues.id],
   }),
   submissions: many(venueSubmissions),
+  pushReminders: many(pushReminders),
 }));
 
 export const venueSubmissionsRelations = relations(venueSubmissions, ({ one }) => ({
@@ -306,6 +336,17 @@ export const venueSubmissionsRelations = relations(venueSubmissions, ({ one }) =
   }),
   venue: one(venues, {
     fields: [venueSubmissions.venueId],
+    references: [venues.id],
+  }),
+}));
+
+export const pushRemindersRelations = relations(pushReminders, ({ one }) => ({
+  match: one(matches, {
+    fields: [pushReminders.matchId],
+    references: [matches.id],
+  }),
+  venue: one(venues, {
+    fields: [pushReminders.venueId],
     references: [venues.id],
   }),
 }));

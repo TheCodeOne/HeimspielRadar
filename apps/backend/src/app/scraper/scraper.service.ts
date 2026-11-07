@@ -33,6 +33,7 @@ import {
   DbbVenue,
 } from './dbb-client.service';
 import { GeocoderService } from './geocoder.service';
+import { PushService } from '../push/push.service';
 import { TelegramNotifierService } from './telegram-notifier.service';
 
 export interface SyncLeagueOptions {
@@ -97,7 +98,8 @@ export class ScraperService {
     @Inject(DRIZZLE_DB) private readonly db: DrizzleDb | null,
     private readonly dbbClient: DbbClientService,
     private readonly geocoder: GeocoderService,
-    @Optional() private readonly telegramNotifier?: TelegramNotifierService
+    @Optional() private readonly telegramNotifier?: TelegramNotifierService,
+    @Optional() private readonly pushService?: PushService,
   ) {}
 
   /**
@@ -445,6 +447,17 @@ export class ScraperService {
           });
 
         syncedMatchesCount = matchRowsToUpsert.length;
+
+        if (this.pushService) {
+          await this.pushService.handleMatchesUpdated(
+            matchRowsToUpsert.map((m) => ({
+              matchId: m.id,
+              kickoffDate: m.kickoffDate,
+              kickoffTime: m.kickoffTime,
+              venueId: m.venueId,
+            })),
+          );
+        }
       }
 
       await this.clearLeagueFailure(ligaId);
@@ -1128,6 +1141,17 @@ export class ScraperService {
           });
 
         syncedMatchesCount = matchRowsToUpsert.length;
+
+        if (this.pushService) {
+          await this.pushService.handleMatchesUpdated(
+            matchRowsToUpsert.map((m) => ({
+              matchId: m.id,
+              kickoffDate: m.kickoffDate,
+              kickoffTime: m.kickoffTime,
+              venueId: m.venueId,
+            })),
+          );
+        }
       }
 
       // 8. Run majority voting for all teams with newly verified home matches
