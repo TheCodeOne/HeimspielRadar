@@ -40,6 +40,9 @@ updates:
       # Freeze Nx: upgrades must run via `npx nx migrate`
       - dependency-name: "nx"
       - dependency-name: "@nx/*"
+      # Freeze Webpack tooling: governed strictly by @nx/webpack
+      - dependency-name: "webpack"
+      - dependency-name: "webpack-*"
       # Prevent breaking major updates across all npm packages (allow only safe minor & patch)
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -58,8 +61,6 @@ updates:
           - "typescript"
           - "@types/*"
           - "@swc/*"
-          - "webpack"
-          - "webpack-*"
       # Production frameworks, database ORM, runtime utilities, and UI libraries
       framework-prod:
         patterns:
