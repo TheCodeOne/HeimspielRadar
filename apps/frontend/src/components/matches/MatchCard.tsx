@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/card';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
+import { useKioskQueue } from '@/lib/kiosk-submission-queue';
 import { KioskInfoBadges } from './KioskInfoBadges';
 import { KioskSubmissionModal } from './KioskSubmissionModal';
 import { MatchQuickActions } from './MatchQuickActions';
@@ -48,6 +49,9 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
     const [isLocalModalOpen, setIsLocalModalOpen] = React.useState(false);
     const [isTopMatchModalOpen, setIsTopMatchModalOpen] = React.useState(false);
     const [localToast, setLocalToast] = React.useState<string | null>(null);
+
+    const { hasPendingSubmission } = useKioskQueue();
+    const hasPendingOffline = hasPendingSubmission(match.id);
 
     const isFinished = Boolean(match.result);
     const isFeatured = Boolean(match.isFeatured);
@@ -129,6 +133,17 @@ export const MatchCard = React.forwardRef<HTMLDivElement, MatchCardProps>(
                     ⭐
                   </span>
                   Topspiel
+                </Badge>
+              )}
+
+              {hasPendingOffline && (
+                <Badge
+                  variant="outline"
+                  data-testid="kiosk-offline-pending-badge"
+                  className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold"
+                >
+                  <Clock className="mr-1 h-2.5 w-2.5 shrink-0" />
+                  Info ausstehend (Offline)
                 </Badge>
               )}
 

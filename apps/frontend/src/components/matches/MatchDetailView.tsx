@@ -13,8 +13,10 @@ import { formatLeagueName } from '@/components/map/map-utils';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
 import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
 import { MatchQuickActions } from '@/components/matches/MatchQuickActions';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDisplayDate, formatKickoffTime } from '@/lib/date-utils';
+import { useKioskQueue } from '@/lib/kiosk-submission-queue';
 import { getMatchLinks } from '@/lib/match-links';
 import { getSampleMatches } from '@/lib/sample-matches';
 import { shareMatch } from '@/lib/share-utils';
@@ -56,6 +58,8 @@ export function MatchDetailView({
   const [isLoading, setIsLoading] = React.useState(true);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [isKioskModalOpen, setIsKioskModalOpen] = React.useState(false);
+
+  const { hasPendingSubmission } = useKioskQueue();
 
   const showToast = React.useCallback((message: string) => {
     setToastMessage(message);
@@ -244,6 +248,17 @@ export function MatchDetailView({
               <span className="truncate text-xs font-bold text-foreground tracking-tight">
                 {leagueName}
               </span>
+
+              {hasPendingSubmission(match.id) && (
+                <Badge
+                  variant="outline"
+                  data-testid="kiosk-offline-pending-badge"
+                  className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold"
+                >
+                  <Clock className="mr-1 h-2.5 w-2.5 shrink-0" />
+                  Info ausstehend (Offline)
+                </Badge>
+              )}
             </div>
           </div>
 
