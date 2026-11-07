@@ -39,6 +39,7 @@ import { BrandLogo } from '@/components/ui/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
+import { SystemDiagnosticsSection } from '@/components/settings/SystemDiagnosticsSection';
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -1226,6 +1227,9 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
             </CardContent>
           </Card>
         </div>
+
+        {/* System & Diagnose Overview */}
+        <SystemDiagnosticsSection />
 
         {/* Quick Action Bar */}
         <Card className="border-border/80 bg-card/60">

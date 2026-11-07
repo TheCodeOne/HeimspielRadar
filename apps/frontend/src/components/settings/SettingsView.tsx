@@ -32,6 +32,7 @@ import {
 } from '@/lib/push-notification';
 import { getLeadTimeLabel, useReminders } from '@/lib/reminder-storage';
 import { useTheme } from '@/hooks';
+import { SystemDiagnosticsSection } from '@/components/settings/SystemDiagnosticsSection';
 
 const DONATION_URL = getDonationUrl();
 
@@ -46,6 +47,10 @@ export interface SettingsViewProps {
   onNavigateHome: () => void;
   onBack: () => void;
   onOpenNav: () => void;
+  radiusKm?: number;
+  locationName?: string;
+  masterPoolCount?: number;
+  filteredMatchesCount?: number;
 }
 
 interface MapEngineOption {
@@ -90,6 +95,10 @@ export function SettingsView({
   onNavigateHome,
   onBack,
   onOpenNav,
+  radiusKm = 50,
+  locationName,
+  masterPoolCount,
+  filteredMatchesCount,
 }: SettingsViewProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { reminders, removeReminder, clearAllReminders } = useReminders();
@@ -596,7 +605,17 @@ export function SettingsView({
             </div>
           </Card>
 
-          {/* Section 5: Über & DBB-Sync */}
+          {/* Section 5: System & Diagnose */}
+          <SystemDiagnosticsSection
+            mapEngine={mapEngine}
+            radiusKm={radiusKm}
+            locationName={locationName}
+            masterPoolCount={masterPoolCount}
+            filteredMatchesCount={filteredMatchesCount}
+            lastSyncedAt={lastSyncedAt}
+          />
+
+          {/* Section 6: Über & DBB-Sync */}
           <Card className="p-4 sm:p-5 space-y-4 border-border/80 bg-card/60 backdrop-blur-sm">
             <div>
               <h2 className="text-sm font-bold text-foreground">

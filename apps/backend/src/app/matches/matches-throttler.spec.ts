@@ -23,6 +23,10 @@ class FakeHealthService {
     status: 'ok',
     timestamp: new Date().toISOString(),
     lastSyncedAt: null,
+    version: '0.1.0',
+    commitSha: 'dev',
+    uptimeSeconds: 42,
+    builtAt: null,
   });
 }
 

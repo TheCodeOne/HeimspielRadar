@@ -54,6 +54,14 @@ heimspielradar/
 - **Zero-FOUC (Flash of Unstyled Content):** Ein synchrones Inline-Script in `index.html` wertet `localStorage` (`heimspielradar:theme`) und Media-Queries vor dem First-Paint aus und setzt die `.dark`-Klasse sowie dynamische `<meta name="theme-color">` Tags ohne sichtbares Flackern.
 - **Semantische Theme-Tokens & Karten-Harmonisierung:** Alle Modals, Bottom-Sheets, Dialoge, Badges und Map-Bedienelemente (`ol-zoom`, `leaflet-control-zoom`, `maplibregl-ctrl-group`, `pigeon-zoom-buttons`) passen sich nahtlos an das gewählte Theme an, während Kartentiles für maximale Lesbarkeit von Hallen und Straßen unverändert hell bleiben.
 
+### 6. Umfassende System- & Diagnose-Statistiken
+- **Vier Diagnose-Kategorien:** Im ausgebauten Bereich „System & Diagnose“ auf der `/settings`-Seite sowie im `AdminDashboard`:
+  1. *Versionen & Commits:* Unabhängige Versionen von Frontend & Backend, 7-stellige Git-Commit-SHAs, klickbare GitHub-Commit-Links sowie automatische Version-Mismatch-Erkennung bei veraltetem PWA-Cache.
+  2. *Build- & Laufzeit-Infos:* Frontend Build-Zeitstempel (`builtAt`), Backend-Laufzeit (`uptimeSeconds`) und Live-API-Ping-Latenz in `ms`.
+  3. *PWA- & Daten-Pool Status:* Service-Worker-Status (`Aktiv`, `Update bereit`, `Inaktiv / Dev`), Netzwerkstatus (`Online` / `Offline`), 50-km-Masterpool-Cache-Füllstand und letzter DBB-Sync.
+  4. *Client-Kontext:* Aktive Karten-Engine, Theme-Modus, Viewport-Auflösung und Standort-Quelle (GPS, Stadtsuche, Standard) mit Suchradius.
+- **1-Klick „Debug-Info kopieren“:** Exportiert alle Diagnose-Werte als sauberen Markdown-Block direkt in die Zwischenablage für strukturierte Fehlerberichte.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung
@@ -83,7 +91,19 @@ npx oxlint                 # Rust-Linter (0 Errors, 0 Warnings)
 npm run typecheck          # TypeScript Check für alle Projekte
 npm test                   # Unit-Tests
 npm run build              # Produktions-Build aller Projekte
+npm run release:dry-run    # Nx Release Dry-Run (SemVer & Changelogs)
 ```
+
+### 4. Unabhängiges Versioning & Changelogs (`nx release`)
+Das Projekt nutzt **Nx Release** im unabhängigen Modus (`projectsRelationship: "independent"`), um `apps/frontend` und `apps/backend` getrennt anhand von Conventional Commits (`feat:`, `fix:`, `perf:`, etc.) zu versionieren:
+```bash
+# Release-Vorschau ohne Git-Tags/Commits:
+npm run release:dry-run
+
+# Release ausführen (versioniert manifests, generiert CHANGELOG.md & taggt {projectName}@{version}):
+npm run release
+```
+GitHub Actions: Automatisch oder manuell auslösbar über den Workflow `.github/workflows/release.yml` (`workflow_dispatch` mit optionaler `dry_run`-Option).
 
 ---
 

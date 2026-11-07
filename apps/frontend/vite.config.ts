@@ -1,10 +1,65 @@
+import { execSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function getFrontendVersion(): string {
+  if (process.env.FRONTEND_VERSION) {
+    return process.env.FRONTEND_VERSION;
+  }
+
+  try {
+    const pkgPath = path.resolve(__dirname, 'package.json');
+
+    if (fs.existsSync(pkgPath)) {
+      // SAFETY: package.json follows standard npm package manifest schema
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { version?: string };
+
+      if (pkg.version) {
+        return pkg.version;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  return '0.1.0';
+}
+
+function getGitCommitSha(): string {
+  if (process.env.GIT_COMMIT_SHA) {
+    return process.env.GIT_COMMIT_SHA.slice(0, 7);
+  }
+
+  try {
+    const sha = execSync('git rev-parse --short=7 HEAD', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
+
+    if (sha) {
+      return sha.slice(0, 7);
+    }
+  } catch {
+    // fallback
+  }
+
+  return 'dev';
+}
+
+const frontendVersion = getFrontendVersion();
+const gitCommitSha = getGitCommitSha();
+const buildTimestamp = process.env.BUILD_TIMESTAMP || new Date().toISOString();
+
 export default defineConfig({
+  define: {
+    __FRONTEND_VERSION__: JSON.stringify(frontendVersion),
+    __GIT_COMMIT_SHA__: JSON.stringify(gitCommitSha),
+    __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
+  },
   plugins: [
     react(),
     tailwindcss(),

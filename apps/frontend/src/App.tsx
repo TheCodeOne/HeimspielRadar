@@ -729,6 +729,8 @@ export function App() {
         viewMode={filters.viewMode}
         onViewModeChange={actions.setViewMode}
         lastSyncedAt={lastSyncedAt}
+        radiusKm={filters.radiusKm}
+        locationName={filters.location.name}
         onNavigateHome={() => navigateTo('/')}
         onBack={() => navigateTo('/')}
         onOpenNav={() => setIsNavDrawerOpen(true)}

@@ -18,6 +18,19 @@ COPY . .
 ARG VITE_ENABLE_ADMIN_UI=true
 ENV VITE_ENABLE_ADMIN_UI=$VITE_ENABLE_ADMIN_UI
 
+# Build-time metadata arguments for versioning & commit tracking
+ARG GIT_COMMIT_SHA=dev
+ENV GIT_COMMIT_SHA=$GIT_COMMIT_SHA
+
+ARG BUILD_TIMESTAMP=""
+ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
+
+ARG BACKEND_VERSION=""
+ENV BACKEND_VERSION=$BACKEND_VERSION
+
+ARG FRONTEND_VERSION=""
+ENV FRONTEND_VERSION=$FRONTEND_VERSION
+
 # Build backend and frontend
 RUN npx nx build backend && npx nx build frontend
 
@@ -33,6 +46,16 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=3000
+
+# Runtime metadata environment variables for /api/health
+ARG GIT_COMMIT_SHA=dev
+ENV GIT_COMMIT_SHA=$GIT_COMMIT_SHA
+
+ARG BUILD_TIMESTAMP=""
+ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
+
+ARG BACKEND_VERSION=""
+ENV BACKEND_VERSION=$BACKEND_VERSION
 
 # Copy generated package manifests from backend dist
 COPY --from=builder /app/dist/apps/backend/package.json ./package.json
