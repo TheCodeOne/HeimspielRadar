@@ -7,6 +7,7 @@ import {
   Check,
   Clock,
   MapPin,
+  Share,
   Trash2,
   X,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ import {
   removeReminder,
   useReminders,
 } from '@/lib/reminder-storage';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 export interface GameReminderDialogProps {
   isOpen: boolean;
@@ -62,6 +64,8 @@ export function GameReminderDialog({
   onFeedback,
 }: GameReminderDialogProps) {
   useReminders();
+  const { isIosSafari, isStandalone } = usePwaInstall();
+  const showIosPushHint = isIosSafari && !isStandalone;
 
   const activeReminder = match ? getReminder(match.id) : null;
   const isReminderActive = activeReminder !== null;
@@ -333,6 +337,23 @@ export function GameReminderDialog({
                 {inlineFeedback.isError ? '⚠️' : '✓'}
               </span>
               <span>{inlineFeedback.text}</span>
+            </div>
+          )}
+
+          {/* iOS Web-Push Install Hint */}
+          {showIosPushHint && (
+            <div
+              data-testid="ios-pwa-push-hint"
+              className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1.5 text-amber-900 dark:text-amber-200"
+            >
+              <div className="flex items-center gap-1.5 font-bold">
+                <Share className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span>iOS-Hinweis zu Web-Push</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Unter iOS setzen Push-Benachrichtigungen voraus, dass HeimspielRadar über{' '}
+                <strong className="font-semibold text-foreground">„Teilen ➔ Zum Home-Bildschirm“</strong> installiert wurde.
+              </p>
             </div>
           )}
 

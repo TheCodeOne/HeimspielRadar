@@ -3,6 +3,7 @@ import { STUTTGART_FALLBACK } from './geo-utils';
 import {
   createMatchFilters,
   FILTER_STORAGE_KEY,
+  parseMatchFiltersUrlParams,
   type GeolocationPositionCoords,
   type MatchFiltersGeolocation,
   type MatchFiltersStorage,
@@ -685,6 +686,130 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       controller.actions.resetFilters();
       expect(controller.query.teamQuery).toBeUndefined();
       expect(controller.query.radiusKm).toBe(30);
+    });
+  });
+
+  describe('7. URL Query Parameter Evaluation on App Start', () => {
+    describe('parseMatchFiltersUrlParams', () => {
+      it('parses valid date preset query parameters and resets custom date', () => {
+        expect(parseMatchFiltersUrlParams('?date=today')).toEqual({
+          dateMode: 'today',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+        });
+
+        expect(parseMatchFiltersUrlParams('?date=tomorrow')).toEqual({
+          dateMode: 'tomorrow',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+        });
+
+        expect(parseMatchFiltersUrlParams('?date=weekend')).toEqual({
+          dateMode: 'weekend',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+        });
+
+        expect(parseMatchFiltersUrlParams('?date=next-weekend')).toEqual({
+          dateMode: 'next-weekend',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+        });
+
+        expect(parseMatchFiltersUrlParams('?date=all')).toEqual({
+          dateMode: 'all',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+        });
+      });
+
+      it('ignores unknown or unsupported date query parameter values', () => {
+        expect(parseMatchFiltersUrlParams('?date=yesterday')).toEqual({});
+        expect(parseMatchFiltersUrlParams('?date=some-random-date')).toEqual({});
+      });
+
+      it('parses valid view query parameters', () => {
+        expect(parseMatchFiltersUrlParams('?view=list')).toEqual({
+          viewMode: 'list',
+        });
+
+        expect(parseMatchFiltersUrlParams('?view=map')).toEqual({
+          viewMode: 'map',
+        });
+      });
+
+      it('ignores unknown view query parameters', () => {
+        expect(parseMatchFiltersUrlParams('?view=grid')).toEqual({});
+      });
+
+      it('parses combined date and view query parameters', () => {
+        expect(parseMatchFiltersUrlParams('?date=today&view=list')).toEqual({
+          dateMode: 'today',
+          customDate: null,
+          customDateFrom: '',
+          customDateTo: '',
+          viewMode: 'list',
+        });
+      });
+    });
+
+    describe('createMatchFilters integration with searchParams', () => {
+      it('overrides initial dateMode and viewMode on startup', () => {
+        const storage = new MockStorage();
+
+        const controller = createMatchFilters({
+          storage,
+          now: nowFn,
+          searchParams: '?date=today&view=list',
+        });
+
+        const state = controller.getState();
+
+        expect(state.dateMode).toBe('today');
+        expect(state.viewMode).toBe('list');
+        expect(state.customDate).toBeNull();
+        expect(state.customDateFrom).toBe('');
+        expect(state.customDateTo).toBe('');
+        expect(state.dateFrom).toBe('2026-10-21');
+        expect(state.dateTo).toBe('2026-10-21');
+      });
+
+      it('overrides persisted custom date range when valid date query param is present', () => {
+        const storage = new MockStorage();
+
+        // Simulate stored custom filter from previous session
+        storage.setItem(
+          FILTER_STORAGE_KEY,
+          JSON.stringify({
+            viewMode: 'map',
+            dateMode: 'custom',
+            customDateFrom: '2026-10-28',
+            customDateTo: '2026-10-29',
+            customDate: '2026-10-28',
+          }),
+        );
+
+        const controller = createMatchFilters({
+          storage,
+          now: nowFn,
+          searchParams: '?date=weekend',
+        });
+
+        const state = controller.getState();
+
+        expect(state.dateMode).toBe('weekend');
+        expect(state.customDate).toBeNull();
+        expect(state.customDateFrom).toBe('');
+        expect(state.customDateTo).toBe('');
+        // Weekend for Wednesday 2026-10-21 is 2026-10-24 .. 2026-10-25
+        expect(state.dateFrom).toBe('2026-10-24');
+        expect(state.dateTo).toBe('2026-10-25');
+      });
     });
   });
 });

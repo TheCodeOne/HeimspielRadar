@@ -32,7 +32,7 @@ export interface PersistedFilterState {
   radiusKm: number;
   showRadiusCircle: boolean;
   dateMode: DateFilterMode;
-  customDate?: string;
+  customDate?: string | null;
   customDateFrom: string;
   customDateTo: string;
   onlyUpcoming: boolean;
@@ -131,6 +131,7 @@ export interface MatchFiltersOptions {
   now?: () => Date;
   initialFilters?: Partial<PersistedFilterState>;
   headless?: boolean;
+  searchParams?: string | URLSearchParams;
 }
 
 export interface UseMatchFiltersReturn {
@@ -354,6 +355,54 @@ export function countActiveFilters(state: PersistedFilterState): number {
   return count;
 }
 
+export function parseMatchFiltersUrlParams(
+  search?: string | URLSearchParams,
+): Partial<PersistedFilterState> {
+  let effectiveSearch = search;
+
+  if (!effectiveSearch && typeof window !== 'undefined' && window.location) {
+    effectiveSearch = window.location.search;
+  }
+
+  if (!effectiveSearch) {
+    return {};
+  }
+
+  const params =
+    effectiveSearch instanceof URLSearchParams
+      ? effectiveSearch
+      : new URLSearchParams(
+          String(effectiveSearch).startsWith('?')
+            ? String(effectiveSearch).slice(1)
+            : String(effectiveSearch),
+        );
+
+  const overrides: Partial<PersistedFilterState> = {};
+
+  const dateParam = params.get('date')?.toLowerCase().trim();
+
+  if (
+    dateParam === 'today' ||
+    dateParam === 'tomorrow' ||
+    dateParam === 'weekend' ||
+    dateParam === 'next-weekend' ||
+    dateParam === 'all'
+  ) {
+    overrides.dateMode = dateParam;
+    overrides.customDate = null;
+    overrides.customDateFrom = '';
+    overrides.customDateTo = '';
+  }
+
+  const viewParam = params.get('view')?.toLowerCase().trim();
+
+  if (viewParam === 'map' || viewParam === 'list') {
+    overrides.viewMode = viewParam;
+  }
+
+  return overrides;
+}
+
 function isViewMode(value?: string): value is ViewMode {
   return value === 'map' || value === 'list';
 }
@@ -491,7 +540,7 @@ export function sanitizeFilters(
     radiusKm,
     showRadiusCircle,
     dateMode,
-    customDate: customDateFrom || undefined,
+    customDate: parsed.customDate === null ? null : (customDateFrom || undefined),
     customDateFrom,
     customDateTo,
     onlyUpcoming,
@@ -638,13 +687,20 @@ export class MatchFiltersController {
       this.storage = new InMemoryStorage();
     }
 
-    this.persisted = this.loadInitialFilters(options?.initialFilters);
+    this.persisted = this.loadInitialFilters(
+      options?.initialFilters,
+      options?.searchParams,
+    );
   }
 
   private loadInitialFilters(
     initialFilters?: Partial<PersistedFilterState>,
+    searchParams?: string | URLSearchParams,
   ): PersistedFilterState {
     const todayStr = getBerlinDateString(this.getNow());
+    const urlOverrides = parseMatchFiltersUrlParams(searchParams);
+
+    let baseState: PersistedFilterState = cloneDefaultFilterState();
 
     try {
       const raw = this.storage.getItem(FILTER_STORAGE_KEY);
@@ -652,23 +708,25 @@ export class MatchFiltersController {
       if (raw) {
         // SAFETY: parse stored JSON string from storage
         const parsed = JSON.parse(raw);
-        const sanitized = sanitizeFilters(parsed, todayStr);
-
-        if (initialFilters) {
-          return sanitizeFilters({ ...sanitized, ...initialFilters }, todayStr);
-        }
-
-        return sanitized;
+        baseState = sanitizeFilters(parsed, todayStr);
       }
     } catch {
       // Storage parse error fallback
     }
 
     if (initialFilters) {
-      return sanitizeFilters({ ...cloneDefaultFilterState(), ...initialFilters }, todayStr);
+      baseState = sanitizeFilters({ ...baseState, ...initialFilters }, todayStr);
     }
 
-    return cloneDefaultFilterState();
+    if (Object.keys(urlOverrides).length > 0) {
+      baseState = sanitizeFilters({ ...baseState, ...urlOverrides }, todayStr);
+
+      if (urlOverrides.customDate === null) {
+        baseState.customDate = null;
+      }
+    }
+
+    return baseState;
   }
 
   private save(): void {

@@ -41,7 +41,7 @@ export function AppHeader({
 
   return (
     <header
-      className={`sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6 ${className}`}
+      className={`sticky top-0 z-40 flex h-14 h-safe-header shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/95 px-3 backdrop-blur-md sm:px-6 ${className}`}
     >
       {/* Left: Brand Logo, Title & Back/Context Navigation */}
       <div className="flex items-center gap-2 min-w-0">

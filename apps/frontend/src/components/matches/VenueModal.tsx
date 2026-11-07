@@ -98,7 +98,7 @@ export function VenueModal({
               }
             : undefined
         }
-        className={`relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-border bg-card/95 shadow-2xl backdrop-blur-2xl overflow-hidden ${
+        className={`relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-border bg-card/95 shadow-2xl backdrop-blur-2xl overflow-hidden pb-[env(safe-area-inset-bottom,0px)] md:pb-0 ${
           isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
         }`}
       >
