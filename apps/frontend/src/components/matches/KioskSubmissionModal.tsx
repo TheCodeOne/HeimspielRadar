@@ -12,9 +12,16 @@ import {
 } from 'lucide-react';
 import type { CreateKioskSubmissionDto, Match, VenueSubmissionScope } from '@sundayleague/shared-types';
 import { Button } from '@/components/ui/button';
+import {
+  enqueueKioskSubmission,
+  KIOSK_SUBMISSION_OFFLINE_QUEUED_MESSAGE,
+  KIOSK_SUBMISSION_SUCCESS_MESSAGE,
+} from '@/lib/kiosk-submission-queue';
 
-export const KIOSK_SUBMISSION_SUCCESS_MESSAGE =
-  'Vielen Dank! Deine Info wurde an die Moderation übermittelt und wird in Kürze freigeschaltet.';
+export {
+  KIOSK_SUBMISSION_OFFLINE_QUEUED_MESSAGE,
+  KIOSK_SUBMISSION_SUCCESS_MESSAGE,
+};
 
 export interface KioskSubmissionModalProps {
   match: Match | null;
@@ -124,6 +131,24 @@ export function KioskSubmissionModal({
 
     setIsSubmitting(true);
 
+    const matchTitle = `${match.homeTeam.name} vs. ${match.guestTeam.name}`;
+    const venueName = match.venue?.name ?? null;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueKioskSubmission({
+        matchId: match.id,
+        matchTitle,
+        venueName,
+        payload,
+      });
+
+      setIsSubmitting(false);
+      onClose();
+      onSuccess?.(KIOSK_SUBMISSION_OFFLINE_QUEUED_MESSAGE, payload);
+
+      return;
+    }
+
     try {
       const response = await fetch(`/api/matches/${match.id}/kiosk-submission`, {
         method: 'POST',
@@ -142,15 +167,36 @@ export function KioskSubmissionModal({
         return;
       }
 
-      // Accept 2xx responses or fallback cleanly in offline/mock preview mode
+      if (!response.ok) {
+        enqueueKioskSubmission({
+          matchId: match.id,
+          matchTitle,
+          venueName,
+          payload,
+        });
+
+        setIsSubmitting(false);
+        onClose();
+        onSuccess?.(KIOSK_SUBMISSION_OFFLINE_QUEUED_MESSAGE, payload);
+
+        return;
+      }
+
+      // Successful 2xx response
       setIsSubmitting(false);
       onClose();
       onSuccess?.(KIOSK_SUBMISSION_SUCCESS_MESSAGE, payload);
     } catch {
-      // Fallback for offline/standalone frontend preview without backend server
+      enqueueKioskSubmission({
+        matchId: match.id,
+        matchTitle,
+        venueName,
+        payload,
+      });
+
       setIsSubmitting(false);
       onClose();
-      onSuccess?.(KIOSK_SUBMISSION_SUCCESS_MESSAGE, payload);
+      onSuccess?.(KIOSK_SUBMISSION_OFFLINE_QUEUED_MESSAGE, payload);
     }
   };
 

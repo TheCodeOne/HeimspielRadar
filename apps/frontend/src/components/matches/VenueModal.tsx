@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ExternalLink, MapPin, Trophy, X } from 'lucide-react';
+import { Clock, ExternalLink, MapPin, Trophy, X } from 'lucide-react';
 import type { Match } from '@sundayleague/shared-types';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/lib/date-utils';
 import { formatDistance } from '@/lib/geo-utils';
 import { formatLeagueName } from '@/components/map/map-utils';
+import { useKioskQueue } from '@/lib/kiosk-submission-queue';
 import { getMatchLinks } from '@/lib/match-links';
 import { KioskInfoBadges } from '@/components/matches/KioskInfoBadges';
 import { KioskSubmissionModal } from '@/components/matches/KioskSubmissionModal';
@@ -38,6 +39,8 @@ export function VenueModal({
   const [localModalMatch, setLocalModalMatch] = React.useState<Match | null>(null);
   const [selectedTopMatch, setSelectedTopMatch] = React.useState<Match | null>(null);
   const [localToast, setLocalToast] = React.useState<string | null>(null);
+
+  const { hasPendingSubmission } = useKioskQueue();
 
   const {
     isAnimatingOut,
@@ -255,6 +258,18 @@ export function VenueModal({
                           Topspiel
                         </Badge>
                       )}
+
+                      {hasPendingSubmission(venueMatch.id) && (
+                        <Badge
+                          variant="outline"
+                          data-testid="kiosk-offline-pending-badge"
+                          className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px] font-semibold"
+                        >
+                          <Clock className="mr-1 h-2.5 w-2.5 shrink-0" />
+                          Info ausstehend (Offline)
+                        </Badge>
+                      )}
+
                       <Badge variant="league" className="text-[10px]">
                         <Trophy className="mr-1 h-2.5 w-2.5" />
                         {matchLeagueName}

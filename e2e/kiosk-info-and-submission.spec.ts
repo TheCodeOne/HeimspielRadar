@@ -141,7 +141,7 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await page.addInitScript(() => {
       window.localStorage.setItem(
         'heimspielradar:filters:v1',
-        JSON.stringify({ viewMode: 'list', onlyUpcoming: false }),
+        JSON.stringify({ viewMode: 'list', onlyUpcoming: false, dateMode: 'all' }),
       );
     });
 
@@ -207,7 +207,8 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
 
     // 4. Click [🌭 Kiosk- & Hallen-Info melden] on Match 1002 and verify accessible form
     const reportBtn1002 = card1002.locator('[data-action="kiosk-submission"]');
-    await reportBtn1002.click();
+    await card1002.scrollIntoViewIfNeeded();
+    await reportBtn1002.evaluate((el: HTMLElement) => el.click());
 
     const modal = page.getByRole('dialog', { name: 'Kiosk- & Hallen-Info melden' });
     await expect(modal).toBeVisible();
@@ -248,6 +249,7 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
     await expect(modal).toBeHidden();
     expect(submittedMatchId).toBe('1002');
     expect(submittedPayload).toEqual({
+      scope: 'matchday',
       admissionFee: 'Eintritt frei',
       kioskDescription: 'Kaffee & Kuchen, Waffeln, Kaltgetränke',
       parkingNotes: 'Parkplätze direkt an der Hechinger Straße',
@@ -324,6 +326,14 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
   test('displays info indicator badge on map pins across all 4 map engines when match has venue/kiosk info', async ({
     page,
   }) => {
+    await page.route(/\/api\/matches(\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([MOCK_MATCHES[0]]),
+      });
+    });
+
     const engines = ['openlayers', 'maplibre', 'leaflet', 'pigeon'] as const;
 
     for (const engine of engines) {
@@ -346,5 +356,132 @@ test.describe('Kiosk & Venue Info Badges and Submission Modal (Issue #103)', () 
       await expect(infoIndicator).toBeVisible({ timeout: 10000 });
       await expect(infoIndicator).toHaveText('ℹ️');
     }
+  });
+
+  test('Issue #244: queues submission when offline or network fails, displays pending badge, and syncs via SettingsView', async ({
+    page,
+  }) => {
+    let syncCallCount = 0;
+
+    // Fail POST kiosk-submission initially with network error to simulate failure
+    await page.route('**/api/matches/*/kiosk-submission', async (route) => {
+      syncCallCount++;
+
+      if (syncCallCount === 1) {
+        await route.abort('failed');
+      } else {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 101, status: 'pending' }),
+        });
+      }
+    });
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:filters:v1',
+        JSON.stringify({ viewMode: 'list', onlyUpcoming: false, dateMode: 'all' }),
+      );
+    });
+
+    await page.goto('/');
+
+    // Locate first match card and click report kiosk info
+    const matchCard = page.locator('[data-match-id="1001"]').first();
+    await expect(matchCard).toBeVisible({ timeout: 10000 });
+
+    const reportButton = matchCard.locator('[data-action="kiosk-submission"]');
+    await expect(reportButton).toBeVisible();
+    await reportButton.click();
+
+    const submissionModal = page.getByRole('dialog', {
+      name: 'Kiosk- & Hallen-Info melden',
+    });
+
+    await expect(submissionModal).toBeVisible();
+
+    // Fill in something and submit
+    await page.getByRole('button', { name: '2,00 €' }).click();
+    await submissionModal.getByTestId('kiosk-submit-button').click();
+
+    await expect(submissionModal).toBeHidden();
+
+    // Verify offline toast feedback
+    const toast = page.getByRole('status');
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText(
+      'Offline gespeichert – deine Info wird automatisch gesendet, sobald du wieder Empfang hast.',
+    );
+
+    // Verify "Info ausstehend (Offline)" badge appears on MatchCard
+    const pendingBadge = matchCard.locator('[data-testid="kiosk-offline-pending-badge"]');
+    await expect(pendingBadge).toBeVisible();
+    await expect(pendingBadge).toContainText('Info ausstehend (Offline)');
+
+    // Navigate to /settings
+    await page.goto('/settings');
+
+    const queueSection = page.locator('[data-testid="settings-offline-queue-section"]');
+    await expect(queueSection).toBeVisible();
+
+    const countBadge = queueSection.locator('[data-testid="offline-queue-count-badge"]');
+    await expect(countBadge).toHaveText('1');
+
+    const queueItem = queueSection.locator('[data-testid="offline-queue-item"]');
+    await expect(queueItem).toBeVisible();
+    await expect(queueItem).toContainText('MTV Stuttgart 1843 vs. SV Möhringen');
+    await expect(queueItem).toContainText('2,00 €');
+
+    // Click "Jetzt synchronisieren"
+    const syncButton = queueSection.locator('[data-testid="sync-offline-queue-button"]');
+    await expect(syncButton).toBeEnabled();
+    await syncButton.click();
+
+    // Verify count updates to 0 and empty state renders
+    await expect(countBadge).toHaveText('0');
+    await expect(queueSection.locator('[data-testid="offline-queue-empty-state"]')).toBeVisible();
+
+    // Navigate back to match list
+    await page.goto('/');
+    await expect(matchCard).toBeVisible();
+    await expect(matchCard.locator('[data-testid="kiosk-offline-pending-badge"]')).toHaveCount(0);
+  });
+
+  test('Issue #244: allows discarding individual queued offline submissions in SettingsView', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:kiosk-queue:v1',
+        JSON.stringify([
+          {
+            matchId: 1002,
+            matchTitle: 'MTV Stuttgart 2 vs. VfL Waiblingen',
+            venueName: 'Remigiussporthalle',
+            payload: {
+              admissionFee: '4,00 €',
+              kioskDescription: 'Brezeln',
+              scope: 'matchday',
+            },
+            queuedAt: new Date().toISOString(),
+            retryCount: 0,
+          },
+        ]),
+      );
+    });
+
+    await page.goto('/settings');
+
+    const queueSection = page.locator('[data-testid="settings-offline-queue-section"]');
+    await expect(queueSection).toBeVisible();
+    await expect(queueSection.locator('[data-testid="offline-queue-count-badge"]')).toHaveText('1');
+
+    const discardBtn = queueSection.locator('[data-testid="discard-queue-item-button"]').first();
+    await expect(discardBtn).toBeVisible();
+    await discardBtn.click();
+
+    await expect(queueSection.locator('[data-testid="offline-queue-count-badge"]')).toHaveText('0');
+    await expect(queueSection.locator('[data-testid="offline-queue-empty-state"]')).toBeVisible();
   });
 });

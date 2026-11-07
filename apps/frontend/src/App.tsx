@@ -29,6 +29,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
 import { compareMatchesChronologically } from '@/lib/date-utils';
+import {
+  initKioskAutoSync,
+  KIOSK_SUBMISSION_SYNCED_MESSAGE,
+} from '@/lib/kiosk-submission-queue';
 import { useMatchFilters } from '@/lib/use-match-filters';
 import { useLeagues, useMatches } from '@/lib/use-matches';
 import { useServerHealth } from '@/lib/use-server-health';
@@ -106,7 +110,19 @@ function MainView({
   };
 
   // Query matches with debounced API integration and deepened query seam
-  const { matches, isLoading } = useMatches(query);
+  const { matches, isLoading, refetch } = useMatches(query);
+
+  // Background auto-sync for queued kiosk submissions
+  React.useEffect(() => {
+    return initKioskAutoSync(({ syncedCount }) => {
+      showToastMessage(
+        syncedCount === 1
+          ? KIOSK_SUBMISSION_SYNCED_MESSAGE
+          : `${syncedCount} ausstehende Kiosk-Infos wurden erfolgreich übermittelt!`,
+      );
+      refetch();
+    });
+  }, [showToastMessage, refetch]);
 
   // Clear selectedMatchId if the selected match is no longer in the filtered results (after loading completes)
   React.useEffect(() => {
@@ -387,7 +403,10 @@ function MainView({
         match={kioskModalMatch}
         isOpen={kioskModalMatch !== null}
         onClose={() => setKioskModalMatch(null)}
-        onSuccess={(msg) => showToastMessage(msg)}
+        onSuccess={(msg) => {
+          showToastMessage(msg);
+          refetch();
+        }}
       />
 
       {/* PWA Service Worker Update / Offline Prompt */}

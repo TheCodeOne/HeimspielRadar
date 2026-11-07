@@ -31,6 +31,10 @@ heimspielradar/
 - **Zero-Latency In-Memory Filtering:** Nach Standorterfassung (GPS oder Stadtsuche) lädt die Web-App im Hintergrund automatisch einen **50-km-Masterpool für bis zu 4 Wochen** (~1.700 Spiele, ~250 KB gzipped).
 - **Synchrones Umschalten:** Standardfilter wie *Heute*, *Morgen*, *Dieses Wochenende*, *Nächstes Wochenende*, Ligen- und Umkreisfilter werden lokal über `evaluateMatchesQuery` ohne Ladebalken und mit 0 ms Latenz berechnet.
 - **Service Worker & Cache-API:** Über Workbox (`StaleWhileRevalidate`) bleiben Spieldaten persistent im Speicher, sodass die App auch in Hallen oder Funklöchern voll bedienbar bleibt (inklusive subtiler Offline-Status-Pill).
+- **Offline-Queue & Auto-Sync für Kiosk- & Halleninfos:** In Hallen ohne Empfang erfasste Meldungen (`KioskSubmissionModal`) werden persistent in `localStorage` (`heimspielradar:kiosk-queue:v1`) zwischengespeichert und dedupliziert:
+  - Optimistisches „Info ausstehend (Offline)“-Badge auf Match-Kacheln und im Hallen-Overlay.
+  - Automatischer sequenzieller Hintergrund-Abgleich bei Verbindungsrückkehr (`online`-Event, App-Start oder `visibilitychange`) mit Bestätigungs-Toast.
+  - Einsicht, Synchronisation und Löschen ausstehender Meldungen direkt in der Einstellungsseite (`/settings`).
 
 ### 2. Request Throttling & DDoS-Schutz
 - **Cloudflare Edge Protection:** Cloudflare WAF fängt DoS-Spitzen an der Edge vor dem Server ab.

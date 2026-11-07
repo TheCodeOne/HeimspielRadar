@@ -25,6 +25,7 @@ import { Card } from '@/components/ui/card';
 import { formatDisplayDate, formatKickoffTime, formatLastSyncedAt } from '@/lib/date-utils';
 import { getDonationUrl } from '@/lib/donation';
 import { downloadReminderIcs } from '@/lib/ics-export';
+import { useKioskQueue } from '@/lib/kiosk-submission-queue';
 import {
   getNotificationPermission,
   isNotificationSupported,
@@ -102,6 +103,15 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { reminders, removeReminder, clearAllReminders } = useReminders();
+
+  const {
+    queue: offlineQueue,
+    count: offlineQueueCount,
+    syncQueue: syncOfflineQueue,
+    isSyncing: isSyncingOfflineQueue,
+    removeSubmission: removeOfflineSubmission,
+  } = useKioskQueue();
+
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [isClearingCache, setIsClearingCache] = React.useState<boolean>(false);
 
@@ -124,6 +134,22 @@ export function SettingsView({
       showToast('Push-Benachrichtigungen erfolgreich erlaubt!');
     } else if (res === 'denied') {
       showToast('Benachrichtigungen wurden im Browser blockiert.');
+    }
+  };
+
+  const handleSyncOfflineQueue = async () => {
+    const result = await syncOfflineQueue();
+
+    if (result.syncedCount > 0) {
+      showToast(
+        result.syncedCount === 1
+          ? 'Ausstehende Kiosk-Info wurde erfolgreich übermittelt!'
+          : `${result.syncedCount} ausstehende Kiosk-Infos wurden erfolgreich übermittelt!`,
+      );
+    } else if (result.failedCount > 0) {
+      showToast('Synchronisierung fehlgeschlagen. Bitte prüfe deine Internetverbindung.');
+    } else {
+      showToast('Keine ausstehenden Meldungen zu synchronisieren.');
     }
   };
 
@@ -569,7 +595,7 @@ export function SettingsView({
           </Card>
 
           {/* Section 4: Speicher & Offline-Cache */}
-          <Card className="p-4 sm:p-5 space-y-3 border-border/80 bg-card/60 backdrop-blur-sm">
+          <Card className="p-4 sm:p-5 space-y-4 border-border/80 bg-card/60 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -603,6 +629,122 @@ export function SettingsView({
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                 <span>{isClearingCache ? 'Wird geleert...' : 'Cache leeren'}</span>
               </Button>
+            </div>
+
+            {/* Subsection: Ausstehende Offline-Meldungen */}
+            <div
+              data-testid="settings-offline-queue-section"
+              className="rounded-xl border border-border/60 bg-background/50 p-3.5 space-y-3 text-xs"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground block">
+                      Ausstehende Offline-Meldungen
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      data-testid="offline-queue-count-badge"
+                      className="text-[10px] font-mono px-1.5 py-0"
+                    >
+                      {offlineQueueCount}
+                    </Badge>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground block">
+                    Kiosk- & Halleninfos, die offline erfasst wurden und automatisch synchronisiert werden.
+                  </span>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="sync-offline-queue-button"
+                  onClick={handleSyncOfflineQueue}
+                  disabled={offlineQueueCount === 0 || isSyncingOfflineQueue}
+                  className="shrink-0 text-xs h-8"
+                >
+                  <RotateCcw
+                    className={`mr-1.5 h-3.5 w-3.5 ${isSyncingOfflineQueue ? 'animate-spin' : ''}`}
+                  />
+                  <span>
+                    {isSyncingOfflineQueue ? 'Wird synchronisiert...' : 'Jetzt synchronisieren'}
+                  </span>
+                </Button>
+              </div>
+
+              {offlineQueueCount === 0 ? (
+                <div
+                  data-testid="offline-queue-empty-state"
+                  className="rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground"
+                >
+                  Keine ausstehenden Offline-Meldungen vorhanden. Alle Kiosk- und Hallen-Infos sind synchronisiert.
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1" data-testid="offline-queue-list">
+                  {offlineQueue.map((item) => (
+                    <div
+                      key={item.matchId}
+                      data-testid="offline-queue-item"
+                      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-card/60 p-2.5 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="font-semibold text-foreground truncate">
+                          {item.matchTitle}
+                        </div>
+
+                        {item.venueName && (
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            📍 {item.venueName}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-1.5 pt-0.5 text-[10px]">
+                          {item.payload.admissionFee && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                              🎟️ {item.payload.admissionFee}
+                            </span>
+                          )}
+
+                          {item.payload.kioskDescription && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                              ☕ {item.payload.kioskDescription}
+                            </span>
+                          )}
+
+                          {item.payload.parkingNotes && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                              🅿️ {item.payload.parkingNotes}
+                            </span>
+                          )}
+
+                          {item.retryCount > 0 && (
+                            <span className="rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 px-1.5 py-0.5">
+                              {item.retryCount} Fehlversuch{item.retryCount > 1 ? 'e' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        data-testid="discard-queue-item-button"
+                        onClick={() => {
+                          removeOfflineSubmission(item.matchId);
+                          showToast('Offline-Meldung verworfen.');
+                        }}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                        title="Offline-Meldung verwerfen"
+                        aria-label="Offline-Meldung verwerfen"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
 
