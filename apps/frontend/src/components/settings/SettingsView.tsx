@@ -5,6 +5,7 @@ import {
   Check,
   Clock,
   Database,
+  Download,
   ExternalLink,
   Laptop,
   List,
@@ -13,6 +14,8 @@ import {
   RotateCcw,
   Server,
   Settings,
+  Share,
+  Smartphone,
   Sparkles,
   Sun,
   Trash2,
@@ -32,6 +35,7 @@ import {
   requestNotificationPermission,
 } from '@/lib/push-notification';
 import { getLeadTimeLabel, useReminders } from '@/lib/reminder-storage';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 import { useTheme } from '@/hooks';
 import { SystemDiagnosticsSection } from '@/components/settings/SystemDiagnosticsSection';
 
@@ -103,6 +107,7 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { reminders, removeReminder, clearAllReminders } = useReminders();
+  const { isStandalone, canPromptInstall, isIosSafari, triggerInstall } = usePwaInstall();
 
   const {
     queue: offlineQueue,
@@ -743,6 +748,97 @@ export function SettingsView({
                       </Button>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Section: App installieren / App-Status */}
+          <Card
+            data-testid="settings-pwa-install-section"
+            className="p-4 sm:p-5 space-y-4 border-border/80 bg-card/60 backdrop-blur-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Smartphone className="h-4 w-4 text-primary" />
+                  App-Status & Installation
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  HeimspielRadar als native Web-App auf dem Homescreen nutzen.
+                </p>
+              </div>
+
+              <Badge
+                variant={isStandalone ? 'default' : 'secondary'}
+                className="text-[10px]"
+              >
+                {isStandalone ? 'Als App installiert ✓' : 'Web-Modus'}
+              </Badge>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-background/50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              {isStandalone ? (
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground block">
+                      Als App installiert ✓
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      HeimspielRadar läuft im Vollbildmodus direkt von deinem Homescreen.
+                    </span>
+                  </div>
+                </div>
+              ) : canPromptInstall ? (
+                <>
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-foreground block">
+                      HeimspielRadar installieren
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Installiere die App auf deinem Gerät für schnellen Zugriff und Offline-Nutzung.
+                    </span>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="settings-pwa-install-btn"
+                    onClick={() => triggerInstall()}
+                    className="shrink-0 text-xs font-semibold gap-1.5 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>App installieren</span>
+                  </Button>
+                </>
+              ) : isIosSafari ? (
+                <div className="space-y-2 w-full">
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-foreground block">
+                      Auf iOS installieren
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Tippe in der Safari-Menüleiste auf <strong className="text-foreground">Teilen</strong>{' '}
+                      und wähle <strong className="text-foreground">Zum Home-Bildschirm</strong>.
+                    </span>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                    <Share className="h-3.5 w-3.5 shrink-0" />
+                    <span>Teilen ➔ Zum Home-Bildschirm</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-foreground block">
+                    Installation im Browser
+                  </span>
+                  <span className="text-[11px] text-muted-foreground block">
+                    Nutze das Browser-Menü deines Geräts, um HeimspielRadar zum Startbildschirm hinzuzufügen.
+                  </span>
                 </div>
               )}
             </div>

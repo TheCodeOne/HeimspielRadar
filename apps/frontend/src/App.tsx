@@ -25,7 +25,7 @@ import {
   ClubStoryHub,
   StoryMatchRouteContainer,
 } from '@/components/story';
-import { ReloadPrompt } from '@/components/pwa';
+import { PwaInstallBanner, ReloadPrompt } from '@/components/pwa';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TopLoadingBar } from '@/components/ui/TopLoadingBar';
@@ -419,6 +419,9 @@ function MainView({
         isOpen={topMatchModalMatch !== null}
         onClose={() => setTopMatchModalMatch(null)}
       />
+
+      {/* PWA Install Banner */}
+      <PwaInstallBanner />
 
       {/* PWA Service Worker Update / Offline Prompt */}
       <ReloadPrompt />

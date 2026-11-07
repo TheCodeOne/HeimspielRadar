@@ -1,17 +1,50 @@
+import * as React from 'react';
 import { RefreshCw, Wifi, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Button } from '@/components/ui/button';
 
 export function ReloadPrompt() {
+  const [swRegistration, setSwRegistration] = React.useState<
+    ServiceWorkerRegistration | undefined
+  >(undefined);
+
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
+    onRegisteredSW(_swUrl, registration) {
+      if (registration) {
+        setSwRegistration(registration);
+      }
+    },
     onRegisterError(error: Error) {
       console.error('Service Worker registration error:', error);
     },
   });
+
+  React.useEffect(() => {
+    if (!swRegistration || typeof document === 'undefined') {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        swRegistration.update().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const hourlyInterval = setInterval(() => {
+      swRegistration.update().catch(() => {});
+    }, 60 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(hourlyInterval);
+    };
+  }, [swRegistration]);
 
   const handleClose = () => {
     setOfflineReady(false);

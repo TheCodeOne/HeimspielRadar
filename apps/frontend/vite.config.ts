@@ -69,18 +69,52 @@ export default defineConfig({
         'favicon.svg',
         'apple-touch-icon.png',
         'icon-192.png',
+        'pwa-192x192.png',
         'icon-512.png',
         'icon-512-maskable.png',
       ],
       manifest: {
+        id: '/',
+        start_url: '/',
         name: 'HeimspielRadar',
         short_name: 'HeimspielRadar',
         description:
           'Amateur-Basketball Heimspiele & Sporthallen in deiner Nähe finden',
+        categories: ['sports', 'entertainment'],
         theme_color: '#020617',
         background_color: '#020617',
         display: 'standalone',
         orientation: 'portrait-primary',
+        shortcuts: [
+          {
+            name: 'Spiele heute',
+            short_name: 'Heute',
+            description: 'Heimspiele am heutigen Tag anzeigen',
+            url: '/?date=today',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Dieses Wochenende',
+            short_name: 'Wochenende',
+            description: 'Heimspiele am kommenden Wochenende',
+            url: '/?date=weekend',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Listenansicht',
+            short_name: 'Liste',
+            description: 'Heimspiele als chronologische Liste',
+            url: '/?view=list',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Story Generator',
+            short_name: 'Story',
+            description: 'Social Media Spieltags-Grafik generieren',
+            url: '/story',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+          },
+        ],
         icons: [
           {
             src: '/icon-192.png',

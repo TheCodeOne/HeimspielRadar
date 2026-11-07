@@ -77,6 +77,18 @@ heimspielradar/
 - **Entkoppelte Submissions-Architektur:** Crowd-gesourcte Kiosk-, Eintritts- und Hallenmeldungen laufen über das dedizierte `SubmissionsModule` (`/api/submissions`), getrennt vom reinen Match-Query-Service (`MatchesService`).
 - **One-Click Moderation & Benachrichtigung:** Automatische Moderations-Alerts an Moderatoren via Telegram mit 1-Klick Token-Freigabe (`/api/submissions/:id/approve` bzw. `/reject`) und direkter Freischaltung geprüfter Infos.
 
+### 9. PWA Install-UX, App-Shortcuts, Homescreen-Badge & iOS Safe-Area
+- **App-Shortcuts (Quick Actions):** Long-Press auf das Homescreen-Icon öffnet direkte Einstiegspunkte:
+  - *Spiele heute* (`/?date=today`)
+  - *Dieses Wochenende* (`/?date=weekend`)
+  - *Listenansicht* (`/?view=list`)
+  - *Story Generator* (`/story`)
+  - URL-Query-Parameter (`?date=...`, `?view=...`) werden beim App-Start synchron ausgewertet und überschreiben gespeicherte Filter.
+- **Dezentes PWA-Install-Banner:** Erscheint ab dem 2. Besuch (`visitCount >= 2`) im Hauptscreen mit direktem Install-Trigger auf Chromium/Desktop bzw. kompakter Anleitung auf iOS Safari („Teilen ➔ Zum Home-Bildschirm“).
+- **Homescreen App-Badging (`navigator.setAppBadge`):** Die Anzahl der aktiven Spiel-Erinnerungen wird synchron auf dem Homescreen-App-Icon angezeigt und beim Speichern, Entfernen oder automatischen Prunen abgelaufener Spiele aktualisiert.
+- **iOS Standalone & Safe-Area Support:** Vollständige Unterstützung für Dynamic Island, Notch und Home-Indicator (`viewport-fit=cover`, `black-translucent` Status-Bar, Safe-Area CSS-Utilities) bei Beibehaltung der `100dvh`-Viewport-Invariante.
+- **Periodischer Service-Worker-Update-Check:** Überwachung auf Tab-Fokus (`visibilitychange` zu `visible`) und stündliches Intervall für automatisches Nachladen neuer Deployments bei dauerhaft geöffneten Homescreen-PWAs.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung

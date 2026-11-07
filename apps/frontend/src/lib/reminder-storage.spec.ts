@@ -1,6 +1,4 @@
 import {
-  REMINDER_STORAGE_KEY,
-  REMINDERS_UPDATED_EVENT,
   clearAllReminders,
   getLeadTimeLabel,
   getLeadTimeMinutes,
@@ -8,8 +6,12 @@ import {
   getReminders,
   hasReminder,
   parseGameReminder,
+  pruneExpiredReminders,
+  REMINDER_STORAGE_KEY,
+  REMINDERS_UPDATED_EVENT,
   removeReminder,
   saveReminder,
+  syncAppBadgeWithReminders,
   type GameReminder,
 } from './reminder-storage';
 
@@ -35,6 +37,7 @@ class MockStorage {
 
 interface GlobalWithMocks {
   window?: unknown;
+  navigator?: unknown;
   CustomEvent?: unknown;
 }
 
@@ -44,16 +47,25 @@ const testGlobal = globalThis as GlobalWithMocks;
 describe('reminder-storage', () => {
   let mockStorage: MockStorage;
   let dispatchEventMock: jest.Mock;
+  let setAppBadgeMock: jest.Mock;
+  let clearAppBadgeMock: jest.Mock;
 
   beforeAll(() => {
     mockStorage = new MockStorage();
     dispatchEventMock = jest.fn();
+    setAppBadgeMock = jest.fn().mockResolvedValue(undefined);
+    clearAppBadgeMock = jest.fn().mockResolvedValue(undefined);
 
     testGlobal.window = {
       localStorage: mockStorage,
       dispatchEvent: dispatchEventMock,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
+    };
+
+    testGlobal.navigator = {
+      setAppBadge: setAppBadgeMock,
+      clearAppBadge: clearAppBadgeMock,
     };
 
     testGlobal.CustomEvent = class {
@@ -63,12 +75,15 @@ describe('reminder-storage', () => {
 
   afterAll(() => {
     delete testGlobal.window;
+    delete testGlobal.navigator;
     delete testGlobal.CustomEvent;
   });
 
   beforeEach(() => {
     mockStorage.clear();
     dispatchEventMock.mockClear();
+    setAppBadgeMock.mockClear();
+    clearAppBadgeMock.mockClear();
   });
 
   describe('lead time helpers', () => {
@@ -203,6 +218,84 @@ describe('reminder-storage', () => {
 
       expect(getReminders()).toEqual([]);
       expect(hasReminder(42)).toBe(false);
+    });
+  });
+
+  describe('Homescreen App-Badging API (navigator.setAppBadge)', () => {
+    const sampleReminder: GameReminder = {
+      matchId: 42,
+      matchTitle: 'TSG Reutlingen vs. SV 03 Tübingen',
+      homeTeamName: 'TSG Reutlingen',
+      guestTeamName: 'SV 03 Tübingen',
+      kickoffDate: '2026-11-20',
+      kickoffTime: '18:00',
+      leadTime: '2h',
+      createdAt: '2026-10-01T12:00:00.000Z',
+    };
+
+    it('sets app badge with active reminder count when count > 0', () => {
+      saveReminder(sampleReminder);
+
+      expect(setAppBadgeMock).toHaveBeenCalledWith(1);
+    });
+
+    it('clears app badge when active reminder count is 0', () => {
+      saveReminder(sampleReminder);
+      setAppBadgeMock.mockClear();
+
+      removeReminder(42);
+
+      expect(clearAppBadgeMock).toHaveBeenCalled();
+    });
+
+    it('syncAppBadgeWithReminders synchronizes count manually', () => {
+      saveReminder(sampleReminder);
+      saveReminder({ ...sampleReminder, matchId: 99 });
+      setAppBadgeMock.mockClear();
+
+      syncAppBadgeWithReminders();
+
+      expect(setAppBadgeMock).toHaveBeenCalledWith(2);
+    });
+  });
+
+  describe('pruneExpiredReminders', () => {
+    it('prunes matches whose kickoff date has passed and keeps upcoming ones', () => {
+      const pastReminder: GameReminder = {
+        matchId: 10,
+        matchTitle: 'Past Match',
+        homeTeamName: 'A',
+        guestTeamName: 'B',
+        kickoffDate: '2026-10-01',
+        kickoffTime: '15:00',
+        leadTime: '2h',
+        createdAt: '2026-09-01T12:00:00.000Z',
+      };
+
+      const futureReminder: GameReminder = {
+        matchId: 20,
+        matchTitle: 'Future Match',
+        homeTeamName: 'C',
+        guestTeamName: 'D',
+        kickoffDate: '2026-12-01',
+        kickoffTime: '15:00',
+        leadTime: '2h',
+        createdAt: '2026-09-01T12:00:00.000Z',
+      };
+
+      saveReminder(pastReminder);
+      saveReminder(futureReminder);
+      expect(getReminders()).toHaveLength(2);
+
+      // Reference date: Nov 1, 2026
+      const refDate = new Date('2026-11-01T12:00:00.000Z');
+      const validReminders = pruneExpiredReminders(refDate);
+
+      expect(validReminders).toHaveLength(1);
+      expect(validReminders[0].matchId).toBe(20);
+      expect(hasReminder(10)).toBe(false);
+      expect(hasReminder(20)).toBe(true);
+      expect(setAppBadgeMock).toHaveBeenCalledWith(1);
     });
   });
 });

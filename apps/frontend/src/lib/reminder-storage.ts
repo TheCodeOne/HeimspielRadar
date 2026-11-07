@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { getUpcomingCutoffBerlin, isMatchUpcoming } from '@/lib/date-utils';
 
 export type ReminderLeadTime = '1h' | '2h' | '1d';
 
@@ -78,7 +79,7 @@ export function parseGameReminder(
   };
 }
 
-export function getReminders(): GameReminder[] {
+function readStoredReminders(): GameReminder[] {
   if (typeof window === 'undefined') {
     return [];
   }
@@ -113,8 +114,75 @@ export function getReminders(): GameReminder[] {
   }
 }
 
+export function syncAppBadgeWithReminders(): void {
+  if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) {
+    return;
+  }
+
+  try {
+    const reminders = readStoredReminders();
+    const count = reminders.length;
+
+    if (count > 0) {
+      navigator.setAppBadge(count).catch(() => {});
+    } else {
+      if ('clearAppBadge' in navigator && Boolean(navigator.clearAppBadge)) {
+        navigator.clearAppBadge().catch(() => {});
+      } else {
+        navigator.setAppBadge(0).catch(() => {});
+      }
+    }
+  } catch {
+    // Best-effort badge sync
+  }
+}
+
+export function getReminders(): GameReminder[] {
+  const reminders = readStoredReminders();
+
+  syncAppBadgeWithReminders();
+
+  return reminders;
+}
+
+export function pruneExpiredReminders(referenceDate?: Date): GameReminder[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  const cutoff = getUpcomingCutoffBerlin(
+    referenceDate ? referenceDate.getTime() : Date.now(),
+  );
+
+  const existing = readStoredReminders();
+
+  const valid = existing.filter((reminder) =>
+    isMatchUpcoming(
+      {
+        kickoffDate: reminder.kickoffDate,
+        kickoffTime: reminder.kickoffTime,
+      },
+      cutoff,
+    ),
+  );
+
+  if (valid.length !== existing.length) {
+    try {
+      window.localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(valid));
+    } catch (err) {
+      console.error('Failed to update pruned reminders in localStorage:', err);
+    }
+
+    dispatchRemindersUpdated();
+  }
+
+  syncAppBadgeWithReminders();
+
+  return valid;
+}
+
 export function getReminder(matchId: number): GameReminder | null {
-  const reminders = getReminders();
+  const reminders = readStoredReminders();
 
   return reminders.find((r) => r.matchId === matchId) ?? null;
 }
@@ -134,7 +202,7 @@ export function saveReminder(reminder: GameReminder): void {
     return;
   }
 
-  const existing = getReminders();
+  const existing = readStoredReminders();
   const index = existing.findIndex((r) => r.matchId === reminder.matchId);
 
   if (index >= 0) {
@@ -153,6 +221,7 @@ export function saveReminder(reminder: GameReminder): void {
   }
 
   dispatchRemindersUpdated();
+  syncAppBadgeWithReminders();
 }
 
 export type ReminderRemovalListener = (matchId: number) => void;
@@ -172,7 +241,7 @@ export function removeReminder(matchId: number): void {
     return;
   }
 
-  const existing = getReminders();
+  const existing = readStoredReminders();
   const filtered = existing.filter((r) => r.matchId !== matchId);
 
   try {
@@ -193,6 +262,7 @@ export function removeReminder(matchId: number): void {
   }
 
   dispatchRemindersUpdated();
+  syncAppBadgeWithReminders();
 }
 
 export function clearAllReminders(): void {
@@ -200,7 +270,7 @@ export function clearAllReminders(): void {
     return;
   }
 
-  const existing = getReminders();
+  const existing = readStoredReminders();
 
   try {
     window.localStorage.removeItem(REMINDER_STORAGE_KEY);
@@ -219,6 +289,7 @@ export function clearAllReminders(): void {
   }
 
   dispatchRemindersUpdated();
+  syncAppBadgeWithReminders();
 }
 
 /**
@@ -259,3 +330,10 @@ export function useReminders() {
     clearAllReminders,
   };
 }
+
+if (typeof window !== 'undefined') {
+  syncAppBadgeWithReminders();
+  window.addEventListener(REMINDERS_UPDATED_EVENT, syncAppBadgeWithReminders);
+  window.addEventListener('storage', syncAppBadgeWithReminders);
+}
+
