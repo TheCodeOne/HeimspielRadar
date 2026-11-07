@@ -50,5 +50,20 @@
         "watchDepsTargetName": "watch-deps"
       }
     }
-  ]
+  ],
+  "release": {
+    "projectsRelationship": "independent",
+    "projects": [
+      "frontend",
+      "backend"
+    ],
+    "version": {
+      "conventionalCommits": true,
+      "fallbackCurrentVersionResolver": "disk"
+    },
+    "changelog": {
+      "projectChangelogs": true,
+      "automaticFromRef": true
+    }
+  }
 }

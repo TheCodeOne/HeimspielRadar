@@ -29,6 +29,8 @@
     "db:check": "drizzle-kit check",
     "docs:dbb": "node scripts/serve-docs.js",
     "docker:deploy-pi": "bash scripts/deploy-pi.sh",
+    "release": "nx release",
+    "release:dry-run": "nx release --dry-run",
     "lockfile:check": "npm ci --dry-run --ignore-scripts"
   },
   "private": true,

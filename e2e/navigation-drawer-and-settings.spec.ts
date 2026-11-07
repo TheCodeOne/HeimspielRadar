@@ -51,7 +51,14 @@ test.describe('Unified App Navigation Drawer & Dedicated /settings View', () => 
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 'ok', lastSyncedAt: '2026-11-06T18:00:00Z' }),
+        body: JSON.stringify({
+          status: 'ok',
+          lastSyncedAt: '2026-11-06T18:00:00Z',
+          version: '0.1.0',
+          commitSha: '9f2b84a',
+          uptimeSeconds: 3665,
+          builtAt: '2026-11-06T18:00:00Z',
+        }),
       });
     });
 
@@ -259,5 +266,49 @@ test.describe('Unified App Navigation Drawer & Dedicated /settings View', () => 
     // 4. Reload page and check zero-FOUC persistence
     await page.goto('/settings');
     await expect(systemBtn).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('/settings displays comprehensive system & diagnostics section with copy action', async ({
+    page,
+    context,
+  }) => {
+    // Grant clipboard permissions for copy debug info test
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    await page.goto('/settings');
+    await page.waitForLoadState('networkidle');
+
+    // Section header
+    const diagSection = page.getByTestId('system-diagnostics-section');
+    await expect(diagSection).toBeVisible();
+    await expect(diagSection.getByText(/System & Diagnose/i)).toBeVisible();
+
+    // 1. Versions & Commits
+    await expect(diagSection.getByText(/Versionen & Commits/i)).toBeVisible();
+    await expect(diagSection.getByText(/Frontend:/i)).toBeVisible();
+    await expect(diagSection.getByText(/Backend:/i)).toBeVisible();
+    await expect(diagSection.getByTestId('backend-commit-link')).toBeVisible();
+
+    // 2. Build & Runtime
+    await expect(diagSection.getByText(/Build & Laufzeit/i)).toBeVisible();
+    await expect(diagSection.getByText(/Backend Uptime:/i)).toBeVisible();
+    await expect(diagSection.getByText('1h 1m')).toBeVisible();
+    await expect(diagSection.getByTestId('api-latency-display')).toBeVisible();
+
+    // 3. PWA & Data-Pool
+    await expect(diagSection.getByText(/PWA & Daten-Pool/i)).toBeVisible();
+    await expect(diagSection.getByText(/Service Worker:/i)).toBeVisible();
+    await expect(diagSection.getByText(/Netzwerk:/i)).toBeVisible();
+
+    // 4. Client context
+    await expect(diagSection.getByText('Client-Kontext', { exact: true })).toBeVisible();
+    await expect(diagSection.getByText(/Karten-Engine:/i)).toBeVisible();
+    await expect(diagSection.getByText(/Viewport:/i)).toBeVisible();
+
+    // 5. 1-Click "Debug-Info kopieren" Button
+    const copyBtn = page.getByTestId('copy-debug-info-button');
+    await expect(copyBtn).toBeVisible();
+    await copyBtn.click();
+    await expect(copyBtn.getByText(/Kopiert!/i)).toBeVisible();
   });
 });

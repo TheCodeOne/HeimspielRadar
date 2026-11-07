@@ -36,6 +36,15 @@ echo "Host:      $PI_HOST"
 echo "Directory: $PI_DIR"
 echo "Image:     $IMAGE_TAG (platform: linux/arm64)"
 echo "------------------------------------------------------------"
+# Extract build metadata for diagnostics & release tracking
+GIT_COMMIT_SHA="$(git rev-parse --short=7 HEAD 2>/dev/null || echo "dev")"
+BUILD_TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+BACKEND_VERSION="$(node -p "try { require('./apps/backend/package.json').version } catch(e) { '0.1.0' }" 2>/dev/null || echo "0.1.0")"
+FRONTEND_VERSION="$(node -p "try { require('./apps/frontend/package.json').version } catch(e) { '0.1.0' }" 2>/dev/null || echo "0.1.0")"
+
+echo "Metadata:  Git SHA: $GIT_COMMIT_SHA | Built: $BUILD_TIMESTAMP"
+echo "           Backend: v$BACKEND_VERSION | Frontend: v$FRONTEND_VERSION"
+echo "------------------------------------------------------------"
 echo "Tip: Override via .env.local, environment variables, or argument:"
 echo "     npm run docker:deploy-pi"
 echo "     PI_HOST=pi@192.168.178.50 npm run docker:deploy-pi"
@@ -45,7 +54,12 @@ echo "============================================================"
 # Step 1: Build multi-arch Docker image locally
 echo ""
 echo "🚀 [1/5] Building Docker image for linux/arm64..."
-docker buildx build --platform linux/arm64 -t "$IMAGE_TAG" --load .
+docker buildx build --platform linux/arm64 \
+  --build-arg GIT_COMMIT_SHA="$GIT_COMMIT_SHA" \
+  --build-arg BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
+  --build-arg BACKEND_VERSION="$BACKEND_VERSION" \
+  --build-arg FRONTEND_VERSION="$FRONTEND_VERSION" \
+  -t "$IMAGE_TAG" --load .
 
 # Step 2: Ensure remote deployment directory exists
 echo ""

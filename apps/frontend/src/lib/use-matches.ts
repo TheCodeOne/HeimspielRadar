@@ -142,6 +142,18 @@ export function filterAndSortMatchesLocally(
   return evaluateMatchesQuery(matches, query);
 }
 
+let globalMasterPoolStats = {
+  masterPoolCount: 0,
+  filteredMatchesCount: 0,
+};
+
+export function getMasterPoolStats(): {
+  masterPoolCount: number;
+  filteredMatchesCount: number;
+} {
+  return globalMasterPoolStats;
+}
+
 export function useMatches({
   date,
   dateFrom,
@@ -450,8 +462,17 @@ export function useMatches({
     currentOptions,
   ]);
 
+  const effectiveMatches = isCovered ? (locallyFilteredMatches ?? []) : networkMatches;
+
+  React.useEffect(() => {
+    globalMasterPoolStats = {
+      masterPoolCount: masterPool.matches.length,
+      filteredMatchesCount: effectiveMatches.length,
+    };
+  }, [masterPool.matches.length, effectiveMatches.length]);
+
   return {
-    matches: isCovered ? (locallyFilteredMatches ?? []) : networkMatches,
+    matches: effectiveMatches,
     isLoading: isCovered ? false : isNetworkLoading,
     error: isCovered ? null : networkError,
     refetch,

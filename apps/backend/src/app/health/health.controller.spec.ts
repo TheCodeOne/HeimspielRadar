@@ -45,6 +45,9 @@ describe('HealthController and HealthService', () => {
       expect(result.status).toBe('ok');
       expect(result.lastSyncedAt).toBeNull();
       expect(result.timestamp).toBeDefined();
+      expect(result.version).toBeDefined();
+      expect(result.commitSha).toBeDefined();
+      expect(result.uptimeSeconds).toBeGreaterThanOrEqual(0);
     });
 
     it('should return status ok with lastSyncedAt from scraper service', async () => {
@@ -56,6 +59,8 @@ describe('HealthController and HealthService', () => {
       expect(result.status).toBe('ok');
       expect(result.lastSyncedAt).toBe(syncTimestamp);
       expect(result.timestamp).toBeDefined();
+      expect(result.version).toBeDefined();
+      expect(result.commitSha).toBeDefined();
     });
   });
 
@@ -69,6 +74,8 @@ describe('HealthController and HealthService', () => {
       expect(result.status).toBe('ok');
       expect(result.lastSyncedAt).toBe(syncTimestamp);
       expect(result.timestamp).toBeDefined();
+      expect(result.version).toBeDefined();
+      expect(result.commitSha).toBeDefined();
     });
   });
 });
