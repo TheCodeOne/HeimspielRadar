@@ -1038,7 +1038,7 @@ export function AdminDashboard({ onOpenNav, onNavigateHome }: AdminDashboardProp
               title="Navigation öffnen"
               data-testid="nav-menu-button"
             >
-              <Menu className="h-4 w-4 text-slate-300" />
+              <Menu className="h-4 w-4 text-foreground" />
             </Button>
           )}
         </div>

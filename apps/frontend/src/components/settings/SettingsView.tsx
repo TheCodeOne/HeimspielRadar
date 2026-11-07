@@ -6,12 +6,15 @@ import {
   Clock,
   Database,
   ExternalLink,
+  Laptop,
   List,
   Map as MapIcon,
+  Moon,
   RotateCcw,
   Server,
   Settings,
   Sparkles,
+  Sun,
   Trash2,
 } from 'lucide-react';
 import type { MapEngineType } from '@/components/map/map-engine.types';
@@ -28,6 +31,7 @@ import {
   requestNotificationPermission,
 } from '@/lib/push-notification';
 import { getLeadTimeLabel, useReminders } from '@/lib/reminder-storage';
+import { useTheme } from '@/hooks';
 
 const DONATION_URL = getDonationUrl();
 
@@ -87,6 +91,7 @@ export function SettingsView({
   onBack,
   onOpenNav,
 }: SettingsViewProps) {
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { reminders, removeReminder, clearAllReminders } = useReminders();
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [isClearingCache, setIsClearingCache] = React.useState<boolean>(false);
@@ -155,14 +160,14 @@ export function SettingsView({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60 flex items-center gap-2 rounded-xl border border-primary/40 bg-slate-900/95 text-slate-100 px-4 py-2.5 text-xs sm:text-sm font-semibold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60 flex items-center gap-2 rounded-xl border border-border bg-card/95 text-card-foreground px-4 py-2.5 text-xs sm:text-sm font-semibold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200"
         >
           <Sparkles className="h-4 w-4 text-primary shrink-0" />
           <span>{toastMessage}</span>
           <button
             type="button"
             onClick={() => setToastMessage(null)}
-            className="ml-2 text-slate-400 hover:text-white"
+            className="ml-2 text-muted-foreground hover:text-foreground"
             aria-label="Toast schließen"
           >
             ✕
@@ -332,6 +337,78 @@ export function SettingsView({
             </div>
           </Card>
 
+          {/* Section 3: Erscheinungsbild (Theme Switcher) */}
+          <Card className="p-4 sm:p-5 space-y-3 border-border/80 bg-card/60 backdrop-blur-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-foreground">
+                  Erscheinungsbild
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Wähle zwischen Geräte-Einstellung (System), hellem oder dunklem Farbschema.
+                </p>
+              </div>
+
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {theme === 'system'
+                  ? `System (${resolvedTheme === 'dark' ? 'Dunkel' : 'Hell'})`
+                  : theme === 'dark'
+                  ? 'Dunkel'
+                  : 'Hell'}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Farbschema auswählen">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'system'}
+                data-testid="theme-system"
+                onClick={() => setTheme('system')}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition ${
+                  theme === 'system'
+                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                    : 'border-border/60 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Laptop className="h-4 w-4" />
+                <span>System</span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'light'}
+                data-testid="theme-light"
+                onClick={() => setTheme('light')}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition ${
+                  theme === 'light'
+                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                    : 'border-border/60 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Sun className="h-4 w-4" />
+                <span>Hell</span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={theme === 'dark'}
+                data-testid="theme-dark"
+                onClick={() => setTheme('dark')}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition ${
+                  theme === 'dark'
+                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                    : 'border-border/60 bg-background/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Moon className="h-4 w-4" />
+                <span>Dunkel</span>
+              </button>
+            </div>
+          </Card>
+
           {/* Section 3: Push-Benachrichtigungen & Spiel-Erinnerungen */}
           <Card className="p-4 sm:p-5 space-y-4 border-border/80 bg-card/60 backdrop-blur-sm">
             <div className="flex items-center justify-between">
@@ -397,7 +474,7 @@ export function SettingsView({
                   variant="secondary"
                   className={`text-[10px] px-2 py-0 ${
                     reminders.length > 0
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
                       : 'text-muted-foreground'
                   }`}
                 >
@@ -430,7 +507,7 @@ export function SettingsView({
                             <span>
                               {formatDisplayDate(r.kickoffDate)} • {formatKickoffTime(r.kickoffTime)}
                             </span>
-                            <span className="inline-flex items-center rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0 text-[10px] font-mono text-amber-300">
+                            <span className="inline-flex items-center rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0 text-[10px] font-mono text-amber-700 dark:text-amber-300">
                               {getLeadTimeLabel(r.leadTime)}
                             </span>
                           </div>
@@ -559,12 +636,12 @@ export function SettingsView({
                 <span className="text-lg leading-none" role="img" aria-hidden="true">
                   ☕
                 </span>
-                <span className="font-bold text-amber-300">
+                <span className="font-bold text-amber-800 dark:text-amber-300">
                   Unterstütze HeimspielRadar mit einem Hallenkaffee
                 </span>
               </div>
 
-              <p className="text-[11px] text-amber-200/80 leading-relaxed">
+              <p className="text-[11px] text-amber-900/90 dark:text-amber-200/80 leading-relaxed">
                 HeimspielRadar ist zu 100% gemeinnützig, werbefrei und quelloffen. Mit deiner Unterstützung hilfst du direkt, die laufenden Server- und Domainkosten zu decken.
               </p>
 
@@ -572,7 +649,7 @@ export function SettingsView({
                 href={DONATION_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200 transition hover:bg-amber-500/25"
               >
                 <span>Hallenkaffee spendieren</span>
                 <ExternalLink className="h-3.5 w-3.5" />

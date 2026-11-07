@@ -100,7 +100,7 @@ export function VenueModal({
               }
             : undefined
         }
-        className={`relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl overflow-hidden ${
+        className={`relative z-10 flex max-h-[85dvh] md:max-h-[80vh] w-full md:max-w-lg flex-col rounded-t-[28px] md:rounded-2xl border-t md:border border-border bg-card/95 shadow-2xl backdrop-blur-2xl overflow-hidden ${
           isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
         }`}
       >
@@ -109,7 +109,7 @@ export function VenueModal({
           {...touchHandlers}
           className="md:hidden flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none"
         >
-          <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
         </div>
 
         {/* Venue Header */}
@@ -129,7 +129,7 @@ export function VenueModal({
                 {venue.name}
               </h2>
               {selectedMatch.distanceKm != null && (
-                <Badge variant="outline" className="shrink-0 font-mono text-[10px] bg-slate-800/80">
+                <Badge variant="outline" className="shrink-0 font-mono text-[10px] bg-muted/80">
                   {formatDistance(selectedMatch.distanceKm)}
                 </Badge>
               )}
@@ -260,7 +260,7 @@ export function VenueModal({
                         {matchLeagueName}
                       </Badge>
                       {categoryBadge && (
-                        <Badge variant="outline" className="text-[10px] bg-slate-800/60">
+                        <Badge variant="outline" className="text-[10px] bg-muted/60">
                           {categoryBadge}
                         </Badge>
                       )}
@@ -305,7 +305,7 @@ export function VenueModal({
                     !effectiveKiosk && (
                       <div
                         data-testid="match-kiosk-teaser"
-                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200"
+                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-900 dark:text-amber-200"
                       >
                         <span className="shrink-0 leading-none" aria-hidden="true">
                           🥨
@@ -337,7 +337,7 @@ export function VenueModal({
                           }
                         }}
                         onKeyDown={(e) => e.stopPropagation()}
-                        className="inline-flex h-6 items-center gap-1 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+                        className="inline-flex h-6 items-center gap-1 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 transition-colors hover:border-amber-400/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
                       >
                         <span aria-hidden="true">🌭</span>
                         <span>Kiosk- & Hallen-Info melden</span>
@@ -351,11 +351,11 @@ export function VenueModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-slate-950/95">
+        <div className="shrink-0 border-t border-border/60 p-3 sm:p-4 bg-card/95">
           <button
             type="button"
             onClick={closeWithAnimation}
-            className="w-full rounded-xl bg-slate-800/80 py-2.5 text-xs font-bold text-foreground hover:bg-slate-700 transition"
+            className="w-full rounded-xl border border-border/80 bg-muted/80 py-2.5 text-xs font-bold text-foreground hover:bg-muted transition"
           >
             Zurück zur Karte
           </button>

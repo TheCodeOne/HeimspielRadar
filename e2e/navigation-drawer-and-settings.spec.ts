@@ -197,4 +197,67 @@ test.describe('Unified App Navigation Drawer & Dedicated /settings View', () => 
     await backBtn.click();
     await expect(page).toHaveURL(/\//);
   });
+
+  test('Theme mode switcher (System / Hell / Dunkel) synchronizes .dark class on <html>, updates localStorage and <meta name="theme-color">', async ({
+    page,
+  }) => {
+    await page.goto('/settings');
+    await page.waitForLoadState('networkidle');
+
+    // Section exists
+    await expect(page.getByText('Erscheinungsbild')).toBeVisible();
+
+    // 3 Buttons exist
+    const systemBtn = page.getByTestId('theme-system');
+    const lightBtn = page.getByTestId('theme-light');
+    const darkBtn = page.getByTestId('theme-dark');
+    await expect(systemBtn).toBeVisible();
+    await expect(lightBtn).toBeVisible();
+    await expect(darkBtn).toBeVisible();
+
+    // 1. Switch to Light Mode
+    await lightBtn.click();
+    await expect(lightBtn).toHaveAttribute('aria-checked', 'true');
+    await expect(systemBtn).toHaveAttribute('aria-checked', 'false');
+    await expect(darkBtn).toHaveAttribute('aria-checked', 'false');
+
+    // HTML root should NOT have class="dark"
+    const isDarkLight = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    expect(isDarkLight).toBe(false);
+
+    // localStorage should be 'light'
+    const storedLight = await page.evaluate(() => localStorage.getItem('heimspielradar:theme'));
+    expect(storedLight).toBe('light');
+
+    // meta theme-color should be #ffffff
+    const metaLight = await page.locator('meta[name="theme-color"]').getAttribute('content');
+    expect(metaLight).toBe('#ffffff');
+
+    // 2. Switch to Dark Mode
+    await darkBtn.click();
+    await expect(darkBtn).toHaveAttribute('aria-checked', 'true');
+    await expect(lightBtn).toHaveAttribute('aria-checked', 'false');
+
+    // HTML root should have class="dark"
+    const isDarkDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    expect(isDarkDark).toBe(true);
+
+    // localStorage should be 'dark'
+    const storedDark = await page.evaluate(() => localStorage.getItem('heimspielradar:theme'));
+    expect(storedDark).toBe('dark');
+
+    // meta theme-color should be #020617
+    const metaDark = await page.locator('meta[name="theme-color"]').getAttribute('content');
+    expect(metaDark).toBe('#020617');
+
+    // 3. Switch back to System Mode
+    await systemBtn.click();
+    await expect(systemBtn).toHaveAttribute('aria-checked', 'true');
+    const storedSystem = await page.evaluate(() => localStorage.getItem('heimspielradar:theme'));
+    expect(storedSystem).toBe('system');
+
+    // 4. Reload page and check zero-FOUC persistence
+    await page.goto('/settings');
+    await expect(systemBtn).toHaveAttribute('aria-checked', 'true');
+  });
 });

@@ -118,14 +118,14 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
             {kioskDescription && (
             <div
               data-tile="kiosk-info"
-              className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200"
+              className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200"
             >
               <span className="shrink-0 text-sm leading-none" aria-hidden="true">
                 🌭
               </span>
               <div className="min-w-0 flex-1 leading-snug">
-                <span className="font-semibold text-amber-300">Kiosk: </span>
-                <span className="text-amber-100">{kioskDescription}</span>
+                <span className="font-semibold text-amber-800 dark:text-amber-300">Kiosk: </span>
+                <span className="text-amber-950 dark:text-amber-100">{kioskDescription}</span>
               </div>
             </div>
           )}
@@ -133,14 +133,14 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           {parkingNotes && (
             <div
               data-tile="parking-notes"
-              className="flex items-start gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-xs text-sky-200"
+              className="flex items-start gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-xs text-sky-900 dark:text-sky-200"
             >
               <span className="shrink-0 text-sm leading-none" aria-hidden="true">
                 🅿️
               </span>
               <div className="min-w-0 flex-1 leading-snug">
-                <span className="font-semibold text-sky-300">Parkhinweis: </span>
-                <span className="text-sky-100">{parkingNotes}</span>
+                <span className="font-semibold text-sky-800 dark:text-sky-300">Parkhinweis: </span>
+                <span className="text-sky-950 dark:text-sky-100">{parkingNotes}</span>
               </div>
             </div>
           )}
@@ -148,14 +148,14 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           {matchNotes && (
             <div
               data-tile="match-notes"
-              className="flex items-start gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-200"
+              className="flex items-start gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs text-indigo-900 dark:text-indigo-200"
             >
               <span className="shrink-0 text-sm leading-none" aria-hidden="true">
                 📝
               </span>
               <div className="min-w-0 flex-1 leading-snug">
-                <span className="font-semibold text-indigo-300">Info: </span>
-                <span className="text-indigo-100">{matchNotes}</span>
+                <span className="font-semibold text-indigo-800 dark:text-indigo-300">Info: </span>
+                <span className="text-indigo-950 dark:text-indigo-100">{matchNotes}</span>
               </div>
             </div>
           )}
@@ -163,14 +163,14 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
           {submitterInfo && (
             <div
               data-tile="submitter-info"
-              className="flex items-start gap-1.5 rounded-lg border border-teal-500/30 bg-teal-500/10 px-2.5 py-1.5 text-xs text-teal-200"
+              className="flex items-start gap-1.5 rounded-lg border border-teal-500/30 bg-teal-500/10 px-2.5 py-1.5 text-xs text-teal-900 dark:text-teal-200"
             >
               <span className="shrink-0 text-sm leading-none" aria-hidden="true">
                 👤
               </span>
               <div className="min-w-0 flex-1 leading-snug">
-                <span className="font-semibold text-teal-300">Community: </span>
-                <span className="text-teal-100">{submitterInfo}</span>
+                <span className="font-semibold text-teal-800 dark:text-teal-300">Community: </span>
+                <span className="text-teal-950 dark:text-teal-100">{submitterInfo}</span>
               </div>
             </div>
           )}
@@ -186,8 +186,8 @@ export const KioskInfoBadges: React.FC<KioskInfoBadgesProps> = ({
               title={`Eintritt: ${admissionFee}`}
               className={`${textSizeClass} ${
                 isFreeAdmission(admissionFee)
-                  ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400 font-semibold'
-                  : 'border-amber-500/30 bg-amber-500/10 text-amber-300 font-medium'
+                  ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-medium'
               }`}
             >
               {formatAdmissionBadgeText(admissionFee)}

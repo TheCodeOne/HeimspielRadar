@@ -203,7 +203,7 @@ export function StoryEditorView({
         <div
           role="status"
           aria-live="polite"
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-slate-900/95 text-white px-5 py-2.5 text-xs sm:text-sm font-semibold shadow-2xl backdrop-blur border border-slate-700/80 animate-in fade-in slide-in-from-top-2 duration-200"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-card/95 text-card-foreground px-5 py-2.5 text-xs sm:text-sm font-semibold shadow-2xl backdrop-blur border border-border animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {toastMessage}
         </div>
@@ -244,8 +244,8 @@ export function StoryEditorView({
       {/* Main Content: Split layout on Desktop, Scrollable Column on Mobile */}
       <main className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
         {/* Left / Top Column: Live 9:16 Preview */}
-        <section className="shrink-0 md:flex-1 bg-slate-950/60 p-4 sm:p-6 flex flex-col items-center justify-center relative min-h-[460px] md:min-h-0 md:overflow-y-auto">
-          <div className="w-full max-w-[300px] sm:max-w-[340px] md:max-w-[380px] aspect-[9/16] h-auto max-h-[68vh] md:max-h-[82vh] rounded-2xl shadow-2xl overflow-hidden border border-border/40 relative flex items-center justify-center bg-slate-900">
+        <section className="shrink-0 md:flex-1 bg-muted/30 p-4 sm:p-6 flex flex-col items-center justify-center relative min-h-[460px] md:min-h-0 md:overflow-y-auto">
+          <div className="w-full max-w-[300px] sm:max-w-[340px] md:max-w-[380px] aspect-[9/16] h-auto max-h-[68vh] md:max-h-[82vh] rounded-2xl shadow-2xl overflow-hidden border border-border/40 relative flex items-center justify-center bg-muted">
             {previewBlobUrl ? (
               <img
                 src={previewBlobUrl}

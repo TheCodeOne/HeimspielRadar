@@ -551,7 +551,7 @@ export function VariantD_BottomBarSheet({
           <div
             onTouchStart={handleBarTouchStart}
             onTouchMove={handleBarTouchMove}
-            className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-white/10 transition-all"
+            className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-border bg-card/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-border/20 transition-all"
           >
             {/* Native Drag Handle for Mobile */}
             <button
@@ -559,10 +559,10 @@ export function VariantD_BottomBarSheet({
               onTouchStart={handleBarTouchStart}
               onTouchMove={handleBarTouchMove}
               onClick={() => setIsMobileSheetOpen(true)}
-              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-slate-400 hover:text-slate-200 transition touch-none cursor-grab active:cursor-grabbing"
+              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-muted-foreground hover:text-foreground transition touch-none cursor-grab active:cursor-grabbing"
               aria-label="Filter & Suche nach oben ziehen oder öffnen"
             >
-              <div className="h-1.5 w-12 rounded-full bg-slate-600/70" />
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
             </button>
 
             {/* Row 1: Native Search Capsule & Filter Trigger */}
@@ -615,16 +615,16 @@ export function VariantD_BottomBarSheet({
                       setIsSidebarCollapsed(false);
                     }
                   }}
-                  className="flex flex-1 items-center gap-2.5 rounded-2xl border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-800 transition shadow-inner group"
+                  className="flex flex-1 items-center gap-2.5 rounded-2xl border border-border bg-card px-3.5 py-2 text-xs text-muted-foreground hover:border-primary/50 hover:bg-muted transition shadow-inner group"
                 >
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
                     <Search className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0 text-left">
-                    <span className="block truncate font-medium text-slate-200 group-hover:text-primary transition leading-tight">
+                    <span className="block truncate font-medium text-foreground group-hover:text-primary transition leading-tight">
                       Stadt, PLZ oder Verein suchen...
                     </span>
-                    <span className="flex items-center gap-1 truncate text-[10px] text-slate-400 font-mono">
+                    <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground font-mono">
                       <span>{location?.name ? `📍 ${location.name} (${radiusKm} km)` : `${radiusKm} km`} • {dateLabel} •</span>
                       {availableOptions.isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
                       <span>{effectiveMatchCount} Spiele</span>
@@ -670,7 +670,7 @@ export function VariantD_BottomBarSheet({
                 className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
                   dateMode !== 'all'
                     ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border border-slate-700/60'
+                    : 'bg-muted/80 text-foreground hover:bg-muted border border-border'
                 }`}
               >
                 <Calendar className="h-3.5 w-3.5" />
@@ -690,10 +690,10 @@ export function VariantD_BottomBarSheet({
                 }}
                 className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
                   teamQuery
-                    ? 'bg-slate-800/40 text-slate-500 line-through'
+                    ? 'bg-muted/40 text-muted-foreground/60 line-through'
                     : radiusKm !== 30
                     ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border border-slate-700/60'
+                    : 'bg-muted/80 text-foreground hover:bg-muted border border-border'
                 }`}
               >
                 <Compass className="h-3.5 w-3.5" />
@@ -719,7 +719,7 @@ export function VariantD_BottomBarSheet({
                     className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-medium border transition ${
                       isSelected
                         ? 'border-primary bg-primary text-primary-foreground font-semibold'
-                        : 'border-slate-700/60 bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                        : 'border-border bg-muted/80 text-foreground hover:bg-muted'
                     }`}
                   >
                     {g === 'männlich' ? 'Herren' : 'Damen'}
@@ -738,7 +738,7 @@ export function VariantD_BottomBarSheet({
           <div
             onTouchStart={handleBarTouchStart}
             onTouchMove={handleBarTouchMove}
-            className="pointer-events-auto flex items-center divide-x divide-slate-700/80 rounded-full border border-slate-700/80 bg-slate-950/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-white/10 transition hover:border-slate-500"
+            className="pointer-events-auto flex items-center divide-x divide-border rounded-full border border-border bg-card/95 shadow-2xl backdrop-blur-xl px-2 py-1.5 ring-1 ring-border/20 transition hover:border-primary/50"
           >
             {/* Segment 1: Unified Search Trigger */}
             <button
@@ -750,7 +750,7 @@ export function VariantD_BottomBarSheet({
                   setIsSidebarCollapsed(false);
                 }
               }}
-              className="flex items-center gap-2 px-3 py-1 text-left text-xs font-semibold text-slate-200 hover:text-primary transition"
+              className="flex items-center gap-2 px-3 py-1 text-left text-xs font-semibold text-foreground hover:text-primary transition"
             >
               <Search className="h-4 w-4 text-primary shrink-0" />
               <span className="truncate max-w-[120px] sm:max-w-[160px]">
@@ -772,7 +772,7 @@ export function VariantD_BottomBarSheet({
                   setDesktopPopover(desktopPopover === 'date' ? null : 'date');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-slate-300 hover:text-foreground transition"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition"
             >
               <Calendar className="h-3.5 w-3.5 text-primary/80" />
               <span>{dateLabel}</span>
@@ -788,7 +788,7 @@ export function VariantD_BottomBarSheet({
                   setDesktopPopover(desktopPopover === 'radius' ? null : 'radius');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-slate-300 hover:text-foreground transition"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition"
             >
               <Compass className="h-3.5 w-3.5 text-primary/80" />
               <span>{teamQuery ? 'Alle' : `${radiusKm}km`}</span>
@@ -811,7 +811,7 @@ export function VariantD_BottomBarSheet({
               </div>
               <span className="hidden sm:inline">Filter</span>
               {activeFilterCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 font-mono text-[10px] font-bold text-slate-950">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 font-mono text-[10px] font-bold text-slate-950">
                   {activeFilterCount}
                 </span>
               )}
@@ -956,7 +956,7 @@ export function VariantD_BottomBarSheet({
                   }
                 : undefined
             }
-            className={`relative z-10 flex max-h-[85dvh] flex-col rounded-t-[28px] border-t border-slate-700/80 bg-slate-950 shadow-2xl overflow-hidden ${
+            className={`relative z-10 flex max-h-[85dvh] flex-col rounded-t-[28px] border-t border-border bg-card shadow-2xl overflow-hidden ${
               isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
             }`}
           >
@@ -965,7 +965,7 @@ export function VariantD_BottomBarSheet({
               {...sheetTouchHandlers}
               className="flex flex-col items-center pt-3 pb-2 border-b border-border/60 cursor-grab active:cursor-grabbing touch-none select-none"
             >
-              <div className="h-1.5 w-12 rounded-full bg-slate-600/70 mb-2" />
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/40 mb-2" />
               <div className="flex w-full items-center justify-between px-5">
                 <div className="flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -990,7 +990,7 @@ export function VariantD_BottomBarSheet({
             </div>
 
             {/* Sticky Action Footer */}
-            <div className="border-t border-border p-4 bg-slate-950/95 flex gap-2">
+            <div className="border-t border-border p-4 bg-card/95 flex gap-2">
               <Button
                 type="button"
                 variant="outline"

@@ -336,16 +336,16 @@ export function NavigationDrawer({
                 </span>
 
                 <div className="min-w-0">
-                  <div className="text-sm font-bold text-amber-300">
+                  <div className="text-sm font-bold text-amber-700 dark:text-amber-300">
                     Hallenkaffee spendieren
                   </div>
-                  <div className="text-[11px] text-amber-200/80 truncate">
+                  <div className="text-[11px] text-amber-900/90 dark:text-amber-200/80 truncate">
                     Serverkosten für die Community decken
                   </div>
                 </div>
               </div>
 
-              <ExternalLink className="h-4 w-4 text-amber-400 shrink-0" />
+              <ExternalLink className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             </a>
           </div>
         </div>
@@ -363,7 +363,7 @@ export function NavigationDrawer({
           )}
 
           <div className="flex items-center justify-between text-[11px] pt-1">
-            <span className="text-slate-400 font-medium">HeimspielRadar</span>
+            <span className="text-foreground/80 font-medium">HeimspielRadar</span>
             <span className="text-muted-foreground font-mono">v1.0 • Open Source</span>
           </div>
         </div>
