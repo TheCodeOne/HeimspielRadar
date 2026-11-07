@@ -1,39 +1,30 @@
 import * as React from 'react';
 import {
   Calendar,
-  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Compass,
   Layers,
   Loader2,
   LocateFixed,
-  Map,
-  MapPin,
   RotateCcw,
   Search,
   SlidersHorizontal,
-  Trophy,
   Users,
   X,
 } from 'lucide-react';
 import type { League, TeamSuggestion } from '@sundayleague/shared-types';
-import { MAP_ENGINE_OPTIONS } from '@/components/map';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import {
-  type CitySuggestion,
-  fetchPhotonGeocode,
-  searchCuratedCities,
-} from '@/lib/cities';
+import { UnifiedSearchInput } from '@/components/filters/shared/UnifiedSearchInput';
+import type { CitySuggestion } from '@/lib/cities';
 import { formatLastSyncedAt } from '@/lib/date-utils';
 import { getDonationUrl, getTransparencyUrl } from '@/lib/donation';
 import { STUTTGART_FALLBACK } from '@/lib/geo-utils';
-import { getSampleMatches } from '@/lib/sample-matches';
-import {
-  filterLeaguesByHierarchy,
-  type MatchFiltersActions,
-  type MatchFiltersState,
-} from '@/lib/use-match-filters';
+import type { MatchFiltersActions, MatchFiltersState } from '@/lib/use-match-filters';
+import { useBottomSheetDrag } from '@/lib/use-bottom-sheet-drag';
 
 export interface FilterAvailableOptions {
   leagues: League[];
@@ -52,391 +43,162 @@ export interface FilterBarProps {
   filters: MatchFiltersState;
   availableOptions: FilterAvailableOptions;
   actions: MatchFiltersActions;
+  hasSelectedVenue?: boolean;
   className?: string;
   donationUrl?: string;
   transparencyUrl?: string;
 }
 
-function formatGenderLabel(gender: string): string {
-  const lower = gender.toLowerCase();
-
-  if (lower === 'männlich') {
-    return 'Männlich';
-  }
-
-  if (lower === 'weiblich') {
-    return 'Weiblich';
-  }
-
-  if (lower === 'mixed') {
-    return 'Mixed';
-  }
-
-  return gender.charAt(0).toUpperCase() + gender.slice(1);
+interface DatePreset {
+  id: MatchFiltersState['dateMode'];
+  label: string;
 }
 
-function toggleArrayItem<T>(items: T[], item: T): T[] {
-  if (items.includes(item)) {
-    return items.filter((existing) => existing !== item);
-  }
-
-  return [...items, item];
-}
+const DATE_PRESETS: DatePreset[] = [
+  { id: 'today', label: 'Heute' },
+  { id: 'tomorrow', label: 'Morgen' },
+  { id: 'weekend', label: 'Wochenende' },
+  { id: 'next-weekend', label: 'Nächstes WE' },
+  { id: 'all', label: 'Alle' },
+];
 
 export function FilterBar({
-  isOpen = true,
+  isOpen,
   onClose,
   filters,
   availableOptions,
   actions,
+  hasSelectedVenue = false,
   className = '',
   donationUrl = getDonationUrl(),
   transparencyUrl = getTransparencyUrl(),
 }: FilterBarProps) {
+  // Mobile Bottom Sheet open state
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
+
+  // Gesture drag & spring animation hook for mobile bottom sheet
   const {
-    viewMode,
-    mapEngine,
+    isAnimatingOut,
+    dragY,
+    isDragging,
+    closeWithAnimation,
+    touchHandlers: sheetTouchHandlers,
+  } = useBottomSheetDrag({
+    onClose: () => {
+      setIsMobileSheetOpen(false);
+      onClose?.();
+    },
+  });
+
+  // Swipe-up detection on the collapsed bottom bar
+  const barTouchStartYRef = React.useRef(0);
+
+  const handleBarTouchStart = React.useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+
+    if (touch) {
+      barTouchStartYRef.current = touch.clientY;
+    }
+  }, []);
+
+  const handleBarTouchMove = React.useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+
+      if (!touch) {
+        return;
+      }
+
+      const deltaY = touch.clientY - barTouchStartYRef.current;
+
+      // Swipe up gesture (drag up >= 15px) opens sheet smoothly
+      if (deltaY < -15 && !isMobileSheetOpen) {
+        setIsMobileSheetOpen(true);
+      }
+    },
+    [isMobileSheetOpen]
+  );
+
+  // Desktop Sidebar collapse state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+
+  // Popovers on Desktop
+  const [desktopPopover, setDesktopPopover] = React.useState<'date' | 'radius' | null>(null);
+
+  // Sync external isOpen prop (e.g. from header or keyboard shortcut)
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsMobileSheetOpen(true);
+      setIsSidebarCollapsed(false);
+    }
+  }, [isOpen]);
+
+  const {
     location,
-    radiusKm,
-    showRadiusCircle,
     dateMode,
     dateFrom,
     dateTo,
+    dateRangeDisplay,
     onlyUpcoming,
-    genders: selectedGenders,
-    ageClasses: selectedAgeClasses,
-    skillLevels: selectedSkillLevels,
-    leagueIds: selectedLeagueIds,
-    isLocating,
+    radiusKm,
+    teamQuery,
+    genders,
+    ageClasses,
+    activeFilterCount,
   } = filters;
 
   const {
-    leagues,
-    genders: availableGenders,
-    ageClasses: availableAgeClasses,
-    skillLevels: availableSkillLevels,
-    matchCount = 0,
-    matchesCount,
-    lastSyncedAt,
-  } = availableOptions;
-
-  const {
-    setViewMode,
-    setMapEngine,
     setLocation,
-    setRadius,
-    setShowRadiusCircle,
+    setRadius: setRadiusKm,
     setDateMode,
     setDateRange,
     setOnlyUpcoming,
     setTeamQuery,
     setGenders,
     setAgeClasses,
-    setSkillLevels,
-    setLeagueIds,
     resetFilters,
-    locateUser,
   } = actions;
 
-  const [leagueSearch, setLeagueSearch] = React.useState('');
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
-  const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
-  const searchContainerRef = React.useRef<HTMLDivElement>(null);
-
-  const [localCitySuggestions, setLocalCitySuggestions] =
-    React.useState<CitySuggestion[]>([]);
-
-  const [onlineCitySuggestions, setOnlineCitySuggestions] =
-    React.useState<CitySuggestion[]>([]);
-
-  const [isSearchingOnline, setIsSearchingOnline] = React.useState(false);
-
-  const [teamSuggestions, setTeamSuggestions] = React.useState<TeamSuggestion[]>([]);
-  const [isSearchingTeams, setIsSearchingTeams] = React.useState(false);
-
-  // Reset searchQuery and close suggestions when location reference changes
-  React.useEffect(() => {
-    setSearchQuery('');
-    setIsDropdownOpen(false);
-    setLocalCitySuggestions([]);
-    setOnlineCitySuggestions([]);
-  }, [location.name, location.lat, location.lng]);
-
-  // Close suggestions dropdown on click outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        event.target instanceof Node &&
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Filter curated cities instantly + debounce online Photon geocoding
-  React.useEffect(() => {
-    const q = searchQuery.trim();
-
-    if (!q) {
-      setLocalCitySuggestions([]);
-      setOnlineCitySuggestions([]);
-      setIsSearchingOnline(false);
-
-      return;
-    }
-
-    const local = searchCuratedCities(q, 5);
-
-    setLocalCitySuggestions(local);
-
-    if (q.length < 3) {
-      setOnlineCitySuggestions([]);
-      setIsSearchingOnline(false);
-
-      return;
-    }
-
-    const controller = new AbortController();
-
-    setIsSearchingOnline(true);
-
-    const timer = setTimeout(async () => {
-      try {
-        const results = await fetchPhotonGeocode(
-          q,
-          { lat: location.lat, lng: location.lng },
-          controller.signal,
-        );
-
-        setOnlineCitySuggestions(results);
-      } catch {
-        setOnlineCitySuggestions([]);
-      } finally {
-        setIsSearchingOnline(false);
-      }
-    }, 350);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [searchQuery, location.lat, location.lng]);
-
-  // Debounced search for team suggestions
-  React.useEffect(() => {
-    const q = searchQuery.trim();
-
-    if (!q) {
-      setTeamSuggestions([]);
-      setIsSearchingTeams(false);
-
-      return;
-    }
-
-    const controller = new AbortController();
-
-    setIsSearchingTeams(true);
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/matches/teams?q=${encodeURIComponent(q)}`, {
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch team suggestions: ${res.status}`);
-        }
-
-        // SAFETY: /api/matches/teams returns TeamSuggestion[]
-        const data = (await res.json()) as TeamSuggestion[];
-
-        // Defensive deduplication across (name + akName + geschlecht)
-        const seen = new Set<string>();
-        const deduped: TeamSuggestion[] = [];
-
-        for (const item of data) {
-          const key = `${item.name}|${item.akName ?? ''}|${item.geschlecht ?? ''}`;
-
-          if (!seen.has(key)) {
-            seen.add(key);
-            deduped.push(item);
-          }
-        }
-
-        setTeamSuggestions(deduped.slice(0, 8));
-      } catch {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        // Fallback: search teams from sample matches
-        const pool = getSampleMatches();
-        const seen = new Set<string>();
-        const localMatches: TeamSuggestion[] = [];
-        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-
-        for (const m of pool) {
-          for (const t of [m.homeTeam, m.guestTeam]) {
-            const key = `${t.name}|${m.league?.akName ?? ''}|${m.league?.geschlecht ?? ''}`;
-
-            if (seen.has(key)) {
-              continue;
-            }
-
-            const allTokensMatch = tokens.every((tok) => {
-              const nameMatch = t.name.toLowerCase().includes(tok);
-              const shortNameMatch = Boolean(t.shortName?.toLowerCase().includes(tok));
-              const akMatch = Boolean(m.league?.akName?.toLowerCase().includes(tok));
-              const genderMatch = Boolean(m.league?.geschlecht?.toLowerCase().includes(tok));
-
-              return nameMatch || shortNameMatch || akMatch || genderMatch;
-            });
-
-            if (allTokensMatch) {
-              seen.add(key);
-              localMatches.push({
-                id: t.id,
-                name: t.name,
-                shortName: t.shortName,
-                clubId: t.clubId,
-                akName: m.league?.akName,
-                geschlecht: m.league?.geschlecht,
-              });
-            }
-          }
-        }
-
-        setTeamSuggestions(localMatches.slice(0, 8));
-      } finally {
-        setIsSearchingTeams(false);
-      }
-    }, 250);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [searchQuery]);
-
-  const allCitySuggestions = React.useMemo(() => {
-    const uniqueOnline = onlineCitySuggestions.filter((online) => {
-      const onlineLower = online.name.trim().toLowerCase();
-
-      return !localCitySuggestions.some((local) => {
-        const localLower = local.name.trim().toLowerCase();
-
-        if (
-          onlineLower === localLower ||
-          onlineLower.includes(localLower) ||
-          localLower.includes(onlineLower)
-        ) {
-          return true;
-        }
-
-        const dLat = Math.abs(online.lat - local.lat);
-        const dLng = Math.abs(online.lng - local.lng);
-
-        return dLat < 0.05 && dLng < 0.05;
-      });
-    });
-
-    return [...localCitySuggestions, ...uniqueOnline];
-  }, [localCitySuggestions, onlineCitySuggestions]);
-
-  // Combined flat list of selectable items for unified keyboard navigation
-  type SuggestionItem =
-    | { kind: 'city'; item: CitySuggestion }
-    | { kind: 'team'; item: TeamSuggestion };
-
-  const combinedItems: SuggestionItem[] = React.useMemo(() => {
-    const items: SuggestionItem[] = [];
-
-    for (const city of allCitySuggestions) {
-      items.push({ kind: 'city', item: city });
-    }
-
-    for (const team of teamSuggestions) {
-      items.push({ kind: 'team', item: team });
-    }
-
-    return items;
-  }, [allCitySuggestions, teamSuggestions]);
-
-  // Reset highlight index when query or results change
-  React.useEffect(() => {
-    setHighlightedIndex(-1);
-  }, [searchQuery]);
+  const isCustomCityActive = Boolean(
+    !teamQuery &&
+      location?.name &&
+      (location.name !== STUTTGART_FALLBACK.name ||
+        Math.abs(location.lat - STUTTGART_FALLBACK.lat) > 0.001 ||
+        Math.abs(location.lng - STUTTGART_FALLBACK.lng) > 0.001),
+  );
 
   const handleSelectCity = React.useCallback(
-    (item: CitySuggestion) => {
-      const q = searchQuery.trim();
-      let selectedName = item.name;
-
-      if (/^\d{5}$/.test(q) && !selectedName.includes(q)) {
-        selectedName = `${q} ${item.name}`;
-      }
-
+    (city: CitySuggestion) => {
       setLocation({
-        lat: item.lat,
-        lng: item.lng,
-        name: selectedName,
+        lat: city.lat,
+        lng: city.lng,
+        name: city.name,
       });
-
-      // Exclusive selection: selecting a city clears active teamQuery
       setTeamQuery(undefined);
-      setSearchQuery('');
-      setIsDropdownOpen(false);
-      setLocalCitySuggestions([]);
-      setOnlineCitySuggestions([]);
-      setTeamSuggestions([]);
     },
-    [searchQuery, setLocation, setTeamQuery],
+    [setLocation, setTeamQuery],
   );
 
   const handleSelectTeam = React.useCallback(
-    (suggestion: TeamSuggestion) => {
-      setTeamQuery(suggestion.name);
+    (s: TeamSuggestion) => {
+      setTeamQuery(s.name);
 
-      // Reset location focus to default / reset city filter focus
-      setLocation(STUTTGART_FALLBACK);
-
-      if (suggestion.akName) {
-        setAgeClasses([suggestion.akName]);
+      if (s.akName) {
+        setAgeClasses([s.akName]);
       }
 
-      if (suggestion.geschlecht) {
-        setGenders([suggestion.geschlecht]);
+      if (s.geschlecht) {
+        setGenders([s.geschlecht]);
       }
-
-      setSearchQuery('');
-      setIsDropdownOpen(false);
-      setLocalCitySuggestions([]);
-      setOnlineCitySuggestions([]);
-      setTeamSuggestions([]);
     },
-    [setAgeClasses, setGenders, setLocation, setTeamQuery],
+    [setAgeClasses, setGenders, setTeamQuery],
   );
 
   const handleSelectRawTeam = React.useCallback(
-    (rawQuery: string) => {
-      setTeamQuery(rawQuery);
-      setLocation(STUTTGART_FALLBACK);
-      setSearchQuery('');
-      setIsDropdownOpen(false);
-      setLocalCitySuggestions([]);
-      setOnlineCitySuggestions([]);
-      setTeamSuggestions([]);
+    (raw: string) => {
+      setTeamQuery(raw);
     },
-    [setLocation, setTeamQuery],
+    [setTeamQuery],
   );
 
   const handleClearTeam = React.useCallback(() => {
@@ -445,1042 +207,287 @@ export function FilterBar({
 
   const handleClearCity = React.useCallback(() => {
     setLocation(STUTTGART_FALLBACK);
-    setRadius(50);
-  }, [setLocation, setRadius]);
+    setRadiusKm(30);
+  }, [setLocation, setRadiusKm]);
 
-  const handleClearSearch = React.useCallback(() => {
-    setSearchQuery('');
-    setIsDropdownOpen(false);
-    setLocalCitySuggestions([]);
-    setOnlineCitySuggestions([]);
-    setTeamSuggestions([]);
-  }, []);
+  const effectiveMatchCount =
+    availableOptions.matchesCount ?? availableOptions.matchCount ?? 0;
 
-  const handleSearchSubmit = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
+  const dateLabel = React.useMemo(() => {
+    switch (dateMode) {
+      case 'today':
+        return 'Heute';
+      case 'tomorrow':
+        return 'Morgen';
+      case 'weekend':
+        return 'Wochenende';
+      case 'next-weekend':
+        return 'Nächstes WE';
+      case 'custom':
+        return dateRangeDisplay || 'Zeitraum';
+      default:
+        return 'Termin';
     }
+  }, [dateMode, dateRangeDisplay]);
 
-    const q = searchQuery.trim();
-
-    if (!q) {
-      return;
-    }
-
-    if (highlightedIndex >= 0 && combinedItems[highlightedIndex]) {
-      const selected = combinedItems[highlightedIndex];
-
-      if (selected.kind === 'city') {
-        handleSelectCity(selected.item);
-      } else {
-        handleSelectTeam(selected.item);
-      }
-
-      return;
-    }
-
-    if (combinedItems.length > 0) {
-      const first = combinedItems[0];
-
-      if (first.kind === 'city') {
-        handleSelectCity(first.item);
-      } else {
-        handleSelectTeam(first.item);
-      }
-
-      return;
-    }
-
-    // Try online Photon geocode if user pressed Enter
-    setIsSearchingOnline(true);
-
-    try {
-      const results = await fetchPhotonGeocode(q, {
-        lat: location.lat,
-        lng: location.lng,
-      });
-
-      if (results.length > 0) {
-        handleSelectCity(results[0]);
-
-        return;
-      }
-    } finally {
-      setIsSearchingOnline(false);
-    }
-
-    // Fallback: apply as raw team query
-    handleSelectRawTeam(q);
-  };
-
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isDropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      setIsDropdownOpen(true);
-
-      return;
-    }
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightedIndex((prev) =>
-        prev < combinedItems.length - 1 ? prev + 1 : 0,
-      );
-
-      return;
-    }
-
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightedIndex((prev) =>
-        prev > 0 ? prev - 1 : combinedItems.length - 1,
-      );
-
-      return;
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      void handleSearchSubmit();
-
-      return;
-    }
-
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDropdownOpen(false);
-
-      return;
-    }
-  };
-
-  // Close drawer on ESC key press
-  React.useEffect(() => {
-    if (!isOpen || !onClose) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  const handleGetCurrentLocation = () => {
-    setTeamQuery(undefined);
-    void locateUser();
-  };
-
-  // Narrow individual leagues dynamically based on selected hierarchy + search query
-  const filteredLeagues = React.useMemo(() => {
-    return filterLeaguesByHierarchy(leagues, {
-      genders: selectedGenders,
-      ageClasses: selectedAgeClasses,
-      skillLevels: selectedSkillLevels,
-      search: leagueSearch,
-    });
-  }, [
-    leagues,
-    selectedGenders,
-    selectedAgeClasses,
-    selectedSkillLevels,
-    leagueSearch,
-  ]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  const effectiveMatchCount = matchesCount ?? matchCount;
-
+  // Shared Filter Form Body (Rendered in Desktop Sidebar & Mobile Bottom Sheet)
   const filterFormContent = (
-    <div className={`space-y-5 ${className}`}>
-      {/* 0. View Mode Switcher Section (Ansicht: 🗺️ Karte vs. 📋 Liste) */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-primary" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Ansicht
-          </span>
+    <div className="space-y-5">
+      {/* 1. Quick Stats & Reset */}
+      <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
+        <div className="flex items-center gap-1.5">
+          {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+          <div>
+            <span className="font-bold text-foreground">
+              {effectiveMatchCount} Spiele
+            </span>{' '}
+            <span className="text-muted-foreground">gefunden</span>
+          </div>
         </div>
-
-        <div
-          className="grid grid-cols-2 gap-1.5 rounded-lg border border-border/80 bg-muted/60 p-1"
-          role="tablist"
-          aria-label="Ansicht wechseln"
-        >
+        {activeFilterCount > 0 && (
           <button
             type="button"
-            role="tab"
-            aria-selected={viewMode === 'map'}
-            onClick={() => setViewMode('map')}
-            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
-              viewMode === 'map'
-                ? 'bg-background text-foreground shadow-xs font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={resetFilters}
+            className="flex items-center gap-1 font-semibold text-primary hover:underline"
           >
-            <span>🗺️</span>
-            <span>Karte</span>
+            <RotateCcw className="h-3 w-3" />
+            Zurücksetzen
           </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={viewMode === 'list'}
-            onClick={() => setViewMode('list')}
-            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
-              viewMode === 'list'
-                ? 'bg-background text-foreground shadow-xs font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>📋</span>
-            <span className="flex items-center gap-1">
-              {availableOptions.isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
-              <span>Liste ({effectiveMatchCount})</span>
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <hr className="border-border/60" />
-
-      {/* 1. Unified Location & Team Search Section */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Compass className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Ort oder Verein
-            </span>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleGetCurrentLocation}
-            disabled={isLocating}
-            className="h-7 text-xs font-medium"
-            title="Eigenen Standort abfragen (Fallback: Stuttgart)"
-          >
-            {isLocating ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-primary" />
-            ) : (
-              <LocateFixed className="mr-1.5 h-3.5 w-3.5 text-primary" />
-            )}
-            <span>📍 Mein Standort</span>
-          </Button>
-        </div>
-
-        {/* Central Unified Search Input */}
-        <div ref={searchContainerRef} className="relative">
-          <form
-            onSubmit={handleSearchSubmit}
-            className="flex items-center gap-1.5"
-          >
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={isDropdownOpen}
-                aria-controls="unified-search-listbox"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setIsDropdownOpen(true);
-                }}
-                onFocus={() => {
-                  if (searchQuery.trim().length > 0 || combinedItems.length > 0) {
-                    setIsDropdownOpen(true);
-                  }
-                }}
-                onKeyDown={handleInputKeyDown}
-                placeholder="Stadt, PLZ oder Verein suchen..."
-                aria-label="Stadt, Postleitzahl oder Verein suchen"
-                className="w-full rounded-md border border-input bg-background/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label="Suche zurücksetzen"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              variant="secondary"
-              size="sm"
-              disabled={
-                (isSearchingOnline || isSearchingTeams) && !searchQuery.trim()
-              }
-              className="h-8 px-2.5 text-xs font-medium shrink-0"
-            >
-              {isSearchingOnline || isSearchingTeams ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              ) : (
-                'Suchen'
-              )}
-            </Button>
-          </form>
-
-          {/* Unified Autocomplete Dropdown with Two Distinct Sections */}
-          {isDropdownOpen &&
-            (combinedItems.length > 0 ||
-              isSearchingOnline ||
-              isSearchingTeams ||
-              (searchQuery.trim().length >= 2 &&
-                !isSearchingOnline &&
-                !isSearchingTeams &&
-                combinedItems.length === 0)) && (
-              <div
-                id="unified-search-listbox"
-                role="listbox"
-                aria-label="Suchvorschläge für Orte und Vereine"
-                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-md"
-              >
-                {/* Sektion 1: 📍 Städte & Orte */}
-                {(allCitySuggestions.length > 0 || isSearchingOnline) && (
-                  <div>
-                    <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="h-3 w-3 text-primary" />
-                        Städte & Orte
-                      </span>
-                      {isSearchingOnline && (
-                        <span className="flex items-center gap-1 text-[10px] font-normal lowercase">
-                          <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
-                          sucht online...
-                        </span>
-                      )}
-                    </div>
-
-                    {allCitySuggestions.map((city) => {
-                      const itemIndex = combinedItems.findIndex(
-                        (it) => it.kind === 'city' && it.item === city,
-                      );
-
-                      const isSelected = itemIndex === highlightedIndex;
-
-                      return (
-                        <button
-                          key={`city-${city.name}-${city.lat}-${city.lng}`}
-                          type="button"
-                          role="option"
-                          aria-selected={isSelected}
-                          onClick={() => handleSelectCity(city)}
-                          onMouseEnter={() => setHighlightedIndex(itemIndex)}
-                          className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
-                            isSelected
-                              ? 'bg-primary/15 font-medium text-primary'
-                              : 'text-foreground hover:bg-muted'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                            <span className="truncate">{city.name}</span>
-                            {city.state && (
-                              <span className="text-[10px] text-muted-foreground shrink-0">
-                                {city.state}
-                              </span>
-                            )}
-                          </div>
-
-                          {city.postalCodes.length > 0 && (
-                            <span className="ml-2 font-mono text-[10px] text-muted-foreground shrink-0">
-                              PLZ {city.postalCodes[0]}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Sektion 2: 🏀 Vereine & Teams */}
-                {(teamSuggestions.length > 0 || isSearchingTeams) && (
-                  <div
-                    className={
-                      allCitySuggestions.length > 0 || isSearchingOnline
-                        ? 'mt-2 pt-1 border-t border-border/40'
-                        : ''
-                    }
-                  >
-                    <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
-                      <span className="flex items-center gap-1.5">
-                        <Trophy className="h-3 w-3 text-primary" />
-                        Vereine & Teams
-                      </span>
-                      {isSearchingTeams && (
-                        <span className="flex items-center gap-1 text-[10px] font-normal lowercase">
-                          <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
-                          sucht Teams...
-                        </span>
-                      )}
-                    </div>
-
-                    {teamSuggestions.map((team) => {
-                      const itemIndex = combinedItems.findIndex(
-                        (it) => it.kind === 'team' && it.item === team,
-                      );
-
-                      const isSelected = itemIndex === highlightedIndex;
-
-                      return (
-                        <button
-                          key={`team-${team.id}-${team.name}-${team.akName ?? ''}-${team.geschlecht ?? ''}`}
-                          type="button"
-                          role="option"
-                          aria-selected={isSelected}
-                          onClick={() => handleSelectTeam(team)}
-                          onMouseEnter={() => setHighlightedIndex(itemIndex)}
-                          className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
-                            isSelected
-                              ? 'bg-primary/15 font-medium text-primary'
-                              : 'text-foreground hover:bg-muted'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="text-sm shrink-0">🏀</span>
-                            <span className="truncate font-medium">
-                              {team.name}
-                            </span>
-                            {team.shortName &&
-                              team.shortName !== team.name && (
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  ({team.shortName})
-                                </span>
-                              )}
-                          </div>
-
-                          {(team.akName || team.geschlecht) && (
-                            <span className="rounded bg-muted/80 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground shrink-0">
-                              {[team.akName, team.geschlecht]
-                                .filter(Boolean)
-                                .join(' ')}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Empty State */}
-                {!isSearchingOnline &&
-                  !isSearchingTeams &&
-                  combinedItems.length === 0 &&
-                  searchQuery.trim().length >= 2 && (
-                    <div className="px-2.5 py-3 text-center text-xs text-muted-foreground">
-                      Keine Treffer für &ldquo;{searchQuery}&rdquo;.
-                    </div>
-                  )}
-              </div>
-            )}
-        </div>
-
-        {/* Active Selection Chip: Exclusive (either Team OR City) */}
-        <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          <span className="text-[11px] text-muted-foreground">Aktiver Filter:</span>
-          {filters.teamQuery ? (
-            <Badge
-              variant="default"
-              className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs py-0.5 px-2.5 shadow-xs"
-              data-testid="active-team-chip"
-            >
-              <span>🏀 {filters.teamQuery}</span>
-              <button
-                type="button"
-                onClick={handleClearTeam}
-                className="ml-1 rounded hover:bg-primary-foreground/20 p-0.5 text-primary-foreground transition-colors"
-                aria-label="Vereinsfilter entfernen"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ) : (
-            <Badge
-              variant="secondary"
-              className="flex items-center gap-1.5 text-xs py-0.5 px-2.5 shadow-xs border border-border/80"
-              data-testid="active-location-chip"
-            >
-              <span>📍 {location.name} (Radius: {radiusKm} km)</span>
-              <button
-                type="button"
-                onClick={handleClearCity}
-                className="ml-1 rounded hover:bg-muted-foreground/20 p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Ortsfilter auf Stuttgart zurücksetzen"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-        </div>
-
-        {/* Radius Controls: Active for Location Mode, Context Note for Team Mode */}
-        {filters.teamQuery ? (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-muted-foreground flex items-start gap-2">
-            <span className="text-sm shrink-0">ℹ️</span>
-            <span>
-              Alle Spiele von <strong>{filters.teamQuery}</strong> werden überregional angezeigt (Umkreisfilter inaktiv).
-            </span>
-          </div>
-        ) : (
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="text-muted-foreground">Zentrum:</span>
-                <span
-                  className="font-medium text-foreground truncate"
-                  title={`${location.name} (${location.lat}, ${location.lng})`}
-                >
-                  📍 {location.name}
-                </span>
-                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
-                  ({location.lat}, {location.lng})
-                </span>
-                {location.name !== STUTTGART_FALLBACK.name && (
-                  <button
-                    type="button"
-                    onClick={handleClearCity}
-                    className="ml-0.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    title="Auf Stuttgart zurücksetzen"
-                    aria-label="Auf Stuttgart zurücksetzen"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-
-              <Badge variant="outline" className="font-mono text-xs shrink-0">
-                Radius: {radiusKm} km
-              </Badge>
-            </div>
-
-            <div className="w-full space-y-1.5">
-              <Slider
-                value={[radiusKm]}
-                min={5}
-                max={50}
-                step={5}
-                onValueChange={(val) => {
-                  const [nextRadius] = val;
-
-                  if (nextRadius !== undefined) {
-                    setRadius(nextRadius);
-                  }
-                }}
-                aria-label="Suchradius in Kilometern"
-                className="w-full"
-              />
-
-              <div className="flex w-full items-center justify-between text-[10px] font-mono text-muted-foreground select-none">
-                <span>5 km</span>
-                <span>25 km</span>
-                <span>50 km</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showRadiusCircle}
-              onClick={() => setShowRadiusCircle(!showRadiusCircle)}
-              className="mt-2 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-foreground">
-                  Suchradius auf Karte anzeigen
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Visualisiert den {radiusKm}-km-Umkreis als transparenten Kreis
-                </div>
-              </div>
-
-              <span
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  showRadiusCircle ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
-                    showRadiusCircle ? 'translate-x-4' : 'translate-x-1'
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
         )}
       </div>
 
-      <hr className="border-border/60" />
-
-      {/* 2. Date Selector Section */}
+      {/* 2. Spieltermin & Manuelle Zeitspanne */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Spieltermin
-            </span>
-          </div>
-
-          {dateMode !== 'all' && (
-            <button
-              type="button"
-              onClick={() => setDateMode('all')}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Alle Termine
-            </button>
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5 text-primary" />
+            Spieltermin
+          </span>
+          {dateMode === 'custom' && (
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 text-primary bg-primary/5">
+              Eigener Zeitraum
+            </Badge>
           )}
         </div>
 
-        {/* Preset Date & Weekend Chips */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            type="button"
-            variant={dateMode === 'today' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('today')}
-            className="h-8 text-xs"
-          >
-            Heute
-          </Button>
-
-          <Button
-            type="button"
-            variant={dateMode === 'tomorrow' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('tomorrow')}
-            className="h-8 text-xs"
-          >
-            Morgen
-          </Button>
-
-          <Button
-            type="button"
-            variant={dateMode === 'weekend' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('weekend')}
-            className="h-8 text-xs truncate"
-            title="Samstag & Sonntag dieses Wochenendes"
-          >
-            Dieses Wochenende
-          </Button>
-
-          <Button
-            type="button"
-            variant={dateMode === 'next-weekend' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('next-weekend')}
-            className="h-8 text-xs truncate"
-            title="Samstag & Sonntag des nächsten Wochenendes"
-          >
-            Nächstes Wochenende
-          </Button>
-
-          <Button
-            type="button"
-            variant={dateMode === 'weekend-after-next' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('weekend-after-next')}
-            className="h-8 text-xs truncate"
-            title="Samstag & Sonntag des übernächsten Wochenendes"
-          >
-            Übernächstes Wochenende
-          </Button>
-
-          <Button
-            type="button"
-            variant={dateMode === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateMode('all')}
-            className="h-8 text-xs truncate"
-          >
-            Alle Termine
-          </Button>
+        {/* Quick Date Presets */}
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {DATE_PRESETS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setDateMode(item.id)}
+              className={`rounded py-1.5 text-xs font-medium transition ${
+                dateMode === item.id
+                  ? 'bg-background text-foreground shadow-xs font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
-        {/* Custom Date Range Inputs (Zeitspanne Von – Bis) */}
-        <div className="space-y-1.5 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-          <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-            <span>Zeitspanne (Von – Bis)</span>
+        {/* Manuelle Zeitspanne (Datum Von – Bis) */}
+        <div className="rounded-xl border border-border/70 bg-card/60 p-2.5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase">
+            <span>Manuelle Zeitspanne</span>
             {dateMode === 'custom' && (
-              <Badge variant="outline" className="text-[10px]">
-                Eigener Zeitraum
-              </Badge>
+              <span className="font-mono text-[10px] text-primary lowercase">
+                {dateRangeDisplay}
+              </span>
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className="flex items-center gap-2 text-xs">
-              <span className="w-8 shrink-0 font-medium text-muted-foreground">
-                Von
-              </span>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Von</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => {
                   const nextFrom = e.target.value;
-
-                  const nextTo =
-                    dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
-
+                  const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
                   setDateRange(nextFrom, nextTo);
                 }}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 aria-label="Startdatum (Von)"
               />
             </label>
 
-            <label className="flex items-center gap-2 text-xs">
-              <span className="w-8 shrink-0 font-medium text-muted-foreground">
-                Bis
-              </span>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-[10px] font-medium text-muted-foreground">Bis</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => {
                   const nextTo = e.target.value;
-
-                  const nextFrom =
-                    dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
-
+                  const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
                   setDateRange(nextFrom, nextTo);
                 }}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="h-8 rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 aria-label="Enddatum (Bis)"
               />
             </label>
           </div>
         </div>
 
-        {/* Toggle: Only Upcoming Matches Without Results */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={onlyUpcoming}
-          onClick={() => setOnlyUpcoming(!onlyUpcoming)}
-          className="mt-1 flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground">
-              Nur anstehende Spiele (ohne Ergebnis)
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Blendet vergangene und bereits gespielte Partien aus
-            </div>
+        {/* Toggle: Nur anstehende Spiele */}
+        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-2.5">
+          <div className="space-y-0.5">
+            <span className="text-xs font-medium text-foreground block">
+              Nur anstehende Spiele
+            </span>
+            <span className="text-[10px] text-muted-foreground block">
+              Beendete Spiele mit Endergebnis ausblenden
+            </span>
           </div>
 
-          <span
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-              onlyUpcoming ? 'bg-primary' : 'bg-muted-foreground/30'
+          <button
+            type="button"
+            role="switch"
+            aria-checked={onlyUpcoming}
+            onClick={() => setOnlyUpcoming(!onlyUpcoming)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              onlyUpcoming ? 'bg-primary' : 'bg-muted'
             }`}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-xs transition-transform ${
-                onlyUpcoming ? 'translate-x-4' : 'translate-x-1'
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                onlyUpcoming ? 'translate-x-4' : 'translate-x-0'
               }`}
             />
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Kombinierte Suche (Stadt, PLZ oder Verein) */}
+      <div className="space-y-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Search className="h-3.5 w-3.5 text-primary" />
+          Ort oder Verein
+        </span>
+        <UnifiedSearchInput
+          location={location}
+          teamQuery={teamQuery}
+          radiusKm={radiusKm}
+          onSelectCity={handleSelectCity}
+          onSelectTeam={handleSelectTeam}
+          onSelectRawTeam={handleSelectRawTeam}
+          onClearCity={handleClearCity}
+          onClearTeam={handleClearTeam}
+        />
+      </div>
+
+      {/* 4. Umkreis */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Compass className="h-3.5 w-3.5 text-primary" />
+            Umkreis: {teamQuery ? 'Inaktiv' : `${radiusKm} km`}
           </span>
-        </button>
-      </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => actions.requestLocation()}
+            className="h-6 px-1.5 text-[11px] text-primary"
+          >
+            <LocateFixed className="mr-1 h-3 w-3" />
+            Mein Standort
+          </Button>
+        </div>
 
-      <hr className="border-border/60" />
-
-      {/* 3. Geschlecht (genders) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Geschlecht
+        {teamQuery ? (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-muted-foreground flex items-start gap-2">
+            <span className="text-sm shrink-0">ℹ️</span>
+            <span>
+              Alle Spiele von <strong>{teamQuery}</strong> werden überregional angezeigt (Umkreisfilter inaktiv).
             </span>
           </div>
-
-          {selectedGenders.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setGenders([])}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Alle ({selectedGenders.length} gewählt)
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {availableGenders.map((gender) => {
-            const isSelected = selectedGenders.includes(gender);
-
-            return (
-              <button
-                key={gender}
-                type="button"
-                onClick={() =>
-                  setGenders(toggleArrayItem(selectedGenders, gender))
-                }
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'border border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
-                }`}
-              >
-                {formatGenderLabel(gender)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <hr className="border-border/60" />
-
-      {/* 4. Altersklasse (ageClasses / akName) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Altersklasse
-            </span>
-          </div>
-
-          {selectedAgeClasses.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setAgeClasses([])}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Alle ({selectedAgeClasses.length} gewählt)
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {availableAgeClasses.map((ageClass) => {
-            const isSelected = selectedAgeClasses.includes(ageClass);
-
-            return (
-              <button
-                key={ageClass}
-                type="button"
-                onClick={() =>
-                  setAgeClasses(toggleArrayItem(selectedAgeClasses, ageClass))
-                }
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'border border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
-                }`}
-              >
-                {ageClass}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <hr className="border-border/60" />
-
-      {/* 5. Spielklasse (skillLevels / skName) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Spielklasse
-            </span>
-          </div>
-
-          {selectedSkillLevels.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSkillLevels([])}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Alle ({selectedSkillLevels.length} gewählt)
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {availableSkillLevels.map((skillLevel) => {
-            const isSelected = selectedSkillLevels.includes(skillLevel);
-
-            return (
-              <button
-                key={skillLevel}
-                type="button"
-                onClick={() =>
-                  setSkillLevels(toggleArrayItem(selectedSkillLevels, skillLevel))
-                }
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'border border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
-                }`}
-              >
-                {skillLevel}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <hr className="border-border/60" />
-
-      {/* 6. Einzel-Ligen (Searchable Multi-Select League List) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Einzel-Ligen ({filteredLeagues.length})
-            </span>
-          </div>
-
-          {selectedLeagueIds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setLeagueIds([])}
-              className="text-[11px] text-primary hover:underline"
-            >
-              Auswahl aufheben ({selectedLeagueIds.length})
-            </button>
-          )}
-        </div>
-
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={leagueSearch}
-            onChange={(e) => setLeagueSearch(e.target.value)}
-            placeholder="Liga suchen (z.B. Oberliga, Neckar, U18)..."
-            className="h-8 w-full rounded-md border border-input bg-background pr-7 pl-8 text-xs text-foreground shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            aria-label="Einzel-Ligen durchsuchen"
-          />
-          {leagueSearch && (
-            <button
-              type="button"
-              onClick={() => setLeagueSearch('')}
-              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Suche löschen"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Filtered League Items */}
-        <div className="max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-border/70 bg-muted/20 p-1.5 space-y-1">
-          {filteredLeagues.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              Keine passenden Ligen für die gewählten Filter gefunden.
+        ) : (
+          <div className="w-full space-y-1.5">
+            <Slider
+              min={5}
+              max={50}
+              step={5}
+              value={[radiusKm]}
+              onValueChange={(val) => val[0] && setRadiusKm(val[0])}
+              disabled={Boolean(teamQuery)}
+              aria-label="Suchradius in Kilometern"
+              className="w-full"
+            />
+            <div className="flex w-full items-center justify-between text-[10px] font-mono text-muted-foreground select-none">
+              <span>5 km</span>
+              <span>25 km</span>
+              <span>50 km</span>
             </div>
-          ) : (
-            filteredLeagues.map((league) => {
-              const isSelected = selectedLeagueIds.includes(league.id);
-
-              const metaBadges = [
-                league.akName,
-                league.skName,
-                league.geschlecht ? formatGenderLabel(league.geschlecht) : undefined,
-              ].filter(Boolean);
-
-              return (
-                <button
-                  key={league.id}
-                  type="button"
-                  onClick={() =>
-                    setLeagueIds(toggleArrayItem(selectedLeagueIds, league.id))
-                  }
-                  className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs transition-colors ${
-                    isSelected
-                      ? 'bg-primary/15 text-foreground font-medium border border-primary/40'
-                      : 'hover:bg-muted/60 text-foreground border border-transparent'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{league.name}</div>
-                    {metaBadges.length > 0 && (
-                      <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                        {metaBadges.join(' • ')}
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                      isSelected
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-background'
-                    }`}
-                  >
-                    {isSelected && <Check className="h-3 w-3" />}
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <hr className="border-border/60" />
-
-      {/* 7. Karten-Renderer (Map Engine Selector) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Map className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Karten-Renderer
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5">
-          {MAP_ENGINE_OPTIONS.map((opt) => {
-            const isSelected = opt.id === mapEngine;
+      {/* 5. Geschlecht */}
+      <div className="space-y-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Users className="h-3.5 w-3.5 text-primary" />
+          Geschlecht
+        </span>
+        <div className="grid grid-cols-3 gap-1">
+          {['männlich', 'weiblich', 'mix'].map((g) => {
+            const isSelected = genders.includes(g);
 
             return (
               <button
-                key={opt.id}
+                key={g}
                 type="button"
-                onClick={() => setMapEngine(opt.id)}
-                className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                onClick={() =>
+                  setGenders(
+                    isSelected
+                      ? genders.filter((x) => x !== g)
+                      : [...genders, g]
+                  )
+                }
+                className={`rounded-lg py-1.5 text-xs font-medium border transition ${
                   isSelected
-                    ? 'border-primary bg-primary/15 text-foreground shadow-xs'
-                    : 'border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
+                    ? 'border-primary bg-primary text-primary-foreground font-bold'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
                 }`}
-                title={opt.description}
               >
-                <div className="flex w-full items-center justify-between gap-1">
-                  <span className="font-semibold text-foreground">{opt.label}</span>
-                  <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-mono">
-                    {opt.badge}
-                  </Badge>
-                </div>
-                <span className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">
-                  {opt.description}
-                </span>
+                {g === 'männlich' ? 'Herren' : g === 'weiblich' ? 'Damen' : 'Mix'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 6. Altersklasse Chips */}
+      <div className="space-y-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Layers className="h-3.5 w-3.5 text-primary" />
+          Altersklasse
+        </span>
+        <div className="flex flex-wrap gap-1">
+          {availableOptions.ageClasses.map((ak) => {
+            const isSelected = ageClasses.includes(ak);
+
+            return (
+              <button
+                key={ak}
+                type="button"
+                onClick={() =>
+                  setAgeClasses(
+                    isSelected
+                      ? ageClasses.filter((x) => x !== ak)
+                      : [...ageClasses, ak]
+                  )
+                }
+                className={`rounded-full px-2.5 py-1 text-xs font-medium border transition ${
+                  isSelected
+                    ? 'border-primary bg-primary text-primary-foreground font-semibold'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {ak}
               </button>
             );
           })}
@@ -1527,94 +534,466 @@ export function FilterBar({
         </div>
       </div>
 
-      <hr className="border-border/60" />
-
       {/* Last Sync Info Footer */}
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5 truncate">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-          <span className="truncate">{formatLastSyncedAt(lastSyncedAt)}</span>
-        </span>
-
-        <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0">
-          DBB Live
-        </span>
-      </div>
+      {availableOptions.lastSyncedAt && (
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate">{formatLastSyncedAt(availableOptions.lastSyncedAt)}</span>
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0">
+            DBB Live
+          </span>
+        </div>
+      )}
     </div>
   );
 
-  // If onClose is provided, render inside an accessible Slide-Over Filter Drawer
-  if (onClose) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex justify-end overscroll-none"
-        role="dialog"
-        aria-modal="true"
+  return (
+    <>
+      {/* 1. DESKTOP SPLIT-SIDEBAR (≥ md Screen: Left Side of Map) */}
+      <aside
         aria-label="Filtereinstellungen"
+        className={`hidden md:flex flex-col border-r border-border/80 bg-background/95 backdrop-blur-md shadow-xl transition-all duration-300 relative z-30 shrink-0 ${
+          isSidebarCollapsed ? 'w-12' : 'w-80 lg:w-96'
+        } ${className}`}
       >
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-          onClick={onClose}
-          aria-hidden="true"
-        />
+        {/* Toggle Collapse Button */}
+        <button
+          type="button"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-5 z-40 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background shadow-md hover:bg-muted text-muted-foreground hover:text-foreground transition"
+          title={isSidebarCollapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste minimieren'}
+        >
+          {isSidebarCollapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          )}
+        </button>
 
-        {/* Slide-Over Sheet Panel */}
-        <aside className="relative z-10 flex h-dvh w-full max-w-md flex-col border-l border-border/80 bg-background shadow-2xl">
-          {/* Sticky Header */}
-          <div className="flex items-center justify-between border-b border-border/80 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-bold tracking-tight text-foreground">
-                Filter & Spielklassen
-              </h2>
-            </div>
-
+        {isSidebarCollapsed ? (
+          <div className="flex flex-col items-center py-6 gap-4 text-muted-foreground">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Filter schließen"
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="p-1 hover:text-foreground"
+              aria-label="Filter öffnen"
             >
-              <X className="h-4 w-4" />
+              <SlidersHorizontal className="h-5 w-5 text-primary" />
             </button>
+            <span className="[writing-mode:vertical-rl] text-xs font-bold tracking-wider uppercase rotate-180">
+              Filter ({activeFilterCount})
+            </span>
           </div>
+        ) : (
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between border-b border-border/80 px-4 py-3.5 bg-card/60">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-bold text-foreground">
+                  Filter & Umkreis
+                </h2>
+              </div>
+              <Badge variant="outline" className="text-[10px] flex items-center gap-1">
+                {availableOptions.isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
+                <span>{effectiveMatchCount} Spiele</span>
+              </Badge>
+            </div>
 
-          {/* Scrollable Filter Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain p-5">{filterFormContent}</div>
-
-          {/* Sticky Drawer Footer */}
-          <div className="flex items-center justify-between gap-3 border-t border-border/80 bg-card/80 px-5 py-3.5 backdrop-blur-md">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={resetFilters}
-              className="text-xs"
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              Zurücksetzen
-            </Button>
-
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={onClose}
-              className="flex-1 text-xs font-semibold flex items-center justify-center gap-1.5"
-            >
-              {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
-              <span>{effectiveMatchCount} {effectiveMatchCount === 1 ? 'Spiel' : 'Spiele'} anzeigen</span>
-            </Button>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 overscroll-contain">
+              {filterFormContent}
+            </div>
           </div>
-        </aside>
-      </div>
-    );
-  }
+        )}
+      </aside>
 
-  return (
-    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs sm:p-5">
-      {filterFormContent}
-    </div>
+      {/* 2. BOTTOM QUICK-FILTER AREA (Hidden when a venue/match modal is active to prevent any overlap) */}
+      {!hasSelectedVenue && (
+        /* NATIVE DOCKED BOTTOM SHEET PEEK (Apple Maps standard) */
+        <div
+          data-testid="bottom-filter-bar"
+          className="fixed md:absolute bottom-0 inset-x-0 md:bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-30 flex flex-col items-center w-full md:max-w-xl pointer-events-none"
+        >
+          {/* Desktop Quick Date Popover */}
+          {desktopPopover === 'date' && (
+            <div className="hidden md:block absolute bottom-full mb-2 left-4 z-40 w-64 rounded-xl border border-border bg-popover/95 p-2.5 shadow-2xl backdrop-blur-md pointer-events-auto">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase px-2 py-1">
+                Spieltermin wählen
+              </div>
+              <div className="grid grid-cols-1 gap-1">
+                {DATE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setDateMode(preset.id);
+                      setDesktopPopover(null);
+                    }}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-medium ${
+                      dateMode === preset.id
+                        ? 'bg-primary text-primary-foreground font-semibold'
+                        : 'hover:bg-muted text-foreground'
+                    }`}
+                  >
+                    <span>{preset.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Date Range in Desktop Popover */}
+              <div className="pt-2 mt-2 border-t border-border/60">
+                <div className="text-[10px] font-semibold text-muted-foreground uppercase px-1 mb-1.5 flex items-center justify-between">
+                  <span>Eigener Zeitraum</span>
+                  {dateMode === 'custom' && (
+                    <span className="text-[10px] text-primary lowercase">{dateRangeDisplay}</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 px-1">
+                  <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                    <span>Von</span>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => {
+                        const nextFrom = e.target.value;
+                        const nextTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo;
+                        setDateRange(nextFrom, nextTo);
+                      }}
+                      className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      aria-label="Desktop Startdatum (Von)"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+                    <span>Bis</span>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => {
+                        const nextTo = e.target.value;
+                        const nextFrom = dateFrom && nextTo && nextTo < dateFrom ? nextTo : dateFrom;
+                        setDateRange(nextFrom, nextTo);
+                      }}
+                      className="h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      aria-label="Desktop Enddatum (Bis)"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Desktop Quick Radius Popover */}
+          {desktopPopover === 'radius' && (
+            <div className="hidden md:block absolute bottom-full mb-2 left-24 z-40 w-56 rounded-xl border border-border bg-popover/95 p-3 shadow-2xl backdrop-blur-md pointer-events-auto">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase pb-2">
+                Suchradius
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 mb-3">
+                {[10, 20, 35, 50].map((km) => (
+                  <button
+                    key={km}
+                    type="button"
+                    onClick={() => {
+                      setRadiusKm(km);
+                      setDesktopPopover(null);
+                    }}
+                    className={`rounded-lg py-1 text-xs font-semibold ${
+                      radiusKm === km
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-border/80 hover:bg-muted text-foreground'
+                    }`}
+                  >
+                    {km}km
+                  </button>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  actions.requestLocation();
+                  setDesktopPopover(null);
+                }}
+                className="w-full text-xs h-7"
+              >
+                <LocateFixed className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                Mein Standort
+              </Button>
+            </div>
+          )}
+
+          <div
+            onTouchStart={handleBarTouchStart}
+            onTouchMove={handleBarTouchMove}
+            className="pointer-events-auto w-full md:rounded-2xl rounded-t-[28px] border-t md:border border-border bg-card/95 shadow-2xl backdrop-blur-2xl px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-2.5 ring-1 ring-border/20 transition-all"
+          >
+            {/* Native Drag Handle for Mobile */}
+            <button
+              type="button"
+              onTouchStart={handleBarTouchStart}
+              onTouchMove={handleBarTouchMove}
+              onClick={() => setIsMobileSheetOpen(true)}
+              className="md:hidden flex w-full flex-col items-center pt-0.5 pb-2 text-muted-foreground hover:text-foreground transition touch-none cursor-grab active:cursor-grabbing"
+              aria-label="Filter & Suche nach oben ziehen oder öffnen"
+            >
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
+            </button>
+
+            {/* Row 1: Native Search Capsule & Filter Trigger */}
+            <div className="flex items-center gap-2">
+              {teamQuery ? (
+                <div
+                  data-testid="bottom-bar-team-chip"
+                  className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm shrink-0">🏀</span>
+                    <span className="truncate">{teamQuery}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearTeam}
+                    className="rounded-full p-1 hover:bg-primary/20 text-primary transition"
+                    aria-label="Vereinsfilter aufheben"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : isCustomCityActive ? (
+                <div
+                  data-testid="bottom-bar-city-chip"
+                  className="flex flex-1 items-center justify-between rounded-2xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm shrink-0">📍</span>
+                    <span className="truncate">
+                      {location.name} (Radius: {radiusKm} km)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearCity}
+                    className="rounded-full p-1 hover:bg-primary/20 text-primary transition"
+                    aria-label="Ortsfilter aufheben"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.innerWidth < 768) {
+                      setIsMobileSheetOpen(true);
+                    } else {
+                      setIsSidebarCollapsed(false);
+                    }
+                  }}
+                  className="flex flex-1 items-center gap-2.5 rounded-2xl border border-border bg-card px-3.5 py-2 text-xs text-muted-foreground hover:border-primary/50 hover:bg-muted transition shadow-inner group"
+                >
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                    <Search className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <span className="block truncate font-medium text-foreground group-hover:text-primary transition leading-tight">
+                      Stadt, PLZ oder Verein suchen...
+                    </span>
+                    <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground font-mono">
+                      <span>{location?.name ? `📍 ${location.name} (${radiusKm} km)` : `${radiusKm} km`} • {dateLabel} •</span>
+                      {availableOptions.isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
+                      <span>{effectiveMatchCount} Spiele</span>
+                    </span>
+                  </div>
+                </button>
+              )}
+
+              {/* Primary Filter Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setIsSidebarCollapsed(false);
+                  }
+                }}
+                className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 font-mono text-[10px] font-bold text-primary">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Row 2: Horizontal Quick Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 px-0.5">
+              {/* Date Chip */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setDesktopPopover(desktopPopover === 'date' ? null : 'date');
+                  }
+                }}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+                  dateMode !== 'all'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-muted/80 text-foreground hover:bg-muted border border-border'
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                <span>{dateLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </button>
+
+              {/* Radius Chip */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setDesktopPopover(desktopPopover === 'radius' ? null : 'radius');
+                  }
+                }}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+                  teamQuery
+                    ? 'bg-muted/40 text-muted-foreground/60 line-through'
+                    : radiusKm !== 30
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-muted/80 text-foreground hover:bg-muted border border-border'
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span>{teamQuery ? 'Alle Hallen' : `${radiusKm} km`}</span>
+                {!teamQuery && <ChevronDown className="h-3 w-3 opacity-70" />}
+              </button>
+
+              {/* Quick Gender Chips */}
+              {['männlich', 'weiblich'].map((g) => {
+                const isSelected = genders.includes(g);
+
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() =>
+                      setGenders(
+                        isSelected
+                          ? genders.filter((x) => x !== g)
+                          : [...genders, g]
+                      )
+                    }
+                    className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-medium border transition ${
+                      isSelected
+                        ? 'border-primary bg-primary text-primary-foreground font-semibold'
+                        : 'border-border bg-muted/80 text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {g === 'männlich' ? 'Herren' : 'Damen'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. MOBILE BOTTOM SHEET (Sliding up from bottom, thumb-reachable) */}
+      {isMobileSheetOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex flex-col justify-end"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filtereinstellungen"
+        >
+          {/* Backdrop */}
+          <div
+            className={`fixed inset-0 bg-black/70 backdrop-blur-xs ${
+              isAnimatingOut ? 'animate-backdrop-out' : 'animate-backdrop-in'
+            }`}
+            onClick={closeWithAnimation}
+          />
+
+          {/* Bottom Sheet Container with iOS Spring Animation & Drag Gesture */}
+          <div
+            style={
+              dragY > 0
+                ? {
+                    transform: `translateY(${dragY}px)`,
+                    transition: isDragging
+                      ? 'none'
+                      : 'transform 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+                  }
+                : undefined
+            }
+            className={`relative z-10 flex max-h-[85dvh] flex-col rounded-t-[28px] border-t border-border bg-card shadow-2xl overflow-hidden ${
+              isAnimatingOut ? 'modal-mobile-sheet-out' : 'modal-mobile-sheet-in'
+            }`}
+          >
+            {/* Drag Handle Bar & Header (Touch gesture zone) */}
+            <div
+              {...sheetTouchHandlers}
+              className="flex flex-col items-center pt-3 pb-2 border-b border-border/60 cursor-grab active:cursor-grabbing touch-none select-none"
+            >
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/40 mb-2" />
+              <div className="flex w-full items-center justify-between px-5">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-bold text-foreground">
+                    Filter & Umkreis
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeWithAnimation}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Schließen"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Form Content */}
+            <div className="flex-1 overflow-y-auto p-5 overscroll-contain">
+              {filterFormContent}
+            </div>
+
+            {/* Sticky Action Footer */}
+            <div className="border-t border-border p-4 bg-card/95 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+              >
+                Zurücksetzen
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={closeWithAnimation}
+                className="flex-1 font-bold flex items-center justify-center gap-1.5"
+              >
+                {availableOptions.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>{effectiveMatchCount} Spiele anzeigen</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

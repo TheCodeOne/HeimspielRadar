@@ -13,20 +13,7 @@ export { isTeamNumberMatch, sortMatches };
 
 export { useLeagues, type UseLeaguesResult } from './use-leagues';
 
-export interface UseMatchesOptions {
-  date?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  lat: number;
-  lng: number;
-  radiusKm: number;
-  leagueId?: number;
-  leagueIds?: number[];
-  genders?: string[];
-  ageClasses?: string[];
-  skillLevels?: string[];
-  onlyUpcoming?: boolean;
-  teamQuery?: string;
+export interface UseMatchesOptions extends NearbyMatchesQuery {
   debounceMs?: number;
   initialMasterPool?: MasterPoolState;
 }
@@ -89,14 +76,16 @@ export function isQueryCoveredByMasterPool(
   }
 
   // Radius limit check: User query radius cannot exceed masterpool radius
-  if (query.radiusKm > MASTER_POOL_RADIUS_KM) {
+  const radiusKm = query.radiusKm ?? 30;
+
+  if (radiusKm > MASTER_POOL_RADIUS_KM) {
     return false;
   }
 
   // Distance check: Current query origin shift + requested radius must not exceed masterpool radius
   const originDist = calculateDistanceKm(query.lat, query.lng, pool.lat, pool.lng);
 
-  if (originDist + query.radiusKm > MASTER_POOL_RADIUS_KM) {
+  if (originDist + radiusKm > MASTER_POOL_RADIUS_KM) {
     return false;
   }
 
@@ -160,7 +149,7 @@ export function useMatches({
   dateTo,
   lat,
   lng,
-  radiusKm,
+  radiusKm = 30,
   leagueId,
   leagueIds,
   genders,
@@ -335,8 +324,14 @@ export function useMatches({
           queryParams.set('dateTo', dateTo);
         }
 
-        queryParams.set('lat', lat.toString());
-        queryParams.set('lng', lng.toString());
+        if (lat != null && !isNaN(lat)) {
+          queryParams.set('lat', lat.toString());
+        }
+
+        if (lng != null && !isNaN(lng)) {
+          queryParams.set('lng', lng.toString());
+        }
+
         queryParams.set('radiusKm', radiusKm.toString());
 
         if (leagueId) {
@@ -386,6 +381,8 @@ export function useMatches({
 
           if (
             distance == null &&
+            lat != null &&
+            lng != null &&
             item.venue?.latitude != null &&
             item.venue?.longitude != null
           ) {

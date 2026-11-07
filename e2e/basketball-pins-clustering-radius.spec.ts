@@ -205,7 +205,7 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
   });
 
   test('3. Search Center marker renders when a city is selected', async ({ page }) => {
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
     // Search Center pin is visible for Stuttgart fallback center
     const searchMarker = page.locator('.search-center-marker').first();
@@ -213,12 +213,17 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
     await expect(searchMarker).toContainText('Stuttgart');
     await expect(searchMarker.locator('svg path[fill="#ef4444"]')).toBeVisible();
 
-    // Open filter drawer, search Tübingen
-    await page.locator('header').getByRole('button', { name: /Filter/i }).click();
-    const drawer = page.locator('aside');
-    await expect(drawer).toBeVisible();
+    const isMobile = (page.viewportSize()?.width ?? 1000) < 768;
 
-    const searchInput = drawer.getByPlaceholder('Stadt oder PLZ suchen...');
+    const drawer = isMobile
+      ? page.getByRole('dialog', { name: 'Filtereinstellungen' })
+      : page.locator('aside[aria-label="Filtereinstellungen"]');
+
+    if (isMobile) {
+      await page.getByTestId('bottom-filter-bar').getByRole('button', { name: 'Filter', exact: true }).click();
+    }
+
+    const searchInput = drawer.getByPlaceholder('Stadt, PLZ oder Verein suchen...');
     await searchInput.fill('72072');
 
     const suggestionBox = drawer.locator('div[role="listbox"]');
@@ -227,21 +232,18 @@ test.describe('Issue #63: Basketball Pins, Zoom Clustering, Search Center & Radi
     const option = suggestionBox.getByRole('option', { name: /Tübingen/i }).first();
     await option.click();
 
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
+    if (isMobile) {
+      await drawer.getByRole('button', { name: /Spiele anzeigen/i }).click();
+    }
 
     // Now search center marker should show Tübingen
     await expect(page.locator('.search-center-marker').first()).toContainText('Tübingen');
   });
 
-  test('4. Radius circle toggle in Filter drawer toggles visibility and persists', async ({ page }) => {
-    await page.goto('/?legacy=true');
+  test('4. Radius circle toggle in Settings toggles visibility and persists', async ({ page }) => {
+    await page.goto('/settings');
 
-    // Open filter drawer
-    await page.locator('header').getByRole('button', { name: /Filter/i }).click();
-    const drawer = page.locator('aside');
-    await expect(drawer).toBeVisible();
-
-    const radiusToggle = drawer.getByRole('switch', { name: /Suchradius auf Karte anzeigen/i });
+    const radiusToggle = page.getByRole('switch', { name: /Suchradius auf Karte anzeigen/i });
     await expect(radiusToggle).toBeVisible();
     await expect(radiusToggle).toHaveAttribute('aria-checked', 'true');
 

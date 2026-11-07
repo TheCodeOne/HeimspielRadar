@@ -291,6 +291,7 @@ export function SettingsView({
               <button
                 type="button"
                 role="switch"
+                aria-label="Suchradius auf Karte anzeigen"
                 aria-checked={showRadiusCircle}
                 onClick={() => onToggleRadiusCircle(!showRadiusCircle)}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
