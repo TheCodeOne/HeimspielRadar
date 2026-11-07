@@ -10,18 +10,8 @@ import {
 import type { Match } from '@sundayleague/shared-types';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { FilterBar } from '@/components/filters/FilterBar';
-import {
-  VariantA_QuickFilterBar,
-  VariantB_AccordionDrawer,
-  VariantC_DesktopSidebar,
-  VariantD_BottomBarSheet,
-} from '@/components/filters/prototypes';
 import { SettingsView } from '@/components/settings';
 import { AppHeader, NavigationDrawer } from '@/components/navigation';
-import {
-  PrototypeSwitcher,
-  type PrototypeVariant,
-} from '@/components/prototype/PrototypeSwitcher';
 import { MapContainer } from '@/components/map';
 import { groupMatchesByVenue, isSameVenue } from '@/components/map/map-utils';
 import {
@@ -45,8 +35,7 @@ import { useServerHealth } from '@/lib/use-server-health';
 import { ThemeProvider, useOnlineStatus } from '@/hooks';
 
 interface MainViewProps {
-  filters: ReturnType<typeof useMatchFilters>['filters'];
-  actions: ReturnType<typeof useMatchFilters>['actions'];
+  filterEngine: ReturnType<typeof useMatchFilters>;
   leagues: ReturnType<typeof useLeagues>['leagues'];
   availableGenders: string[];
   availableAgeClasses: string[];
@@ -56,8 +45,7 @@ interface MainViewProps {
 }
 
 function MainView({
-  filters,
-  actions,
+  filterEngine,
   leagues,
   availableGenders,
   availableAgeClasses,
@@ -66,51 +54,9 @@ function MainView({
   onOpenNav,
 }: MainViewProps) {
   const isOnline = useOnlineStatus();
+  const { filters, actions, query } = filterEngine;
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState<boolean>(false);
-
-  // Fallback: Support legacy FilterBar if ?legacy=true is present in URL
-  const isLegacy = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    return new URLSearchParams(window.location.search).get('legacy') === 'true';
-  }, []);
-
-  // Prototype Switcher pill: only display if ?prototypes, ?debug or ?switcher is in URL
-  const showPrototypeSwitcher = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    const params = new URLSearchParams(window.location.search);
-
-    return params.has('prototypes') || params.has('debug') || params.has('switcher');
-  }, []);
-
-  // Prototype Variant selection: A (Quick-Filter), B (Accordion-Drawer), C (Desktop Sidebar), D (Hybrid Bottom-Bar + Sheet)
-  const [currentVariant, setCurrentVariant] = React.useState<PrototypeVariant>(() => {
-    if (typeof window !== 'undefined') {
-      const param = new URLSearchParams(window.location.search).get('variant');
-
-      if (param === 'A' || param === 'B' || param === 'C' || param === 'D') {
-        return param;
-      }
-    }
-
-    return 'D';
-  });
-
-  const handleSelectVariant = React.useCallback((v: PrototypeVariant) => {
-    setCurrentVariant(v);
-
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('variant', v);
-      window.history.replaceState({}, '', url.toString());
-    }
-  }, []);
 
   // Selected match for map marker / multi-match venue overlay (supports deep link ?matchId=)
   const [selectedMatchId, setSelectedMatchId] = React.useState<number | null>(() => {
@@ -159,21 +105,8 @@ function MainView({
     }
   };
 
-  // Query matches with debounced API integration and hierarchical filter params
-  const { matches, isLoading } = useMatches({
-    dateFrom: filters.dateFrom || undefined,
-    dateTo: filters.dateTo || undefined,
-    lat: filters.location.lat,
-    lng: filters.location.lng,
-    radiusKm: filters.radiusKm,
-    leagueIds: filters.leagueIds.length > 0 ? filters.leagueIds : undefined,
-    genders: filters.genders.length > 0 ? filters.genders : undefined,
-    ageClasses: filters.ageClasses.length > 0 ? filters.ageClasses : undefined,
-    skillLevels: filters.skillLevels.length > 0 ? filters.skillLevels : undefined,
-    onlyUpcoming: filters.onlyUpcoming,
-    teamQuery: filters.teamQuery,
-    debounceMs: 300,
-  });
+  // Query matches with debounced API integration and deepened query seam
+  const { matches, isLoading } = useMatches(query);
 
   // Clear selectedMatchId if the selected match is no longer in the filtered results (after loading completes)
   React.useEffect(() => {
@@ -244,57 +177,17 @@ function MainView({
         lastSyncedAt={lastSyncedAt}
         isOnline={isOnline}
       >
-        {isLegacy ? (
-          /* Legacy Filter Trigger Button */
-          <Button
+        {/* Active filter count badge in header */}
+        {filters.activeFilterCount > 0 && (
+          <button
             type="button"
-            variant="outline"
-            size="sm"
             onClick={() => setIsFilterDrawerOpen(true)}
-            className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
+            className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+            title="Aktive Filter bearbeiten"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-            <span>Filter</span>
-            {filters.activeFilterCount > 0 && (
-              <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                {filters.activeFilterCount}
-              </span>
-            )}
-          </Button>
-        ) : (
-          <>
-            {/* Active filter count badge in header for Variant D */}
-            {currentVariant === 'D' && filters.activeFilterCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsFilterDrawerOpen(true)}
-                className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
-                title="Aktive Filter bearbeiten"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>{filters.activeFilterCount} aktiv</span>
-              </button>
-            )}
-
-            {/* Filter Drawer Trigger Button for Variants A, B, C */}
-            {currentVariant !== 'D' && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFilterDrawerOpen(true)}
-                className="h-8 gap-1.5 px-2.5 text-xs font-medium sm:px-3"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-                <span>Filter</span>
-                {filters.activeFilterCount > 0 && (
-                  <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                    {filters.activeFilterCount}
-                  </span>
-                )}
-              </Button>
-            )}
-          </>
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>{filters.activeFilterCount} aktiv</span>
+          </button>
         )}
       </AppHeader>
 
@@ -332,109 +225,26 @@ function MainView({
 
       {/* Main Content Area: Full-Screen Map View OR Full-Screen List View */}
       <main className="relative flex flex-1 min-h-0 w-full flex-col md:flex-row overflow-hidden">
-        {/* Variant C: Split-Sidebar on Desktop & Bottom-Sheet on Mobile */}
-        {currentVariant === 'C' && (
-          <VariantC_DesktopSidebar
-            isOpen={isFilterDrawerOpen}
-            onClose={() => setIsFilterDrawerOpen(false)}
-            filters={filters}
-            availableOptions={{
-              leagues,
-              genders: availableGenders,
-              ageClasses: availableAgeClasses,
-              skillLevels: availableSkillLevels,
-              matchCount: matches.length,
-              isLoading,
-              lastSyncedAt,
-            }}
-            actions={actions}
-          />
-        )}
-
-        {/* Variant D: Hybrid Bottom-Bar + Bottom-Sheet + Desktop-Sidebar */}
-        {!isLegacy && currentVariant === 'D' && (
-          <VariantD_BottomBarSheet
-            isOpen={isFilterDrawerOpen}
-            onClose={() => setIsFilterDrawerOpen(false)}
-            filters={filters}
-            availableOptions={{
-              leagues,
-              genders: availableGenders,
-              ageClasses: availableAgeClasses,
-              skillLevels: availableSkillLevels,
-              matchCount: matches.length,
-              isLoading,
-              lastSyncedAt,
-            }}
-            actions={actions}
-            hasSelectedVenue={selectedMatch?.venue != null}
-          />
-        )}
+        {/* Canonical FilterBar: Bottom Bar (Docked Peek) + Mobile Sheet + Desktop Sidebar */}
+        <FilterBar
+          isOpen={isFilterDrawerOpen}
+          onClose={() => setIsFilterDrawerOpen(false)}
+          filters={filters}
+          availableOptions={{
+            leagues,
+            genders: availableGenders,
+            ageClasses: availableAgeClasses,
+            skillLevels: availableSkillLevels,
+            matchCount: matches.length,
+            isLoading,
+            lastSyncedAt,
+          }}
+          actions={actions}
+          hasSelectedVenue={selectedMatch?.venue != null}
+        />
 
         {filters.viewMode === 'map' ? (
           <div className="relative flex flex-1 min-h-0 h-full w-full flex-col">
-            {/* Variant A: Floating Quick-Filter Pill Bar on Map */}
-            {currentVariant === 'A' && (
-              <VariantA_QuickFilterBar
-                isOpen={isFilterDrawerOpen}
-                onClose={() => setIsFilterDrawerOpen(false)}
-                filters={filters}
-                availableOptions={{
-                  leagues,
-                  genders: availableGenders,
-                  ageClasses: availableAgeClasses,
-                  skillLevels: availableSkillLevels,
-                  matchCount: matches.length,
-                  isLoading,
-                  lastSyncedAt,
-                }}
-                actions={actions}
-              />
-            )}
-
-            {/* Floating Map Summary Chip (Active in Legacy mode or Prototype Variants B & C) */}
-            {(isLegacy || (currentVariant !== 'A' && currentVariant !== 'D')) && (
-              <button
-                type="button"
-                onClick={() => setIsFilterDrawerOpen(true)}
-                aria-label="Filter öffnen"
-                title="Filter und Standort anpassen"
-                className="absolute top-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto z-20 flex max-w-[calc(100%-4.5rem)] sm:max-w-[calc(100%-2rem)] items-center gap-1.5 sm:gap-2 rounded-full border border-border bg-card/90 px-3 sm:px-3.5 py-1.5 text-xs text-foreground shadow-lg backdrop-blur-md transition-all hover:border-primary/50 hover:bg-muted active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-              >
-                {filters.teamQuery ? (
-                  <>
-                    <span className="shrink-0 text-sm leading-none">🏀</span>
-                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                      {filters.teamQuery}
-                    </span>
-                    <span className="font-mono text-muted-foreground shrink-0 flex items-center gap-1.5">
-                      • {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
-                      {matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    <span className="truncate font-medium max-w-[150px] sm:max-w-xs">
-                      {filters.location.name}
-                    </span>
-                    <span className="font-mono text-muted-foreground shrink-0">
-                      • {filters.radiusKm} km
-                    </span>
-                    <span className="hidden text-muted-foreground sm:inline shrink-0">
-                      • {filters.dateRangeDisplay}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className="ml-0.5 shrink-0 border-border bg-muted/80 font-mono text-[10px] text-foreground flex items-center gap-1"
-                    >
-                      {isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />}
-                      <span>{matches.length} {matches.length === 1 ? 'Spiel' : 'Spiele'}</span>
-                    </Badge>
-                  </>
-                )}
-              </button>
-            )}
 
             {/* Full-Bleed MapContainer */}
             <MapContainer
@@ -572,52 +382,6 @@ function MainView({
         )}
       </main>
 
-      {/* Variant B: Accordion Drawer (when isOpen) */}
-      {currentVariant === 'B' && (
-        <VariantB_AccordionDrawer
-          isOpen={isFilterDrawerOpen}
-          onClose={() => setIsFilterDrawerOpen(false)}
-          filters={filters}
-          availableOptions={{
-            leagues,
-            genders: availableGenders,
-            ageClasses: availableAgeClasses,
-            skillLevels: availableSkillLevels,
-            matchCount: matches.length,
-            isLoading,
-            lastSyncedAt,
-          }}
-          actions={actions}
-        />
-      )}
-
-      {/* Legacy FilterBar (Safety Fallback if ?legacy=true is requested) */}
-      {isLegacy && (
-        <FilterBar
-          isOpen={isFilterDrawerOpen}
-          onClose={() => setIsFilterDrawerOpen(false)}
-          filters={filters}
-          availableOptions={{
-            leagues,
-            genders: availableGenders,
-            ageClasses: availableAgeClasses,
-            skillLevels: availableSkillLevels,
-            matchCount: matches.length,
-            isLoading,
-            lastSyncedAt,
-          }}
-          actions={actions}
-        />
-      )}
-
-      {/* Interactive Prototype Switcher Floating Pill (Only when requested via ?prototypes, ?debug or ?switcher) */}
-      {showPrototypeSwitcher && (
-        <PrototypeSwitcher
-          currentVariant={currentVariant}
-          onSelectVariant={handleSelectVariant}
-        />
-      )}
-
       {/* Kiosk & Venue Info Submission Modal */}
       <KioskSubmissionModal
         match={kioskModalMatch}
@@ -688,7 +452,8 @@ export function App() {
     skillLevels: availableSkillLevels,
   } = useLeagues();
 
-  const { filters, actions } = useMatchFilters({ leagues });
+  const filterEngine = useMatchFilters({ leagues });
+  const { filters, actions } = filterEngine;
   const { lastSyncedAt } = useServerHealth();
 
   const isAdminRoute = currentPath.startsWith('/admin');
@@ -767,8 +532,7 @@ export function App() {
   } else {
     content = (
       <MainView
-        filters={filters}
-        actions={actions}
+        filterEngine={filterEngine}
         leagues={leagues}
         availableGenders={availableGenders}
         availableAgeClasses={availableAgeClasses}

@@ -590,4 +590,101 @@ describe('useMatchFilters & MatchFiltersController (Headless Unit Tests)', () =>
       expect(controller.getState().teamQuery).toBeUndefined();
     });
   });
+
+  describe('11. Query Seam Normalization (filterEngine.query)', () => {
+    it('normalizes default filter state into a clean NearbyMatchesQuery without empty arrays', () => {
+      const storage = new MockStorage();
+
+      const filterEngine = useMatchFilters({
+        storage,
+        now: nowFn,
+        headless: true,
+      });
+
+      const { query } = filterEngine;
+
+      expect(query.lat).toBe(STUTTGART_FALLBACK.lat);
+      expect(query.lng).toBe(STUTTGART_FALLBACK.lng);
+      expect(query.radiusKm).toBe(30);
+      expect(query.onlyUpcoming).toBe(true);
+      // Weekend Oct 24-25, 2026: distinct range so date is undefined, dateFrom and dateTo are populated
+      expect(query.dateFrom).toBe('2026-10-24');
+      expect(query.dateTo).toBe('2026-10-25');
+      expect(query.date).toBeUndefined();
+      // Empty arrays and unset queries must be undefined
+      expect(query.leagueIds).toBeUndefined();
+      expect(query.genders).toBeUndefined();
+      expect(query.gender).toBeUndefined();
+      expect(query.ageClasses).toBeUndefined();
+      expect(query.ageGroup).toBeUndefined();
+      expect(query.skillLevels).toBeUndefined();
+      expect(query.teamQuery).toBeUndefined();
+      expect(query.teamSearch).toBeUndefined();
+    });
+
+    it('populates date, dateFrom, and dateTo identically when dateMode is a single day (today)', () => {
+      const storage = new MockStorage();
+
+      const controller = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      controller.actions.setDateMode('today');
+      const { query } = controller;
+
+      expect(query.date).toBe('2026-10-21');
+      expect(query.dateFrom).toBe('2026-10-21');
+      expect(query.dateTo).toBe('2026-10-21');
+    });
+
+    it('normalizes complex hierarchical filters and singular aliases', () => {
+      const storage = new MockStorage();
+
+      const controller = createMatchFilters({
+        storage,
+        now: nowFn,
+        leagues: MOCK_LEAGUES,
+      });
+
+      controller.actions.setGenders(['männlich']);
+      controller.actions.setAgeClasses(['Senioren']);
+      controller.actions.setSkillLevels(['Oberliga']);
+      controller.actions.setLeagueIds([101]);
+      controller.actions.setTeamQuery('  TSG Reutlingen  ');
+      controller.actions.setRadius(45);
+      controller.actions.setOnlyUpcoming(false);
+
+      const query = controller.getQuery();
+
+      expect(query.radiusKm).toBe(45);
+      expect(query.onlyUpcoming).toBe(false);
+      expect(query.leagueIds).toEqual([101]);
+      expect(query.genders).toEqual(['männlich']);
+      expect(query.gender).toBe('männlich');
+      expect(query.ageClasses).toEqual(['Senioren']);
+      expect(query.ageGroup).toBe('Senioren');
+      expect(query.skillLevels).toEqual(['Oberliga']);
+      expect(query.teamQuery).toBe('TSG Reutlingen');
+      expect(query.teamSearch).toBe('TSG Reutlingen');
+    });
+
+    it('resets query when resetFilters is invoked', () => {
+      const storage = new MockStorage();
+
+      const controller = createMatchFilters({
+        storage,
+        now: nowFn,
+      });
+
+      controller.actions.setTeamQuery('SV Pfrondorf');
+      controller.actions.setRadius(50);
+      expect(controller.query.teamQuery).toBe('SV Pfrondorf');
+      expect(controller.query.radiusKm).toBe(50);
+
+      controller.actions.resetFilters();
+      expect(controller.query.teamQuery).toBeUndefined();
+      expect(controller.query.radiusKm).toBe(30);
+    });
+  });
 });

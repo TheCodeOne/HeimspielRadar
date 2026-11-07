@@ -77,7 +77,7 @@ test.describe('Hallenkaffee Donation & Transparency Integration', () => {
   test('displays header coffee button and filter drawer supporter card with correct links', async ({
     page,
   }, testInfo) => {
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
     // 1. Header Coffee Button
     const headerCoffeeButton = page.getByRole('link', {
@@ -114,13 +114,18 @@ test.describe('Hallenkaffee Donation & Transparency Integration', () => {
       path: `test-results/verify-${projectName}.png`,
     });
 
-    // 2. Open Filter Drawer
-    const filterButton = page.getByRole('button', { name: 'Filter', exact: true });
+    // 2. Open Filter Drawer / Sheet
+    let drawer;
 
-    await filterButton.click();
-
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
-    await expect(drawer).toBeVisible();
+    if (isMobile) {
+      const filterButton = page.getByTestId('bottom-filter-bar').getByRole('button', { name: 'Filter', exact: true });
+      await filterButton.click();
+      drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+      await expect(drawer).toBeVisible();
+    } else {
+      drawer = page.locator('aside[aria-label="Filtereinstellungen"]');
+      await expect(drawer).toBeVisible();
+    }
 
     // 3. Supporter Card in Drawer
     const supporterCardTitle = drawer.getByText('Gefällt dir HeimspielRadar?');
@@ -164,7 +169,7 @@ test.describe('Hallenkaffee Donation & Transparency Integration', () => {
     });
   });
 
-  test('displays header coffee button on default bottom-sheet layout (Variant D)', async ({
+  test('displays header coffee button on canonical bottom-sheet layout', async ({
     page,
   }) => {
     await page.goto('/');

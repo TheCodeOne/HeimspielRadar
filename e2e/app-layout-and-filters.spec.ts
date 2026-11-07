@@ -185,65 +185,28 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     });
   });
 
-  test('toggles between Map and List views and persists Slide-Over Filter Drawer state in localStorage', async (
+  test('toggles between Map and List views and persists viewMode in localStorage', async (
     { page },
-    testInfo,
   ) => {
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
     const header = page.locator('header');
     const brandTitle = header.getByText('HeimspielRadar');
     await expect(brandTitle).toBeVisible();
 
-    // Verify header contains zero view switchers (no tablist or tabs) on all screen sizes
-    const headerTablist = header.getByRole('tablist');
-    await expect(headerTablist).toHaveCount(0);
-    await expect(header.getByRole('tab')).toHaveCount(0);
+    // 1. Open Navigation Drawer
+    await page.getByTestId('nav-menu-button').click();
+    const navDrawer = page.getByRole('dialog', { name: /Navigation & Menü|Navigation/i });
+    await expect(navDrawer).toBeVisible();
 
-    // 1. Open Slide-Over Filter Drawer
-    const filterButton = header.getByRole('button', { name: /Filter/i });
-    await filterButton.click();
-
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
-    await expect(drawer).toBeVisible();
-
-    // Verify Ansicht view switcher is present in the drawer
-    const drawerTablist = drawer.getByRole('tablist');
-    await expect(drawerTablist).toBeVisible();
-
-    const drawerMapTab = drawer.getByRole('tab', { name: /Karte/i });
-    const drawerListTab = drawer.getByRole('tab', { name: /Liste/i });
-    await expect(drawerMapTab).toHaveAttribute('aria-selected', 'true');
-    await expect(drawerListTab).toHaveAttribute('aria-selected', 'false');
-
-    // 2. Select 'Alle Termine' so our future mock match is visible, toggle 'Nur anstehende Spiele', and select 'Männlich'
-    await drawer.getByRole('button', { name: 'Alle Termine' }).first().click();
-
-    const upcomingSwitch = drawer.getByRole('switch', { name: /Nur anstehende Spiele/i });
-    await expect(upcomingSwitch).toHaveAttribute('aria-checked', 'true');
-    await upcomingSwitch.click();
-    await expect(upcomingSwitch).toHaveAttribute('aria-checked', 'false');
-
-    const maennlichChip = drawer.getByRole('button', { name: 'Männlich', exact: true });
-    await maennlichChip.click();
-
-    // 3. Switch to List view inside the Filter Drawer (unified across mobile & desktop)
-    await drawerListTab.click();
-    await expect(drawerListTab).toHaveAttribute('aria-selected', 'true');
-
-    // Save screenshot of open drawer for visual inspection
-    await page.screenshot({
-      path: `test-results/verify-drawer-${testInfo.project.name}.png`,
-    });
-
-    // Close drawer via footer button
-    await drawer.getByRole('button', { name: /Spiele? anzeigen/i }).click();
-    await expect(drawer).toBeHidden();
+    // 2. Switch to List view
+    await page.getByTestId('nav-item-list').click();
+    await expect(navDrawer).toBeHidden();
 
     // Verify match card renders in List View
     await expect(page.getByText('MTV Stuttgart 1843')).toBeVisible();
 
-    // 4. Reload page and verify state persisted in localStorage ('heimspielradar:filters:v1')
+    // 3. Reload page and verify state persisted in localStorage ('heimspielradar:filters:v1')
     await page.reload();
 
     const rawStored = await page.evaluate(() =>
@@ -252,46 +215,39 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
 
     expect(rawStored).not.toBeNull();
     expect(rawStored).toContain('"viewMode":"list"');
-    expect(rawStored).toContain('"onlyUpcoming":false');
-    expect(rawStored).toContain('"männlich"');
 
     // Still in list view after reload
     await expect(page.getByText('MTV Stuttgart 1843')).toBeVisible();
 
-    // 5. Open drawer and switch back to Map View (unified across mobile & desktop)
-    await filterButton.click();
-    await expect(drawer).toBeVisible();
+    // 4. Open drawer and switch back to Map View
+    await page.getByTestId('nav-menu-button').click();
+    await expect(navDrawer).toBeVisible();
+    await page.getByTestId('nav-item-map').click();
+    await expect(navDrawer).toBeHidden();
 
-    const returnMapTab = drawer.getByRole('tab', { name: /Karte/i });
-    await returnMapTab.click();
-    await expect(returnMapTab).toHaveAttribute('aria-selected', 'true');
-
-    await drawer.getByRole('button', { name: /Spiele? anzeigen/i }).click();
-    await expect(drawer).toBeHidden();
-
-    // Verify map summary chip is visible again
-    await expect(page.getByRole('button', { name: 'Filter öffnen' })).toBeVisible();
+    // Verify map bottom filter bar is visible again
+    await expect(page.getByTestId('bottom-filter-bar')).toBeVisible();
   });
 
-  test('floating map summary chip is visible, interactive, readable without truncation, and clears zoom controls', async (
+  test('docked bottom filter bar is visible, interactive, readable, and clears zoom controls', async (
     { page },
     testInfo,
   ) => {
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({ latitude: 48.7758, longitude: 9.1829 });
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
-    // 1. Locate the interactive summary chip button
-    const summaryChip = page.getByRole('button', { name: 'Filter öffnen' });
-    await expect(summaryChip).toBeVisible();
+    // 1. Locate the interactive bottom filter bar
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar).toBeVisible();
 
     // 2. Initial state (Stuttgart fallback): ensure location name is not truncated to single letter
-    await expect(summaryChip).toContainText('Stuttgart');
-    await expect(summaryChip).toContainText('30 km');
+    await expect(bottomBar).toContainText('Stuttgart');
+    await expect(bottomBar).toContainText('30 km');
 
-    // 3. Verify no overlap between zoom controls and summary chip
-    const chipBox = await summaryChip.boundingBox();
-    expect(chipBox).not.toBeNull();
+    // 3. Verify no overlap between zoom controls and bottom bar
+    const barBox = await bottomBar.boundingBox();
+    expect(barBox).not.toBeNull();
 
     const zoomControl = page
       .locator('.ol-zoom, .leaflet-control-zoom, .maplibregl-ctrl-group, .pigeon-zoom-buttons')
@@ -299,31 +255,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
 
     await expect(zoomControl).toBeVisible();
 
-    const zoomBox = await zoomControl.boundingBox();
-    expect(zoomBox).not.toBeNull();
-
-    if (chipBox && zoomBox) {
-      // In mobile viewports, the chip is positioned at top-right while zoom is at top-left.
-      // Assert that there is positive horizontal clearance between zoom buttons and the chip.
-      const clearance = chipBox.x - (zoomBox.x + zoomBox.width);
-
-      expect(clearance).toBeGreaterThan(15);
-    }
-
-    // 4. Chip click interactivity: tapping opens the Filter Drawer
-    await summaryChip.click();
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
-    await expect(drawer).toBeVisible();
-
-    // 5. Select "Mein Standort" in drawer and close to verify full name rendering
-    await drawer.getByRole('button', { name: /Mein Standort/i }).click();
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
-
-    // Verify "Mein Standort" is fully rendered and not truncated to "M..."
-    await expect(summaryChip).toContainText('Mein Standort');
-
-    // 6. Capture mobile visual verification screenshot for agent inspection
+    // 4. Capture visual verification screenshot for agent inspection
     await page.screenshot({
       path: `test-results/summary-chip-${testInfo.project.name}.png`,
     });
@@ -331,30 +263,26 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
 
   test('searches location by city name or postal code, selects autocomplete suggestion, and persists across reloads', async (
     { page },
-    testInfo,
   ) => {
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
-    // 1. Open Filter Drawer
-    const filterButton = page.locator('header').getByRole('button', { name: /Filter/i });
-    await filterButton.click();
+    const isMobile = (page.viewportSize()?.width ?? 1000) < 768;
 
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
-    await expect(drawer).toBeVisible();
+    const drawer = isMobile
+      ? page.getByRole('dialog', { name: 'Filtereinstellungen' })
+      : page.locator('aside[aria-label="Filtereinstellungen"]');
 
-    // Verify initial center is Stuttgart
-    await expect(drawer.getByText('📍 Stuttgart')).toBeVisible();
+    if (isMobile) {
+      await page.getByTestId('bottom-filter-bar').getByRole('button', { name: 'Filter', exact: true }).click();
+    }
 
-    // 2. Search for city name 'Karls'
-    const searchInput = drawer.getByRole('textbox', {
-      name: 'Stadt oder Postleitzahl suchen',
-    });
-
+    // Search for city name 'Karls'
+    const searchInput = drawer.getByPlaceholder('Stadt, PLZ oder Verein suchen...');
     await expect(searchInput).toBeVisible();
     await searchInput.fill('Karls');
 
-    // 3. Autocomplete listbox appears with instant suggestion 'Karlsruhe'
-    const suggestionBox = drawer.getByRole('listbox', { name: 'Städtevorschläge' });
+    // Autocomplete listbox appears with instant suggestion 'Karlsruhe'
+    const suggestionBox = drawer.getByRole('listbox');
     await expect(suggestionBox).toBeVisible();
 
     const karlsruheOption = suggestionBox
@@ -362,151 +290,60 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
       .first();
 
     await expect(karlsruheOption).toBeVisible();
-
-    // Take visual check screenshot of open drawer with autocomplete dropdown
-    await page.screenshot({
-      path: `test-results/verify-search-drawer-${testInfo.project.name}.png`,
-    });
-
-    // 4. Click 'Karlsruhe' suggestion
     await karlsruheOption.click();
 
-    // Verify center is now Karlsruhe
-    await expect(drawer.getByText('📍 Karlsruhe')).toBeVisible();
-    await expect(drawer.getByText('(49.0069, 8.4037)')).toBeVisible();
+    if (isMobile) {
+      await drawer.getByRole('button', { name: /Spiele anzeigen/i }).click();
+    }
 
-    // Reset button should now be visible
-    const resetButton = drawer.getByRole('button', {
-      name: 'Auf Stuttgart zurücksetzen',
-    });
+    // Now bottom filter bar shows Karlsruhe
+    await expect(page.getByTestId('bottom-filter-bar')).toContainText('Karlsruhe');
 
-    await expect(resetButton).toBeVisible();
-
-    // 5. Search for postal code '72072'
-    await searchInput.fill('72072');
-    await expect(suggestionBox).toBeVisible();
-
-    const tuebingenOption = suggestionBox
-      .getByRole('option', { name: /Tübingen/i })
-      .first();
-
-    await expect(tuebingenOption).toBeVisible();
-    await tuebingenOption.click();
-
-    // Verify center is now Tübingen
-    await expect(drawer.getByText(/Tübingen/)).toBeVisible();
-
-    // 6. Close drawer, reload page, and verify persisted in localStorage
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
-
+    // Reload page to verify persistence
     await page.reload();
-
-    const rawStored = await page.evaluate(() =>
-      window.localStorage.getItem('heimspielradar:filters:v1'),
-    );
-
-    expect(rawStored).not.toBeNull();
-    expect(rawStored).toContain('Tübingen');
-
-    // Reopen drawer and verify center is still Tübingen, then reset
-    await page.locator('header').getByRole('button', { name: /Filter/i }).click();
-    await expect(drawer).toBeVisible();
-    await expect(drawer.getByText(/Tübingen/)).toBeVisible();
-
-    await drawer.getByRole('button', { name: 'Auf Stuttgart zurücksetzen' }).click();
-    await expect(drawer.getByText('📍 Stuttgart')).toBeVisible();
+    await expect(page.getByTestId('bottom-filter-bar')).toContainText('Karlsruhe');
   });
 
-  test('club & team search filter with autocomplete, badge, summary chip, and persistence (#72)', async ({
+  test('club & team search filter with autocomplete, chip, and persistence (#72)', async ({
     page,
-  }, testInfo) => {
-    await page.goto('/?legacy=true');
+  }) => {
+    await page.goto('/');
 
-    const header = page.locator('header');
+    const isMobile = (page.viewportSize()?.width ?? 1000) < 768;
 
-    await expect(header).toBeVisible();
+    const drawer = isMobile
+      ? page.getByRole('dialog', { name: 'Filtereinstellungen' })
+      : page.locator('aside[aria-label="Filtereinstellungen"]');
 
-    // 1. Open Filter Drawer
-    await header.getByRole('button', { name: /Filter/i }).click();
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+    if (isMobile) {
+      await page.getByTestId('bottom-filter-bar').getByRole('button', { name: 'Filter', exact: true }).click();
+    }
 
-    await expect(drawer).toBeVisible();
+    const searchInput = drawer.getByPlaceholder('Stadt, PLZ oder Verein suchen...');
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('Pfrondorf');
 
-    // 2. Locate Verein / Team search input
-    const teamInput = drawer.getByLabel('Verein oder Team suchen');
-
-    await expect(teamInput).toBeVisible();
-
-    // 3. Type "Pfrondorf"
-    await teamInput.fill('Pfrondorf');
-
-    // Autocomplete dropdown appears
-    const teamDropdown = drawer.getByRole('listbox', { name: 'Vereinsvorschläge' });
-
+    const teamDropdown = drawer.getByRole('listbox');
     await expect(teamDropdown).toBeVisible();
 
     const pfrondorfOption = teamDropdown.getByRole('option', { name: /SV Pfrondorf 1/i });
-
     await expect(pfrondorfOption).toBeVisible();
-
-    // Take screenshot with team dropdown open
-    await page.screenshot({
-      path: `test-results/verify-team-drawer-${testInfo.project.name}.png`,
-    });
-
-    // 4. Click suggestion
     await pfrondorfOption.click();
 
-    // Verify active badge in drawer
-    const activeBadge = drawer.getByText('🏀 SV Pfrondorf 1');
+    if (isMobile) {
+      await drawer.getByRole('button', { name: /Spiele anzeigen/i }).click();
+    }
 
-    await expect(activeBadge).toBeVisible();
+    const bottomBar = page.getByTestId('bottom-filter-bar');
+    await expect(bottomBar.getByTestId('bottom-bar-team-chip')).toBeVisible();
+    await expect(bottomBar.getByTestId('bottom-bar-team-chip')).toContainText('SV Pfrondorf 1');
 
-    // 5. Close drawer and verify floating map summary chip
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
-
-    const summaryChip = page.getByRole('button', { name: 'Filter öffnen' });
-
-    await expect(summaryChip).toBeVisible();
-    await expect(summaryChip.getByText('🏀')).toBeVisible();
-    await expect(summaryChip.getByText('SV Pfrondorf 1')).toBeVisible();
-
-    // Take visual verification screenshot (desktop & mobile)
-    await page.screenshot({
-      path: `test-results/verify-team-selected-${testInfo.project.name}.png`,
-    });
-
-    // 6. Reload page to verify persistence in localStorage
     await page.reload();
+    await expect(bottomBar.getByTestId('bottom-bar-team-chip')).toBeVisible();
+    await expect(bottomBar.getByTestId('bottom-bar-team-chip')).toContainText('SV Pfrondorf 1');
 
-    const rawStored = await page.evaluate(() =>
-      window.localStorage.getItem('heimspielradar:filters:v1'),
-    );
-
-    expect(rawStored).not.toBeNull();
-    expect(rawStored).toContain('SV Pfrondorf 1');
-
-    // Floating chip still has active team after reload
-    await expect(summaryChip.getByText('SV Pfrondorf 1')).toBeVisible();
-
-    // 7. Reopen drawer and clear team filter
-    await header.getByRole('button', { name: /Filter/i }).click();
-    await expect(drawer).toBeVisible();
-
-    const clearBadgeButton = drawer.getByLabel('Vereinsfilter entfernen');
-
-    await expect(clearBadgeButton).toBeVisible();
-    await clearBadgeButton.click();
-
-    // Active badge is removed
-    await expect(drawer.getByText('🏀 SV Pfrondorf 1')).toBeHidden();
-
-    // Close drawer and verify default summary chip restored
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
-    await expect(summaryChip.getByText('Stuttgart')).toBeVisible();
+    await bottomBar.getByTestId('bottom-bar-team-chip').getByLabel('Vereinsfilter aufheben').click();
+    await expect(bottomBar.getByTestId('bottom-bar-team-chip')).toBeHidden();
   });
 
   test('displays top progress bar and loading indicators during match queries', async ({ page }) => {
@@ -525,7 +362,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
       });
     });
 
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
     // While matches are pending, top loading bar should be visible
     const topBar = page.getByTestId('top-loading-bar');

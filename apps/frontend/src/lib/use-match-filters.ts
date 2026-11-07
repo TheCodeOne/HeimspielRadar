@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { League } from '@sundayleague/shared-types';
+import type { League, NearbyMatchesQuery } from '@sundayleague/shared-types';
 import type { MapEngineType } from '@/components/map/map-engine.types';
 import {
   type DateRange,
@@ -8,7 +8,7 @@ import {
 import { type LocationReference, STUTTGART_FALLBACK } from './geo-utils';
 import { useGeolocation, type GeolocationPositionCoords } from '@/hooks/useGeolocation';
 
-export type { GeolocationPositionCoords };
+export type { GeolocationPositionCoords, NearbyMatchesQuery };
 
 export const FILTER_STORAGE_KEY = 'heimspielradar:filters:v1';
 
@@ -89,6 +89,7 @@ export interface MatchFiltersState extends PersistedFilterState {
   isLocating: boolean;
   locationError: string | null;
   userCoords: GeolocationPositionCoords | null;
+  query: NearbyMatchesQuery;
 }
 
 export interface MatchFiltersActions {
@@ -136,6 +137,7 @@ export interface UseMatchFiltersReturn {
   filters: MatchFiltersState;
   actions: MatchFiltersActions;
   controller: MatchFiltersController;
+  query: NearbyMatchesQuery;
 }
 
 export function getBerlinDateString(date: Date): string {
@@ -251,6 +253,67 @@ export function resolveDateRangeFromMode(
   customDateTo: string,
 ): DateRange {
   return resolveDateRange(mode, customDateFrom, customDateTo);
+}
+
+export function normalizeFilterQuery(
+  state: PersistedFilterState,
+  dateFrom: string,
+  dateTo: string,
+): NearbyMatchesQuery {
+  const query: NearbyMatchesQuery = {
+    lat: state.location?.lat,
+    lng: state.location?.lng,
+    radiusKm: state.radiusKm,
+    onlyUpcoming: state.onlyUpcoming,
+  };
+
+  const trimmedFrom = dateFrom?.trim();
+  const trimmedTo = dateTo?.trim();
+
+  if (trimmedFrom) {
+    query.dateFrom = trimmedFrom;
+  }
+
+  if (trimmedTo) {
+    query.dateTo = trimmedTo;
+  }
+
+  if (trimmedFrom && trimmedFrom === trimmedTo) {
+    query.date = trimmedFrom;
+  }
+
+  if (state.leagueIds && state.leagueIds.length > 0) {
+    query.leagueIds = state.leagueIds;
+  }
+
+  if (state.genders && state.genders.length > 0) {
+    query.genders = state.genders;
+
+    if (state.genders.length === 1) {
+      query.gender = state.genders[0];
+    }
+  }
+
+  if (state.ageClasses && state.ageClasses.length > 0) {
+    query.ageClasses = state.ageClasses;
+
+    if (state.ageClasses.length === 1) {
+      query.ageGroup = state.ageClasses[0];
+    }
+  }
+
+  if (state.skillLevels && state.skillLevels.length > 0) {
+    query.skillLevels = state.skillLevels;
+  }
+
+  const trimmedTeam = state.teamQuery?.trim();
+
+  if (trimmedTeam && trimmedTeam.length > 0) {
+    query.teamQuery = trimmedTeam;
+    query.teamSearch = trimmedTeam;
+  }
+
+  return query;
 }
 
 export function countActiveFilters(state: PersistedFilterState): number {
@@ -680,6 +743,7 @@ export class MatchFiltersController {
 
     const dateRangeDisplay = formatDisplayDateRange(dateFrom, dateTo);
     const activeFilterCount = countActiveFilters(this.persisted);
+    const query = normalizeFilterQuery(this.persisted, dateFrom, dateTo);
 
     this.cachedState = {
       ...this.persisted,
@@ -687,6 +751,7 @@ export class MatchFiltersController {
       dateTo,
       dateRangeDisplay,
       activeFilterCount,
+      query,
       isLocating: this.isLocating,
       locationError: this.locationError,
       userCoords:
@@ -694,6 +759,14 @@ export class MatchFiltersController {
     };
 
     return this.cachedState;
+  };
+
+  getQuery = (): NearbyMatchesQuery => {
+    return this.getState().query;
+  };
+
+  get query(): NearbyMatchesQuery {
+    return this.getState().query;
   };
 
   locateUser = async (): Promise<LocationReference | null> => {
@@ -906,11 +979,13 @@ export function useMatchFilters(
   // If running in node/SSR/headless environment without React hooks or DOM, return controller directly
   if (options?.headless || typeof window === 'undefined') {
     const controller = createMatchFilters(options);
+    const state = controller.getState();
 
     return {
-      filters: controller.getState(),
+      filters: state,
       actions: controller.actions,
       controller,
+      query: state.query,
     };
   }
 
@@ -954,6 +1029,7 @@ export function useMatchFilters(
     filters: state,
     actions: controllerRef.current.actions,
     controller: controllerRef.current,
+    query: state.query,
   };
 }
 

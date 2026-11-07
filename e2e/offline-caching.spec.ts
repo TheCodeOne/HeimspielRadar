@@ -108,7 +108,7 @@ test.describe('Offline Caching & Offline Status Indicator', () => {
     context,
   }) => {
     // 1. Initial online load
-    await page.goto('/?variant=D');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Matches should be loaded and reflected in match count

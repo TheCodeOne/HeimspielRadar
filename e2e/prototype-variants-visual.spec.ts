@@ -1,6 +1,72 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
+const MOCK_LEAGUES = [
+  {
+    id: 1,
+    dbbId: 50001,
+    name: 'Oberliga Württemberg Herren',
+    skName: 'Oberliga',
+    akName: 'Senioren',
+    geschlecht: 'männlich',
+  },
+  {
+    id: 2,
+    dbbId: 50002,
+    name: 'Landesliga Damen',
+    skName: 'Landesliga',
+    akName: 'Senioren',
+    geschlecht: 'weiblich',
+  },
+];
+
+const MOCK_MATCHES = [
+  {
+    id: 102,
+    leagueId: 1,
+    league: MOCK_LEAGUES[0],
+    matchDay: 4,
+    kickoffDate: '2026-11-08',
+    kickoffTime: '18:00',
+    homeTeam: { id: 10, dbbId: 1010, name: 'MTV Stuttgart 1843' },
+    guestTeam: { id: 11, dbbId: 1011, name: 'SV Möhringen' },
+    venue: {
+      id: 502,
+      name: 'Remigiussporthalle',
+      street: 'Remigiusstraße 5',
+      postalCode: '72108',
+      city: 'Rottenburg am Neckar',
+      latitude: 48.4764,
+      longitude: 8.9327,
+    },
+    result: null,
+    confirmed: false,
+    distanceKm: 5.2,
+  },
+  {
+    id: 103,
+    leagueId: 2,
+    league: MOCK_LEAGUES[1],
+    matchDay: 5,
+    kickoffDate: '2026-11-08',
+    kickoffTime: '15:30',
+    homeTeam: { id: 20, dbbId: 1020, name: 'TSG Reutlingen 2' },
+    guestTeam: { id: 21, dbbId: 1021, name: 'SV Pfrondorf' },
+    venue: {
+      id: 503,
+      name: 'Theodor-Heuss-Halle',
+      street: 'Carl-Diem-Straße 10',
+      postalCode: '72760',
+      city: 'Reutlingen',
+      latitude: 48.4912,
+      longitude: 9.2045,
+    },
+    result: null,
+    confirmed: false,
+    distanceKm: 8.5,
+  },
+];
+
+test.describe('Canonical FilterBar UI/UX & Interactivity', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/health', async (route) => {
       await route.fulfill({
@@ -9,10 +75,37 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
         body: JSON.stringify({ status: 'ok', lastSyncedAt: '2026-10-25T10:00:00Z' }),
       });
     });
+
+    await page.route('**/api/leagues', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_LEAGUES),
+      });
+    });
+
+    await page.route(/\/api\/matches/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_MATCHES),
+      });
+    });
+
+    await page.route('**/photon.komoot.io/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          type: 'FeatureCollection',
+          features: [],
+        }),
+      });
+    });
   });
 
-  test('Variant D (Favorit Hybrid): Bottom-Bar, Mobile Bottom-Sheet & Navigation to Settings', async ({ page }) => {
-    await page.goto('/?variant=D');
+  test('FilterBar: Docked Bottom-Bar, Mobile Bottom-Sheet & Navigation to Settings', async ({ page }) => {
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // 1. Verify Header Menu Button is present
@@ -78,64 +171,9 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(page).toHaveURL(/\//);
   });
 
-  test('Variant A: Quick-Filter Pill Bar on Map renders cleanly', async ({ page }) => {
-    await page.goto('/?variant=A');
-    await page.waitForLoadState('networkidle');
-
-    // Verify Quick Filter Bar Pills are visible
-    const barA = page.getByTestId('quick-filter-bar-a');
-    await expect(barA.getByText(/Heute|Termin|Wochenende|Dieses WE/i)).toBeVisible();
-    await expect(barA.getByText('30 km')).toBeVisible();
-    await expect(barA.getByPlaceholder(/Verein \/ Team/i)).toBeVisible();
-
-    await page.screenshot({
-      path: `test-results/variant-a-${test.info().project.name}.png`,
-      fullPage: true,
-    });
-  });
-
-  test('Variant B: Accordion Drawer opens and displays segmented controls', async ({ page }) => {
-    await page.goto('/?variant=B');
-    await page.waitForLoadState('networkidle');
-
-    // Click Filter button in header or map summary
-    const filterBtn = page.getByRole('button', { name: /Filter/i }).first();
-    await filterBtn.click();
-
-    // Verify Drawer header and accordions
-    await expect(page.getByRole('heading', { name: /Filter \(Variante B\)/i })).toBeVisible();
-    await expect(page.getByText(/Zielgruppe & Jugend/i)).toBeVisible();
-    await expect(page.getByText(/Spielklassen & Einzel-Ligen/i)).toBeVisible();
-
-    await page.screenshot({
-      path: `test-results/variant-b-${test.info().project.name}.png`,
-      fullPage: true,
-    });
-  });
-
-  test('Variant C: Desktop Split-Sidebar & Mobile Bottom-Sheet renders cleanly', async ({ page }) => {
-    await page.goto('/?variant=C');
-    await page.waitForLoadState('networkidle');
-
-    if (test.info().project.name === 'desktop-chromium') {
-      // On desktop, the sidebar is permanently visible beside the map
-      await expect(page.getByRole('heading', { name: /Filter-Sidebar \(Variante C\)/i })).toBeVisible();
-    } else {
-      // On mobile, trigger filter to open bottom sheet
-      const filterBtn = page.getByRole('button', { name: /Filter/i }).first();
-      await filterBtn.click();
-      await expect(page.getByText(/Filter & Umkreis/i)).toBeVisible();
-    }
-
-    await page.screenshot({
-      path: `test-results/variant-c-${test.info().project.name}.png`,
-      fullPage: true,
-    });
-  });
-
   test('VenueModal: Opens when match is selected, hides bottom bar to prevent overlap', async ({ page }) => {
     // Navigate with a selected upcoming match (Sample match 102: Remigiussporthalle)
-    await page.goto('/?variant=D&matchId=102');
+    await page.goto('/?matchId=102');
     await page.waitForLoadState('networkidle');
 
     // Verify VenueModal is visible
@@ -162,7 +200,7 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
       return;
     }
 
-    await page.goto('/?variant=D');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     const bottomBar = page.getByTestId('bottom-filter-bar');
@@ -215,8 +253,8 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(bottomBar).toBeVisible();
   });
 
-  test('Variant D: Filters work interactively (Gender toggle, Date selection, Reset)', async ({ page }) => {
-    await page.goto('/?variant=D');
+  test('FilterBar: Filters work interactively (Gender toggle, Date selection, Reset)', async ({ page }) => {
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     const bottomBar = page.getByTestId('bottom-filter-bar');
@@ -258,8 +296,8 @@ test.describe('Filter Prototype Variants UI/UX Evaluation', () => {
     await expect(damenBtn).not.toHaveClass(/border-primary/);
   });
 
-  test('Variant D: Manual date range selection updates filter state and label', async ({ page }) => {
-    await page.goto('/?variant=D');
+  test('FilterBar: Manual date range selection updates filter state and label', async ({ page }) => {
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     if (test.info().project.name === 'mobile-chromium') {

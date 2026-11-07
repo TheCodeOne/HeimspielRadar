@@ -137,15 +137,20 @@ test.describe('Issue #167: Unified Search (Location & Teams)', () => {
     { page },
     testInfo,
   ) => {
-    await page.goto('/?legacy=true');
+    await page.goto('/');
 
-    // 1. Open Filter Drawer
-    const header = page.locator('header');
-    await expect(header).toBeVisible();
-    await header.getByRole('button', { name: 'Filter' }).click({ force: true });
+    const isMobile = testInfo.project.name.includes('mobile');
+    let drawer;
 
-    const drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
-    await expect(drawer).toBeVisible();
+    if (isMobile) {
+      const filterButton = page.getByTestId('bottom-filter-bar').getByRole('button', { name: 'Filter', exact: true });
+      await filterButton.click();
+      drawer = page.getByRole('dialog', { name: 'Filtereinstellungen' });
+      await expect(drawer).toBeVisible();
+    } else {
+      drawer = page.locator('aside[aria-label="Filtereinstellungen"]');
+      await expect(drawer).toBeVisible();
+    }
 
     // 2. Check unified search input
     const searchInput = drawer.getByPlaceholder('Stadt, PLZ oder Verein suchen...');
@@ -236,8 +241,10 @@ test.describe('Issue #167: Unified Search (Location & Teams)', () => {
     await expect(drawer.getByTestId('active-team-chip')).toBeHidden();
     await expect(drawer.getByTestId('active-location-chip')).toBeVisible();
 
-    // 9. Close drawer
-    await drawer.getByRole('button', { name: 'Filter schließen' }).click();
-    await expect(drawer).toBeHidden();
+    // 9. Close drawer if mobile
+    if (isMobile) {
+      await drawer.getByRole('button', { name: /Schließen/i }).click();
+      await expect(drawer).toBeHidden();
+    }
   });
 });

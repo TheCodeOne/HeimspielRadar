@@ -225,15 +225,20 @@ export interface NearbyMatchesQuery {
   dateFrom?: string; // YYYY-MM-DD (inclusive start of range)
   dateTo?: string; // YYYY-MM-DD (inclusive end of range)
   teamQuery?: string;
+  teamSearch?: string;
   lat?: number;
   lng?: number;
   radiusKm?: number;
   leagueId?: number;
   leagueIds?: number[];
   genders?: string[];
+  gender?: string;
   ageClasses?: string[];
+  ageGroup?: string;
   skillLevels?: string[];
   onlyUpcoming?: boolean;
+  clubId?: number;
+  teamDbbId?: number;
 }
 
 export interface SyncFailure {
