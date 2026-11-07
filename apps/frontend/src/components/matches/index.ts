@@ -1,3 +1,7 @@
+export * from './MatchTile';
+
+export * from './TopMatchBadge';
+
 export * from './MatchCard';
 
 export * from './MatchList';

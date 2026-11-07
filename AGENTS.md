@@ -7,16 +7,16 @@ Universal operating rules and context pointers for all agents working in this re
 ## 1. Issue Lifecycle, Kanban Board & Worktree Isolation
 
 1. **Kanban Board & Issue Tracking**:
-   All active issues, dependencies, and PRs are centralized on the [**HeimspielRadar Kanban Board**](https://github.com/users/TheCodeOne/projects/2) (GitHub Project #2).
+   All active issues, dependencies, and PRs are centralized on the [**HeimspielRadar Kanban Board**](https://github.com/orgs/heimspielradar/projects/1) (GitHub Project #1).
    The board uses 4 canonical status columns: `Todo` ➔ `In Progress` ➔ `PR` ➔ `Done`.
    - When picking up or transitioning an issue:
      ```bash
      gh issue edit <issue-id> --add-label "in-progress" --remove-label "blocked,ready"
-     gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/issues/<issue-id>"
+     gh project item-add 1 --owner heimspielradar --url "https://github.com/heimspielradar/HeimspielRadar/issues/<issue-id>"
      ```
    - When opening a Pull Request, add the PR to the board and ensure the status is set to `PR`:
      ```bash
-     gh project item-add 2 --owner TheCodeOne --url "https://github.com/TheCodeOne/HeimspielRadar/pull/<pr-number>"
+     gh project item-add 1 --owner heimspielradar --url "https://github.com/heimspielradar/HeimspielRadar/pull/<pr-number>"
      ```
    - Issues labeled `needs:grill-me` require an interactive human alignment session (`/grill-with-docs`) before implementation.
 2. **Execute Implementation Inside a Dedicated Git Worktree**:
@@ -46,7 +46,7 @@ Universal operating rules and context pointers for all agents working in this re
   - **Database Schema (`apps/backend/src/app/database/schema.ts`)**: `DatabaseModule.onModuleInit` runs SQL migrations from `drizzle/migrations/` on startup. When editing `schema.ts`, always run `npm run db:generate && npm run db:check`.
   - **Map Engines (`apps/frontend/src/components/map/engines/`)**: When changing marker interaction, selection styling, or viewport sizing in `MapContainer.tsx`, update all four engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`).
   - **Match Filtering (`apps/backend/src/app/matches/matches.service.ts`)**: When adding or changing match filter semantics in `MatchesService.findMatches`, update the client-side sample fallback in `apps/frontend/src/lib/use-matches.ts` in lockstep.
-  - **Match Badges & Card Interactions (`apps/frontend/src/components/matches/MatchCard.tsx` ↔ `apps/frontend/src/components/matches/VenueModal.tsx`)**: Whenever match badges, status indicators, or interactive modals on match tiles (e.g. Featured/Topspiel, Kiosk, League badges) are added or updated in `MatchCard.tsx`, mirror the behavior and props in `VenueModal.tsx` in lockstep.
+  - **Match Tiles & Badges Presentation (`apps/frontend/src/components/matches/MatchTile.tsx` & `TopMatchBadge.tsx`)**: Presentation of match tiles across the application is unified in `<MatchTile />` (`variant="card"` for `MatchList` / `MatchCard`, `variant="row"` for `VenueModal`) and `<TopMatchBadge />` (used in `MatchTile` and `MatchDetailView`). All badges, team matchups, kiosk indicators, and quick-actions are consolidated in these canonical single-source-of-truth components.
 
 ---
 
