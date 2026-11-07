@@ -35,6 +35,37 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout PR branch for lockfile healing
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' ||
+          steps.metadata.outputs.package-ecosystem == 'npm'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js 22
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' ||
+          steps.metadata.outputs.package-ecosystem == 'npm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resync package-lock.json with monorepo dependency tree
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' ||
+          steps.metadata.outputs.package-ecosystem == 'npm'
+        run: |
+          npm install --package-lock-only
+          if [ -n "$(git status --porcelain package-lock.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore(deps): resync package-lock.json for monorepo peer dependencies"
+            git push
+          fi
+
       - name: Enable auto-merge for safe updates (Minor, Patch, or devDependencies)
         if: |
           steps.metadata.outputs.update-type != 'version-update:semver-major' ||
