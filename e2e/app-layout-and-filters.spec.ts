@@ -249,9 +249,7 @@ test.describe('HeimspielRadar Layout, Viewport Geometry & Filters', () => {
     const barBox = await bottomBar.boundingBox();
     expect(barBox).not.toBeNull();
 
-    const zoomControl = page
-      .locator('.ol-zoom, .leaflet-control-zoom, .maplibregl-ctrl-group, .pigeon-zoom-buttons')
-      .first();
+    const zoomControl = page.locator('.maplibregl-ctrl-group').first();
 
     await expect(zoomControl).toBeVisible();
 

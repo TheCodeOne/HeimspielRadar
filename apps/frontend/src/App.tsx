@@ -168,7 +168,7 @@ function MainView({
     setSelectedMatchId(match.id);
   };
 
-  // Reset all filters to default while preserving current viewMode and mapEngine
+  // Reset all filters to default while preserving current viewMode
   const handleResetFilters = () => {
     actions.resetFilters();
   };
@@ -278,8 +278,6 @@ function MainView({
               onMarkerClick={handleMarkerClick}
               onLocateUser={handleLocateUser}
               isLocating={filters.isLocating}
-              engine={filters.mapEngine}
-              onEngineChange={actions.setMapEngine}
               teamQuery={filters.teamQuery}
               className="flex-1 h-full w-full min-h-0 rounded-none border-0 shadow-none"
               mapHeightClassName="w-full h-full"
@@ -520,8 +518,6 @@ export function App() {
   } else if (isSettingsRoute) {
     content = (
       <SettingsView
-        mapEngine={filters.mapEngine}
-        onEngineChange={actions.setMapEngine}
         showRadiusCircle={filters.showRadiusCircle}
         onToggleRadiusCircle={actions.setShowRadiusCircle}
         viewMode={filters.viewMode}

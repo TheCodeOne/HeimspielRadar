@@ -41,10 +41,11 @@ Universal operating rules and context pointers for all agents working in this re
 - **Domain Glossary**: Consult [**`GLOSSARY.md`**](GLOSSARY.md) for canonical domain terms (*Heimspiel*, *Match*, *Venue*, *Radius*, *Map Spike*).
 - **Architecture Decision Records**:
   - [`docs/adr/0001-monolith-static-serving.md`](docs/adr/0001-monolith-static-serving.md): Monolithic static asset serving via NestJS backend.
-  - [`docs/adr/0002-multi-spike-map-architecture.md`](docs/adr/0002-multi-spike-map-architecture.md): 4-engine polymorphic map spike (`MapEngineProps`).
+  - [`docs/adr/0002-multi-spike-map-architecture.md`](docs/adr/0002-multi-spike-map-architecture.md): 4-engine polymorphic map spike (`MapEngineProps`) [Superseded by ADR-0003].
+  - [`docs/adr/0003-maplibre-consolidation.md`](docs/adr/0003-maplibre-consolidation.md): Consolidation on MapLibre GL and introduction of `useMapViewModel`.
 - **Co-Change Couplings**:
   - **Database Schema (`apps/backend/src/app/database/schema.ts`)**: `DatabaseModule.onModuleInit` runs SQL migrations from `drizzle/migrations/` on startup. When editing `schema.ts`, always run `npm run db:generate && npm run db:check`.
-  - **Map Engines (`apps/frontend/src/components/map/engines/`)**: When changing marker interaction, selection styling, or viewport sizing in `MapContainer.tsx`, update all four engines (`OpenLayersEngine`, `MapLibreEngine`, `LeafletEngine`, `PigeonEngine`).
+  - **Map Presentation & Logic (`apps/frontend/src/components/map/`)**: MapLibre GL is the canonical map engine. Business and geometric logic (venues, clustering, radius GeoJSON, team bounding boxes, zoom state) resides strictly inside `useMapViewModel.ts`; `MapLibreEngine.tsx` is a pure declarative view adapter.
   - **Match Filtering (`apps/backend/src/app/matches/matches.service.ts`)**: When adding or changing match filter semantics in `MatchesService.findMatches`, update the client-side sample fallback in `apps/frontend/src/lib/use-matches.ts` in lockstep.
   - **Match Tiles & Badges Presentation (`apps/frontend/src/components/matches/MatchTile.tsx` & `TopMatchBadge.tsx`)**: Presentation of match tiles across the application is unified in `<MatchTile />` (`variant="card"` for `MatchList` / `MatchCard`, `variant="row"` for `VenueModal`) and `<TopMatchBadge />` (used in `MatchTile` and `MatchDetailView`). All badges, team matchups, kiosk indicators, and quick-actions are consolidated in these canonical single-source-of-truth components.
 

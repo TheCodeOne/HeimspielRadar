@@ -80,7 +80,7 @@ The production export (`nx export mobile` / `expo export --clear`) produced the 
 
 ## 5. Native Map Performance vs. Web Map Engines
 
-HeimspielRadar Web uses a multi-spike polymorphic architecture (`LeafletEngine`, `OpenLayersEngine`, `MapLibreEngine`, `PigeonEngine` in `apps/frontend`). Comparing this to `react-native-maps`:
+HeimspielRadar Web consolidated on MapLibre GL JS (`MapLibreEngine` in `apps/frontend`, see ADR-0003). Comparing this to `react-native-maps`:
 
 | Metric / Dimension | React Native (`react-native-maps`) | Web Multi-Spike (`apps/frontend`) |
 | :--- | :--- | :--- |

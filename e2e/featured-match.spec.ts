@@ -140,64 +140,57 @@ test.describe('Issue #104: Featured Match Golden Map Marker (4 Engines) & Pinned
     });
   });
 
-  test('1. Renders golden Featured Match pin with glow, star badge, and higher z-index across all 4 Map Engines', async ({
+  test('1. Renders golden Featured Match pin with glow, star badge, and higher z-index on MapLibre GL', async ({
     page,
   }, testInfo) => {
-    const engines = ['openlayers', 'maplibre', 'leaflet', 'pigeon'] as const;
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'heimspielradar:filters:v1',
+        JSON.stringify({
+          viewMode: 'map',
+          onlyUpcoming: false,
+          dateMode: 'all',
+        }),
+      );
+    });
 
-    for (const engine of engines) {
-      await page.addInitScript((eng) => {
-        window.localStorage.setItem(
-          'heimspielradar:filters:v1',
-          JSON.stringify({
-            viewMode: 'map',
-            mapEngine: eng,
-            onlyUpcoming: false,
-            dateMode: 'all',
-          }),
-        );
-      }, engine);
+    await page.goto('/');
 
-      await page.goto('/');
+    const featuredPin = page.locator('.featured-venue-marker[data-featured="true"]').first();
+    await expect(featuredPin).toBeVisible({ timeout: 10000 });
 
-      const featuredPin = page.locator('.featured-venue-marker[data-featured="true"]').first();
-      await expect(featuredPin).toBeVisible({ timeout: 10000 });
+    // Golden SVG path (#f59e0b), pulsing glow ring, and star icon
+    await expect(featuredPin.locator('svg path[fill="#f59e0b"]')).toBeVisible();
+    await expect(featuredPin.locator('.featured-pin-glow')).toBeAttached();
+    await expect(featuredPin.locator('.featured-pin-star')).toHaveText('⭐');
 
-      // Golden SVG path (#f59e0b), pulsing glow ring, and star icon
-      await expect(featuredPin.locator('svg path[fill="#f59e0b"]')).toBeVisible();
-      await expect(featuredPin.locator('.featured-pin-glow')).toBeAttached();
-      await expect(featuredPin.locator('.featured-pin-star')).toHaveText('⭐');
+    // Verify higher z-index on featured marker than normal marker
+    const zIndexComparison = await page.evaluate(() => {
+      const featuredEl = document.querySelector('.featured-venue-marker[data-featured="true"]');
+      const normalSvg = document.querySelector('svg circle[fill="#f97316"]');
+      const normalEl = normalSvg?.closest('div');
 
-      // Verify higher z-index on featured marker than normal marker
-      const zIndexComparison = await page.evaluate(() => {
-        const featuredEl = document.querySelector('.featured-venue-marker[data-featured="true"]');
-        const normalSvg = document.querySelector('svg circle[fill="#f97316"]');
-        const normalEl = normalSvg?.closest('div');
-
-        if (!featuredEl || !normalEl) {
-          return { featuredZ: 0, normalZ: 0 };
-        }
-
-        const featuredZ = Number.parseInt(window.getComputedStyle(featuredEl).zIndex, 10) || 0;
-        const normalZ = Number.parseInt(window.getComputedStyle(normalEl).zIndex, 10) || 0;
-
-        return { featuredZ, normalZ };
-      });
-
-      expect(zIndexComparison.featuredZ).toBeGreaterThan(zIndexComparison.normalZ);
-
-      if (engine === 'openlayers') {
-        const isMobile = testInfo.project.name.includes('mobile');
-
-        const mapScreenshotPath = path.resolve(
-          'test-results',
-          isMobile ? 'verify-mobile-chromium.png' : 'verify-desktop-chromium.png',
-        );
-
-        await page.waitForTimeout(400);
-        await page.screenshot({ path: mapScreenshotPath, fullPage: true });
+      if (!featuredEl || !normalEl) {
+        return { featuredZ: 0, normalZ: 0 };
       }
-    }
+
+      const featuredZ = Number.parseInt(window.getComputedStyle(featuredEl).zIndex, 10) || 0;
+      const normalZ = Number.parseInt(window.getComputedStyle(normalEl).zIndex, 10) || 0;
+
+      return { featuredZ, normalZ };
+    });
+
+    expect(zIndexComparison.featuredZ).toBeGreaterThan(zIndexComparison.normalZ);
+
+    const isMobile = testInfo.project.name.includes('mobile');
+
+    const mapScreenshotPath = path.resolve(
+      'test-results',
+      isMobile ? 'verify-mobile-chromium.png' : 'verify-desktop-chromium.png',
+    );
+
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: mapScreenshotPath, fullPage: true });
   });
 
   test('2. Match-Liste pins Featured Match at the top with Amber Star-Badge and Kiosk Teaser while preserving order of remaining matches', async ({

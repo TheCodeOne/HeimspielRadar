@@ -1,7 +1,7 @@
 import type { Match } from '@sundayleague/shared-types';
 import type { VenueGroup } from './map-utils';
 
-export type MapEngineType = 'maplibre' | 'leaflet' | 'pigeon' | 'openlayers';
+export type MapEngineType = 'maplibre';
 
 export interface MapEngineProps {
   matches: Match[];

@@ -159,7 +159,7 @@ test.describe('Unified App Navigation Drawer & Dedicated /settings View', () => 
     await expect(page).toHaveURL(/\//);
   });
 
-  test('/settings renders full-page settings with engine selector, radius toggle, default view, and cache reset with toast', async ({
+  test('/settings renders full-page settings with map options, radius toggle, default view, and cache reset with toast', async ({
     page,
   }) => {
     await page.goto('/settings');
@@ -173,14 +173,8 @@ test.describe('Unified App Navigation Drawer & Dedicated /settings View', () => 
     await expect(page.getByText(/Speicher & Offline-Cache/i)).toBeVisible();
     await expect(page.getByText(/Über & DBB-Sync/i)).toBeVisible();
 
-    // 1. Engine selector options
-    await expect(page.getByRole('button', { name: /OpenLayers/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /MapLibre GL/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Leaflet/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Pigeon Maps/i })).toBeVisible();
-
-    // Select MapLibre GL
-    await page.getByRole('button', { name: /MapLibre GL/i }).click();
+    // 1. Map options card shows consolidated MapLibre GL badge
+    await expect(page.getByText('MapLibre GL').first()).toBeVisible();
 
     // 2. Radius toggle
     const radiusSwitch = page.getByRole('switch');

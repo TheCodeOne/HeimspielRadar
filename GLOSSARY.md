@@ -40,6 +40,9 @@ _Avoid_: Location string, GPS tag
 
 ## UI & Architecture
 
-**Map Spike**:
-An isolated, interchangeable map rendering implementation used to evaluate and compare different map engine libraries.
+**Map Engine**:
+The core interactive map renderer responsible for displaying vector tiles, markers, and search overlays. Following ADR-0003, HeimspielRadar consolidates on MapLibre GL JS with OpenFreeMap vector tiles.
 _Avoid_: Map wrapper, test map, map fork
+
+**useMapViewModel**:
+The deep module hook encapsulating coordinate validation, venue deduplication, Mercator clustering, search radius GeoJSON generation, and bounding-box calculations for the map view adapter.
