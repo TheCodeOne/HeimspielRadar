@@ -62,6 +62,13 @@ heimspielradar/
   4. *Client-Kontext:* Aktive Karten-Engine, Theme-Modus, Viewport-Auflösung und Standort-Quelle (GPS, Stadtsuche, Standard) mit Suchradius.
 - **1-Klick „Debug-Info kopieren“:** Exportiert alle Diagnose-Werte als sauberen Markdown-Block direkt in die Zwischenablage für strukturierte Fehlerberichte.
 
+### 7. Web-Push Notifications (VAPID) für Tip-Off-Reminder & Spielverlegungen
+- **Zero-Config VAPID-Key-Management:** 3-stufiger Fallback beim Backend-Start: (1) Environment-Variablen `VAPID_PUBLIC_KEY` & `VAPID_PRIVATE_KEY`, (2) Datenbanktabelle `system_settings`, (3) automatische Generierung eines P-256 EC-Keypairs bei Erststart mit permanenter Persistierung in `system_settings`.
+- **Echte Hintergrund-Zustellung:** Service Worker Push-Handler (`apps/frontend/public/sw-push.js` via Workbox `importScripts`) empfängt Push-Payloads auch bei geschlossener App und fokussiert beim Antippen direkt die Spiel-Detailansicht (`/matches/:id`).
+- **Geplante Tip-Off-Reminder:** NestJS-Cronjob (alle 5 Minuten, Zeitzone `Europe/Berlin`) für Erinnerungen `1h`, `2h` vor Spielbeginn oder `1d` am Vorabend um 18:00 Uhr.
+- **Echtzeit-Meldung bei Spielverlegungen:** Automatische Push-Zustellung bei Termin-, Anwurfzeit- oder Hallenänderungen im DBB-Sync (`ScraperService`) mit intelligentem Snapshot-Vergleich und Zurücksetzen des Erinnerungs-Status bei Verschiebung in die Zukunft.
+- **Auto-Pruning:** Automatisches Bereinigen abgelaufener Abonnements bei Push-Service HTTP `404` / `410`.
+
 ---
 
 ## 🛠️ Schnellstart & Entwicklung

@@ -9,6 +9,7 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MatchesModule } from './matches/matches.module';
+import { PushModule } from './push/push.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { resolveFrontendDistPath } from './static-path.util';
 import { CloudflareThrottlerGuard } from './throttler/cloudflare-throttler.guard';
@@ -42,6 +43,7 @@ const isFrontendDisabled =
       },
     ]),
     DatabaseModule,
+    PushModule,
     ScraperModule,
     MatchesModule,
     HealthModule,

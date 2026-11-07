@@ -155,6 +155,18 @@ export function saveReminder(reminder: GameReminder): void {
   dispatchRemindersUpdated();
 }
 
+export type ReminderRemovalListener = (matchId: number) => void;
+
+const removalListeners = new Set<ReminderRemovalListener>();
+
+export function onReminderRemoved(listener: ReminderRemovalListener): () => void {
+  removalListeners.add(listener);
+
+  return () => {
+    removalListeners.delete(listener);
+  };
+}
+
 export function removeReminder(matchId: number): void {
   if (typeof window === 'undefined') {
     return;
@@ -172,6 +184,14 @@ export function removeReminder(matchId: number): void {
     console.error('Failed to remove reminder from localStorage:', err);
   }
 
+  for (const listener of removalListeners) {
+    try {
+      listener(matchId);
+    } catch {
+      // Best-effort notification
+    }
+  }
+
   dispatchRemindersUpdated();
 }
 
@@ -180,10 +200,22 @@ export function clearAllReminders(): void {
     return;
   }
 
+  const existing = getReminders();
+
   try {
     window.localStorage.removeItem(REMINDER_STORAGE_KEY);
   } catch (err) {
     console.error('Failed to clear reminders from localStorage:', err);
+  }
+
+  for (const reminder of existing) {
+    for (const listener of removalListeners) {
+      try {
+        listener(reminder.matchId);
+      } catch {
+        // Best-effort notification
+      }
+    }
   }
 
   dispatchRemindersUpdated();
